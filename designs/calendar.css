@@ -46,3 +46,11 @@ body.detail-closed .workspace{grid-template-columns:180px minmax(0,1fr)}body.edi
   .airy .details{display:none}
   body.airy.mobile-detail .details{display:block;position:fixed;z-index:4;right:14px;top:84px;bottom:16px;width:300px;min-height:0;height:auto;overflow-y:auto;padding:23px 22px;border:1px solid var(--line);box-shadow:-12px 8px 40px #24374620}
 }
+
+/* A searchable mobile header retains the same input and filter state. */
+@media(max-width:760px){
+  .app-header,.airy .app-header,.editorial .app-header{height:auto;min-height:77px;flex-wrap:wrap;padding:18px;gap:14px}
+  .header-actions,.editorial .header-actions{width:100%;margin:0;display:flex;gap:10px}
+  .header-actions .search{display:flex;flex:1;min-width:0;background:var(--surface);border:1px solid var(--line)}
+  .header-actions .search input{width:100%;min-width:0}
+}

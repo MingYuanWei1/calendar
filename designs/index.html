@@ -9,15 +9,15 @@
 </head>
 <body>
   <header>
-    <div class="heading"><span class="eyebrow">CAMPUS CALENDAR / DESIGN STUDY</span><h1>学校校历 · 选定方案优化</h1><span class="status">C 方案修订 · 示例内容</span></div>
+    <div class="heading"><span class="eyebrow">CAMPUS CALENDAR / DESIGN STUDY</span><h1>学校校历 · 选定方案优化</h1><span class="status">完整交互稿 · 模拟数据</span></div>
     <nav class="controls" aria-label="设计方案">
       <button data-theme="classic" aria-pressed="false">A · 经典日历</button><button data-theme="editorial" aria-pressed="false">B · 校园公告</button><button data-theme="airy" aria-pressed="true">C · 轻盈分区＋侧栏</button>
-      <div class="device" aria-label="预览尺寸"><button data-device="desktop" aria-pressed="true">电脑</button><button data-device="mobile" aria-pressed="false">手机</button></div>
+      <a href="calendar.html?theme=airy&amp;scene=extended" target="_blank">扩展验收场景 ↗</a><div class="device" aria-label="预览尺寸"><button data-device="desktop" aria-pressed="true">电脑</button><button data-device="mobile" aria-pressed="false">手机</button></div>
     </nav>
   </header>
   <div class="description"><p id="description">已选 C 方案：保留冷灰与湖蓝，将学部和事件类型统一放入左侧筛选栏。</p><a id="standalone" href="calendar.html?theme=airy" target="_blank">独立打开设计稿 ↗</a></div>
   <main class="stage" id="stage"><iframe id="preview" src="calendar.html?theme=airy" title="轻盈分区＋侧栏设计稿"></iframe></main>
-  <footer>已选 C 方案并加入左侧筛选栏；A、B 保留作对照。Logo 为占位，事件为示例。<br><a href="../docs/github-research.md">GitHub 调研记录</a><a href="../docs/requirements.md">已确认需求</a><a href="../docs/product-spec.md">产品方案</a></footer>
+  <footer>已选 C 方案；A、B 为历史对照。右上角“管理事件”进入演示后台，保存和发布仅在当前页面生效，刷新重置。扩展场景包含跨周密集事件、双语缺省和媒体状态。Logo 与事件均为示例。<br><a href="../docs/github-research.md">GitHub 调研记录</a><a href="../docs/requirements.md">已确认需求</a><a href="../docs/product-spec.md">产品方案</a></footer>
   <script>
     const names={classic:'经典日历',editorial:'校园公告',airy:'轻盈分区'};
     const descriptions={classic:'熟悉的月历网格与常驻筛选侧栏，适合快速扫读密集日程。点击事件可查看右侧详情。',editorial:'移除左侧栏，给月历更多横向空间；深绿与暖白、公告式标题，让学校信息安静而清晰。',airy:'已选 C 方案：保留冷灰与湖蓝，将学部和事件类型统一放入左侧筛选栏。'};

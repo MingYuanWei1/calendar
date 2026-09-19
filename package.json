@@ -1,0 +1,6 @@
+{
+  "name": "school-calendar-design",
+  "private": true,
+  "scripts": {"typecheck": "tsc --noEmit"},
+  "devDependencies": {"typescript": "^5.9.3", "qrcode": "^1.5.4"}
+}
