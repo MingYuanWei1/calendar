@@ -18,6 +18,7 @@ const events = [];
 let previewEvent = null;
 let detailReturnDay=null;
 let detailScrollY=0;
+let calendarSlots=4;
 
 function t(key){return copy[key]?.[state.lang] ?? key;}
 function text(pair){return pair?.[state.lang] || pair?.find(value=>value?.trim()) || '';}
@@ -56,6 +57,7 @@ function renderCalendar(){
   const monthEvents=events.filter(matches).filter(e=>e.start<=isoDate(last)&&(e.end||e.start)>=isoDate(first));
   $('#month-title').textContent=new Intl.DateTimeFormat(state.lang?'en-GB':'zh-CN',{year:'numeric',month:'long'}).format(first);
   $('#weekdays').innerHTML=(state.lang?['MON','TUE','WED','THU','FRI','SAT','SUN']:['周一','周二','周三','周四','周五','周六','周日']).map(d=>`<span>${d}</span>`).join('');
+  $('#month-grid').style.setProperty('--week-count',String(count/7));
   let html='';
   for(let w=0;w<count/7;w++){
     const dates=Array.from({length:7},(_,i)=>new Date(state.year,state.month,1-offset+w*7+i,12));
@@ -65,16 +67,16 @@ function renderCalendar(){
       const from=Math.max(0,dates.findIndex(d=>isoDate(d)>=e.start));
       let to=dates.findIndex(d=>isoDate(d)>e.end);if(to<0)to=7;
       let lane=lanes.findIndex(end=>end<=from);if(lane<0)lane=lanes.length;lanes[lane]=to;
-      if(lane>=3){hiddenMulti.push(e);return "";}
+      if(lane>=Math.min(3,calendarSlots)){hiddenMulti.push(e);return "";}
       return `<button class="span-event ${e.type}${e.cancelled?' cancelled':''}${state.selected===e.id?' selected':''}${e.start<weekStart?' continues-left':''}${e.end>weekEnd?' continues-right':''}" data-event="${e.id}" style="grid-column:${from+1}/${to+1};grid-row:${lane+1}" aria-label="${esc(label(e))}" title="${esc(label(e))}">${e.cancelled?esc(t('cancelled'))+' · ':''}${e.oldDate?esc(t('changed'))+' · ':''}${esc(text(e.title))} · ${esc(scopeText(e))}</button>`;
     }).join('');
-    html+=`<div class="week" style="min-height:${154}px">`;
+    html+=`<div class="week">`;
     for(let i=0;i<7;i++){
       const d=dates[i],iso=isoDate(d);const items=events.filter(matches).filter(e=>!isMulti(e)&&onDate(e,iso)).sort(sortEvents);
-      const visibleLanes=Math.min(3,lanes.length);
-      const cap=4-visibleLanes;
+      const visibleLanes=Math.min(3,calendarSlots,lanes.length);
+      const cap=calendarSlots-visibleLanes;
       const hiddenCount=Math.max(0,items.length-cap)+hiddenMulti.filter(e=>onDate(e,iso)).length;
-      html+=`<div class="day${d.getMonth()!==state.month?' outside':''}${i>4?' weekend':''}${iso===schoolToday()?' today':''}"><button class="day-number" data-day="${iso}" aria-label="${esc(formatDate(iso,true))}" ${iso===schoolToday()?'aria-current="date"':''}>${d.getDate()}</button><div class="day-items" style="padding-top:${visibleLanes*26}px">${items.slice(0,cap).map(eventButton).join('')}${hiddenCount>0?`<button class="more" data-day="${iso}">${state.lang?`+${hiddenCount} more`:`还有 ${hiddenCount} 项`}</button>`:''}</div></div>`;
+      html+=`<div class="day${d.getMonth()!==state.month?' outside':''}${i>4?' weekend':''}${iso===schoolToday()?' today':''}"><button class="day-number" data-day="${iso}" aria-label="${esc(formatDate(iso,true))}" ${iso===schoolToday()?'aria-current="date"':''}>${d.getDate()}</button><div class="day-items" style="padding-top:${visibleLanes*23}px">${items.slice(0,cap).map(eventButton).join('')}${hiddenCount>0?`<button class="more" data-day="${iso}">${state.lang?`+${hiddenCount} more`:`还有 ${hiddenCount} 项`}</button>`:''}</div></div>`;
     }
     html+=`<div class="spans">${bars}</div></div>`;
   }
@@ -92,6 +94,7 @@ function renderCalendar(){
   $('#result-count').textContent=state.lang?`${monthEvents.length} events this month`:`本月 ${monthEvents.length} 项事件`;
   $('#month-view').setAttribute('aria-pressed',String(state.view==='month'));$('#list-view').setAttribute('aria-pressed',String(state.view==='list'));
   bindEvents($('#main-calendar'));$$('[data-day]').forEach(b=>b.onclick=()=>openDay(b.dataset.day));
+  requestAnimationFrame(fitMonthDensity);
 }
 function renderDetail(){
   const event=events.find(e=>e.id===state.selected);
@@ -125,3 +128,15 @@ render();
 
 $('#close-media').onclick=()=>$('#media-dialog').close();
 $('#retry-load').onclick=()=>{$('#retry-load').hidden=true;startCalendar();};
+
+// Fit visible event rows to the available week height; overflow remains in the day dialog.
+function fitMonthDensity(){
+  const grid=$('#month-grid');
+  if(mobileQuery.matches||!grid.getClientRects().length)return;
+  const weeks=grid.querySelectorAll('.week').length;
+  if(!weeks)return;
+  const slots=Math.max(0,Math.min(4,Math.floor((grid.clientHeight/weeks-50)/23)));
+  if(slots!==calendarSlots){calendarSlots=slots;renderCalendar();}
+}
+const monthSizeObserver=new ResizeObserver(fitMonthDensity);
+monthSizeObserver.observe($('#month-grid'));

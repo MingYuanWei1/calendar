@@ -54,3 +54,64 @@ body.detail-closed .workspace{grid-template-columns:180px minmax(0,1fr)}body.edi
   .header-actions .search{display:flex;flex:1;min-width:0;background:var(--surface);border:1px solid var(--line)}
   .header-actions .search input{width:100%;min-width:0}
 }
+
+/* Calendar controls share the header; desktop month rows fit the viewport. */
+.airy .app-header{gap:22px;padding:0 24px}
+.airy .app-header .calendar-toolbar{min-height:0;padding:0;flex-wrap:nowrap;gap:18px;flex:1;min-width:0}
+.airy .app-header .month-heading h1{font-size:22px;letter-spacing:-.6px}
+.airy .app-header .calendar-actions{width:auto;margin:0;gap:12px;flex-shrink:0}
+.airy .header-actions{gap:10px;flex-shrink:0}
+.airy .search{gap:8px;padding:8px 12px}
+.airy .search input{width:120px}
+body.admin-mode .app-header .calendar-toolbar{display:none}
+.load-status:empty{display:none}
+@media(min-width:761px){
+  body.airy:not(.admin-mode){height:100dvh;overflow:hidden;display:flex;flex-direction:column}
+  .airy .app-header{height:auto;min-height:76px;flex-shrink:0;padding-top:12px;padding-bottom:12px}
+  .airy .workspace{flex:1;min-height:0;padding-top:0;padding-bottom:16px;overflow:hidden}
+  .airy .main-calendar{display:flex;flex-direction:column;min-height:0}
+  .airy .calendar-surface{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
+  .airy .weekdays{flex-shrink:0;padding:9px 0}
+  .airy .month-grid{display:grid;grid-template-rows:repeat(var(--week-count,5),minmax(0,1fr));flex:1;min-height:0}
+  .airy .week{min-height:0;overflow:hidden}
+  .airy .day{padding-top:4px;padding-bottom:0;min-height:0}
+  .airy .day-number{height:22px;margin-bottom:4px}
+  .airy .day-items{gap:3px}
+  .airy .event{height:20px;padding-top:1px;padding-bottom:1px;flex-shrink:0}
+  .airy .spans{top:30px;gap:3px 0}
+  .airy .span-event{height:20px;padding-top:1px;padding-bottom:1px}
+  .airy .more{height:18px;line-height:16px;padding-top:0;padding-bottom:0;flex-shrink:0}
+  .airy .calendar-footer{flex-shrink:0;padding:9px 16px}
+  .airy .sidebar{min-height:0;overflow:auto;padding-top:12px}
+  .airy .sidebar .filter-heading:first-child{margin-top:0}
+  .airy .details{min-height:0;height:100%;overflow:auto}
+  .airy .agenda{min-height:0;overflow:auto;flex:1}
+  .airy .empty{position:static;flex:0 0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 14px;padding:10px 14px;background:var(--subtle);border-top:1px solid var(--line)}
+  .airy .empty strong{font-size:13px}
+  .airy .empty p{margin:0;font-size:11px}
+  .airy .empty button{padding:4px 10px;font-size:11px}
+}
+@media(min-width:761px) and (max-width:1250px){
+  .airy .app-header{gap:15px;padding-left:18px;padding-right:18px;flex-wrap:wrap}
+  .airy .app-header .calendar-toolbar{gap:12px}
+  .airy .app-header .month-heading h1{font-size:20px}
+  .airy .app-header .calendar-actions{gap:8px}
+  .airy .brand{gap:8px}
+  .airy .brand strong{font-size:18px}
+  .airy .brand-sub{font-size:8px;letter-spacing:1px}
+  .airy .search-label{display:none}
+  .airy .search input{width:100px}
+}
+@media(min-width:761px) and (max-width:1050px){
+  .airy .app-header .calendar-toolbar{order:3;flex:1 0 100%;justify-content:space-between}
+  .airy .app-header{row-gap:10px}
+  body.airy.mobile-detail .details{top:124px}
+}
+@media(max-width:760px){
+  .airy .app-header{padding:16px 18px;gap:14px}
+  .airy .app-header .calendar-toolbar{order:3;flex:1 0 100%;justify-content:space-between;gap:12px}
+  .airy .app-header .month-heading h1{font-size:23px}
+  .airy .header-actions{flex-shrink:1}
+  .airy .search input{width:100%}
+  .airy .inline-filters{padding-top:14px}
+}
