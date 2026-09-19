@@ -7,7 +7,8 @@
     "dev": "node --env-file-if-exists=.env --watch server/index.mjs",
     "admin:create": "node --env-file-if-exists=.env scripts/admin.mjs",
     "test": "node --test tests/integration/*.test.mjs",
-    "backup": "node --env-file-if-exists=.env scripts/backup.mjs"
+    "backup": "node --env-file-if-exists=.env scripts/backup.mjs",
+    "samples": "node --env-file-if-exists=.env scripts/sample-events.mjs"
   },
   "devDependencies": {
     "qrcode": "^1.5.4",
