@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>学校校历 · 设计稿</title>
+  <link rel="stylesheet" href="calendar.css">
+  <script defer src="calendar.js"></script>
+</head>
+<body class="classic">
+  <header class="app-header">
+    <div class="brand"><div class="logo" aria-label="学校 Logo 占位符">LOGO</div><div><strong data-i18n="school">学校校历</strong><span class="brand-sub">CAMPUS CALENDAR</span></div></div>
+    <div class="header-note" data-i18n="publicCalendar">属于每一位同学的校园日程</div>
+    <div class="header-actions"><label class="search"><span class="search-label" data-i18n="searchLabel">搜索</span><input id="search" type="search" placeholder="搜索事件" aria-label="搜索事件"></label><button id="language" class="language" aria-label="Switch to English">EN</button></div>
+  </header>
+  <div class="school-tabs" id="school-tabs" aria-label="适用学部"></div>
+  <div class="workspace">
+    <aside class="sidebar" aria-label="校历筛选">
+      <div class="mini-title"><strong data-i18n="september">2026 年 9 月</strong><span data-i18n="autumn">秋季学期</span></div><div class="mini-calendar" id="mini-calendar" aria-hidden="true"></div>
+      <div class="filter-heading"><h2 data-i18n="scope">适用学部</h2><button class="text-button reset" data-i18n="reset">重置</button></div><div id="school-filter"></div>
+      <div class="filter-heading"><h2 data-i18n="types">事件类型</h2></div><div id="type-filter"></div>
+      <p class="filter-note" data-i18n="scopeNote">选择学部时，同时显示全校事件。</p>
+      <div class="side-bottom"><span class="live-dot"></span><span data-i18n="publicNote">公开校历 · 无需登录</span></div>
+    </aside>
+    <main class="main-calendar" id="main-calendar">
+      <div class="calendar-toolbar">
+        <div class="month-heading"><span class="editorial-kicker" data-i18n="schoolLife">校园生活 / SCHOOL LIFE</span><h1 id="month-title"></h1><span class="term-label" data-i18n="term">2026—2027 学年 · 秋季学期</span></div>
+        <div class="calendar-actions"><div class="date-nav"><button id="previous" aria-label="上个月">‹</button><button id="today" data-i18n="today">今天</button><button id="next" aria-label="下个月">›</button></div><div class="view-switch" aria-label="日历视图"><button id="month-view" aria-pressed="true" data-i18n="monthView">月历</button><button id="list-view" aria-pressed="false" data-i18n="listView">日程</button></div></div>
+      </div>
+      <div class="inline-filters"><label class="school-select-label"><span data-i18n="scope">适用学部</span><select id="school-select" aria-label="适用学部"></select></label><div id="inline-types"></div><button class="text-button reset" data-i18n="reset">重置</button></div>
+      <div class="calendar-surface"><div class="weekdays" id="weekdays"></div><div class="month-grid" id="month-grid"></div><div class="agenda" id="agenda" hidden></div><div class="empty" id="empty" hidden><strong data-i18n="emptyTitle">没有符合条件的事件</strong><p data-i18n="emptyHelp">试试其他关键词，或重置筛选。</p><button class="reset" data-i18n="reset">重置</button></div></div>
+      <div class="calendar-footer"><span id="result-count" aria-live="polite"></span><span data-i18n="timezone">学校当地时间 · 示例事件</span></div>
+    </main>
+    <aside class="details" id="details" aria-label="事件详情"></aside>
+  </div>
+  <dialog id="day-dialog" aria-labelledby="day-title"><div class="dialog-top"><div><span class="overline" data-i18n="dayEvents">当天事件</span><h2 id="day-title"></h2></div><button id="close-day" class="close-button" aria-label="关闭当天事件">×</button></div><div id="day-events"></div></dialog>
+  <dialog id="registration-dialog" aria-labelledby="registration-title"><div class="dialog-top"><h2 id="registration-title" data-i18n="registrationPreview">报名入口示意</h2><button id="close-registration" class="close-button" aria-label="关闭">×</button></div><p data-i18n="registrationNotice">正式发布时，此处打开管理员填写的外部报名表。当前设计稿未连接真实表单。</p><button id="registration-ok" class="primary" data-i18n="understood">知道了</button></dialog>
+</body>
+</html>

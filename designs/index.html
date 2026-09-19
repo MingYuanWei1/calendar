@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>学校校历 · 设计方向评审</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;color:#25323c;background:#e9edf0;font:14px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}button,a{font:inherit}button{cursor:pointer}header{padding:20px 30px 16px;background:#fff;border-bottom:1px solid #dce1e5}.heading{display:flex;align-items:baseline;gap:14px}h1{font-size:20px;letter-spacing:-.5px;margin:0;font-weight:650}.eyebrow{font-size:11px;letter-spacing:1.6px;color:#69737a}.status{margin-left:auto;color:#66727c;font-size:12px}.controls{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:16px}button{border:1px solid #d8dfe4;background:#fff;color:#47545d;padding:9px 15px;border-radius:7px}button[aria-pressed=true]{background:#253b4b;color:#fff;border-color:#253b4b}.device{margin-left:auto;display:flex;gap:6px}.description{margin:0;padding:12px 30px;color:#53616a;font-size:13px;display:flex;align-items:center;gap:18px}.description p{margin:0}.description a{margin-left:auto;color:#344e62;text-decoration:none;white-space:nowrap}.stage{padding:0 20px 24px;overflow:auto}iframe{width:100%;height:940px;display:block;border:1px solid #d5dde3;background:white;border-radius:8px;box-shadow:0 8px 24px #21364a0a}.stage.mobile iframe{width:390px;height:844px;margin:auto}footer{padding:0 30px 22px;font-size:12px;color:#63717b}footer a{color:inherit;margin-right:18px}:focus-visible{outline:3px solid #5388bf;outline-offset:3px}@media(max-width:700px){header{padding:16px}.heading{flex-wrap:wrap}.status{margin-left:0}.device{margin-left:0}.description{padding:12px 16px;align-items:start}.stage{padding:0 8px 12px}.stage:not(.mobile) iframe{min-width:1100px}.stage.mobile iframe{max-width:100%}footer{padding:12px 16px}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="heading"><span class="eyebrow">CAMPUS CALENDAR / DESIGN STUDY</span><h1>学校校历 · 选定方案优化</h1><span class="status">C 方案修订 · 示例内容</span></div>
+    <nav class="controls" aria-label="设计方案">
+      <button data-theme="classic" aria-pressed="false">A · 经典日历</button><button data-theme="editorial" aria-pressed="false">B · 校园公告</button><button data-theme="airy" aria-pressed="true">C · 轻盈分区＋侧栏</button>
+      <div class="device" aria-label="预览尺寸"><button data-device="desktop" aria-pressed="true">电脑</button><button data-device="mobile" aria-pressed="false">手机</button></div>
+    </nav>
+  </header>
+  <div class="description"><p id="description">已选 C 方案：保留冷灰与湖蓝，将学部和事件类型统一放入左侧筛选栏。</p><a id="standalone" href="calendar.html?theme=airy" target="_blank">独立打开设计稿 ↗</a></div>
+  <main class="stage" id="stage"><iframe id="preview" src="calendar.html?theme=airy" title="轻盈分区＋侧栏设计稿"></iframe></main>
+  <footer>已选 C 方案并加入左侧筛选栏；A、B 保留作对照。Logo 为占位，事件为示例。<br><a href="../docs/github-research.md">GitHub 调研记录</a><a href="../docs/requirements.md">已确认需求</a><a href="../docs/product-spec.md">产品方案</a></footer>
+  <script>
+    const names={classic:'经典日历',editorial:'校园公告',airy:'轻盈分区'};
+    const descriptions={classic:'熟悉的月历网格与常驻筛选侧栏，适合快速扫读密集日程。点击事件可查看右侧详情。',editorial:'移除左侧栏，给月历更多横向空间；深绿与暖白、公告式标题，让学校信息安静而清晰。',airy:'已选 C 方案：保留冷灰与湖蓝，将学部和事件类型统一放入左侧筛选栏。'};
+    const preview=document.querySelector('#preview');let observer;
+    function fitPreview(){preview.style.height=document.querySelector('#stage').classList.contains('mobile')?'844px':Math.max(940,preview.contentDocument?.body.scrollHeight||940)+'px';}
+    preview.addEventListener('load',()=>{observer?.disconnect();fitPreview();observer=new ResizeObserver(fitPreview);observer.observe(preview.contentDocument.body);});
+    document.querySelectorAll('[data-theme]').forEach(button=>button.onclick=()=>{
+      document.querySelectorAll('[data-theme]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));
+      const theme=button.dataset.theme;document.querySelector('#preview').src='calendar.html?theme='+theme;document.querySelector('#preview').title=names[theme]+'设计稿';document.querySelector('#description').textContent=descriptions[theme];document.querySelector('#standalone').href='calendar.html?theme='+theme;
+    });
+    document.querySelectorAll('[data-device]').forEach(button=>button.onclick=()=>{document.querySelectorAll('[data-device]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));document.querySelector('#stage').classList.toggle('mobile',button.dataset.device==='mobile');preview.style.height='940px';fitPreview();});
+  </script>
+</body>
+</html>
