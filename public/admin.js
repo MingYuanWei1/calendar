@@ -11,7 +11,7 @@ async function openAdmin() {
   $('#admin-app').hidden=false;
   renderAdmin();
   window.scrollTo(0,0);
-  if(admin.signedIn){try{await loadEvents(true);renderAdmin();}catch(error){admin.signedIn=false;renderAdmin();}}
+  if(admin.signedIn){try{await loadEvents(true);admin.notice='';renderAdmin();}catch(error){if(error.status===401)admin.signedIn=false;admin.notice=error.message||A('加载失败，请重试。','Could not load events. Please retry.');renderAdmin();}}
 }
 
 async function showPublic() {
@@ -32,7 +32,7 @@ function renderAdmin() {
   $('#admin-entry').textContent=A('管理事件','Manage events');
   if(!admin.open)return;
   if(!admin.signedIn&&!admin.editing){
-    $('#admin-app').innerHTML=`<div class="admin-shell">${adminNavigation()}<section class="admin-panel login-panel"><span class="overline">CAMPUS CALENDAR</span><h1>${A('管理员登录','Administrator sign-in')}</h1><p>${A('统一维护校园里的每一项公共事件。','Manage public events across all school divisions.')}</p>${loginForm()}</section></div>`;
+    $('#admin-app').innerHTML=`<div class="admin-shell">${adminNavigation()}<section class="admin-panel login-panel"><span class="overline">CAMPUS CALENDAR</span><h1>${A('管理员登录','Administrator sign-in')}</h1><p>${A('统一维护校园里的每一项公共事件。','Manage public events across all school divisions.')}</p>${admin.notice?`<p class="request-error" role="alert">${esc(admin.notice)}</p>`:''}${loginForm()}</section></div>`;
     bindLogin(false);
   }else if(admin.editing){renderEditor();}
   else{renderAdminList();}
@@ -44,9 +44,10 @@ function eventStatus(event){return event.cancelled?'cancelled':event.status||'pu
 function statusLabel(status){return status==='draft'?A('草稿','Draft'):status==='cancelled'?t('cancelled'):A('已发布','Published');}
 
 function renderAdminList(){
-  $('#admin-app').innerHTML=`<div class="admin-shell">${adminNavigation()}<header class="admin-heading"><div><h1>${A('事件管理','Manage events')}</h1><p>${A('全部学部 · 无需审核，直接发布','All divisions · Publish without approval')}</p></div><button id="new-event" class="primary">${A('新增事件','New event')}</button></header>${admin.notice?`<p class="admin-notice" role="status">${esc(admin.notice)}</p>`:''}<section class="admin-panel admin-list">${events.length?events.map(event=>`<article class="admin-row"><div><h2>${esc(text(event.title))}</h2><small>${esc(text(types[event.type].label))} · ${esc(scopeText(event))}</small></div><div class="row-date"><small>${esc(formatDate(event.start))}<br>${esc(timeText(event))}</small></div><span class="row-status status-badge ${eventStatus(event)}">${esc(statusLabel(eventStatus(event)))}</span><div class="row-actions"><button data-edit="${event.id}">${A('编辑','Edit')}</button>${eventStatus(event)==='published'?`<button data-cancel="${event.id}">${A('取消事件','Cancel event')}</button>`:''}<button data-delete="${event.id}">${A('删除','Delete')}</button><button data-admin-preview="${event.id}">${A('预览','Preview')}</button></div></article>`).join(''):`<p class="empty-admin">${A('还没有事件，先添加一项。','No events yet. Add your first event.')}</p>`}</section></div>`;
+  $('#admin-app').innerHTML=`<div class="admin-shell">${adminNavigation()}<header class="admin-heading"><div><h1>${A('事件管理','Manage events')}</h1><p>${A('全部学部 · 无需审核，直接发布','All divisions · Publish without approval')}</p></div><div><button id="refresh-admin" type="button">${A('刷新列表','Refresh list')}</button> <button id="new-event" class="primary">${A('新增事件','New event')}</button></div></header>${admin.notice?`<p class="admin-notice" role="status">${esc(admin.notice)}</p>`:''}<section class="admin-panel admin-list">${events.length?events.map(event=>`<article class="admin-row"><div><h2>${esc(text(event.title))}</h2><small>${esc(text(types[event.type].label))} · ${esc(scopeText(event))}</small></div><div class="row-date"><small>${esc(formatDate(event.start))}<br>${esc(timeText(event))}</small></div><span class="row-status status-badge ${eventStatus(event)}">${esc(statusLabel(eventStatus(event)))}</span><div class="row-actions"><button data-edit="${event.id}">${A('编辑','Edit')}</button>${eventStatus(event)==='published'?`<button data-cancel="${event.id}">${A('取消事件','Cancel event')}</button>`:''}<button data-delete="${event.id}">${A('删除','Delete')}</button><button data-admin-preview="${event.id}">${A('预览','Preview')}</button></div></article>`).join(''):`<p class="empty-admin">${A('还没有事件，先添加一项。','No events yet. Add your first event.')}</p>`}</section></div>`;
   $$('[data-cancel]').forEach(b=>b.onclick=()=>confirmChange(b.dataset.cancel,'cancel'));
   $$('[data-delete]').forEach(b=>b.onclick=()=>confirmChange(b.dataset.delete,'delete'));
+  $('#refresh-admin').onclick=openAdmin;
   $('#new-event').onclick=()=>editEvent(null);
   $$('[data-edit]').forEach(b=>b.onclick=()=>editEvent(b.dataset.edit));
   $$('[data-admin-preview]').forEach(b=>b.onclick=()=>openPreview(events.find(e=>e.id===b.dataset.adminPreview)));
@@ -161,17 +162,22 @@ function confirmChange(id,action){
   $('#confirm-back').textContent=A('返回','Go back');
   $('#confirm-action').textContent=deleting?A('确认删除','Delete event'):A('确认取消','Cancel event');
   const dialog=$('#confirm-dialog');dialog.returnValue='';
-  dialog.onclose=async()=>{
-    if(dialog.returnValue!=='confirm'||admin.busy)return;
+  $('#confirm-error').textContent='';
+  dialog.oncancel=e=>{if(admin.busy)e.preventDefault();};
+  dialog.querySelector('form').onsubmit=async e=>{
+    if(e.submitter?.value!=='confirm')return;
+    e.preventDefault();if(admin.busy)return;
     setBusy(true);
+    dialog.querySelectorAll('button,textarea').forEach(el=>el.disabled=true);
+    $('#confirm-error').textContent=A('正在保存…','Saving…');
     try{
       const result=await api('/admin/events/'+id+(deleting?'':'/cancel'),{method:deleting?'DELETE':'POST',body:JSON.stringify({version:event.version,reason:$('#cancel-reason').value.trim()})});
       if(deleting)events.splice(events.indexOf(event),1);else events[events.indexOf(event)]=result;
       if(state.selected===id)state.selected=null;
       admin.notice=deleting?A('事件已删除。','Event deleted.'):A('事件已取消，公共记录已保留。','Event cancelled; the public record is retained.');
-      renderAdmin();renderCalendar();renderDetail();$('#new-event').focus({preventScroll:true});
-    }catch(error){admin.notice=error.message;renderAdmin();}
-    finally{setBusy(false);}
+      dialog.close();renderAdmin();renderCalendar();renderDetail();$('#new-event').focus({preventScroll:true});
+    }catch(error){$('#confirm-error').textContent=error.message||A('保存失败，内容已保留，请重试。','Could not save. Your inputs are preserved; please retry.');}
+    finally{setBusy(false);dialog.querySelectorAll('button,textarea').forEach(el=>el.disabled=false);}
   };
   dialog.showModal();$('#confirm-back').focus();
 }

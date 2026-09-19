@@ -2,7 +2,9 @@
 /** @type {{schoolName:string,schoolNameEn:string,timeZone:string}} */
 let settings={schoolName:'学校校历',schoolNameEn:'School calendar',timeZone:'Asia/Shanghai'};
 async function api(path,options={}){
-  const response=await fetch('/api'+path,{credentials:'same-origin',...options,headers:{...(options.body instanceof File?{}:{'Content-Type':'application/json'}),...options.headers}});
+  let response;
+  try{response=await fetch('/api'+path,{credentials:'same-origin',...options,headers:{...(options.body instanceof File?{}:{'Content-Type':'application/json'}),...options.headers}});}
+  catch{throw new Error(state.lang?'Unable to connect. Your inputs are preserved; please retry.':'无法连接服务器，已保留输入，请重试。');}
   if(!response.ok){
     const detail=await response.json().catch(()=>({error:'网络请求失败，请重试。'}));
     const english=typeof state!=='undefined'&&state.lang;

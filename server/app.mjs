@@ -8,12 +8,13 @@ import {openStore,digest,verifyPassword} from './store.mjs';
 import {eventSchema} from './validation.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url));
 
-export function createApplication({dataDir,origin,schoolName='学校校历',schoolNameEn='School calendar',timeZone='Asia/Shanghai'}){
+export function createApplication({dataDir,origin,schoolName='学校校历',schoolNameEn='School calendar',timeZone='Asia/Shanghai',trustProxy=''}){
   new Intl.DateTimeFormat('en',{timeZone}).format();
   const base=new URL(origin);if(!['http:','https:'].includes(base.protocol)||base.origin!==origin)throw new Error('APP_ORIGIN must contain only scheme and host/port');
   const db=openStore(dataDir),app=express();
   const mediaDirectory=join(resolve(dataDir),'media');mkdirSync(mediaDirectory,{recursive:true,mode:0o700});
   app.disable('x-powered-by');
+  if(trustProxy)app.set('trust proxy',trustProxy.split(',').map(value=>value.trim()));
   app.use((req,res,next)=>{
     res.set({'X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin','X-Frame-Options':'DENY','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"});
     if(base.protocol==='https:')res.set('Strict-Transport-Security','max-age=31536000');
@@ -31,7 +32,7 @@ export function createApplication({dataDir,origin,schoolName='学校校历',scho
   app.post('/api/login',async(req,res)=>{
     const {username,password}=req.body||{};
     if(typeof username!=='string'||typeof password!=='string'||username.length>64||password.length>256)return res.status(400).json({error:'请输入账号和密码。'});
-    const address=req.socket.remoteAddress||'unknown',now=Date.now();
+    const address=req.ip||req.socket.remoteAddress||'unknown',now=Date.now();
     db.prepare('DELETE FROM login_attempts WHERE reset<?').run(now);
     db.prepare('DELETE FROM sessions WHERE expires<?').run(now);
     const attempt=db.prepare('SELECT * FROM login_attempts WHERE address=?').get(address);
