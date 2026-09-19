@@ -17,6 +17,8 @@ const mobileQuery = matchMedia('(max-width:760px)');
 /** @type {SchoolEvent[]} */
 const events = structuredClone(SAMPLE_EVENTS);
 let previewEvent = null;
+let detailReturnDay=null;
+let detailScrollY=0;
 
 function t(key){return copy[key]?.[state.lang] ?? key;}
 function text(pair){return pair?.[state.lang] || pair?.find(value=>value?.trim()) || '';}
@@ -47,7 +49,7 @@ function renderFilters(){
 }
 function bindEvents(root){root.querySelectorAll('[data-event]').forEach(b=>b.onclick=()=>selectEvent(b.dataset.event));}
 function syncDetailMode(){const modal=mobileQuery.matches&&document.body.classList.contains('mobile-detail');$$('.app-header,.school-tabs,.sidebar,.main-calendar').forEach(el=>el.inert=modal);if(modal){$('#details').setAttribute('role','dialog');$('#details').setAttribute('aria-modal','true');}else{$('#details').removeAttribute('role');$('#details').removeAttribute('aria-modal');}}
-function selectEvent(id){state.selected=id;document.body.classList.remove('detail-closed');document.body.classList.add('mobile-detail');$('#day-dialog').close();renderCalendar();renderDetail();syncDetailMode();if(mobileQuery.matches)$('#close-detail')?.focus();}
+function selectEvent(id){detailReturnDay=$('#day-dialog').open?$('#day-dialog').dataset.date:null;detailScrollY=window.scrollY;state.selected=id;document.body.classList.remove('detail-closed');document.body.classList.add('mobile-detail');$('#day-dialog').close();renderCalendar();renderDetail();syncDetailMode();if(mobileQuery.matches)$('#close-detail')?.focus();}
 function renderCalendar(){
   const first = new Date(state.year,state.month,1,12);const last = new Date(state.year,state.month+1,0,12);
   const offset=(first.getDay()+6)%7;const count=Math.ceil((offset+last.getDate())/7)*7;
@@ -98,8 +100,8 @@ function renderDetail(){
   bindClose();bindDetailActions($('#details'));
 }
 
-function bindClose(){$('#close-detail').onclick=()=>{document.body.classList.remove('mobile-detail');document.body.classList.add('detail-closed');syncDetailMode();const selectedId=state.selected;state.selected=null;renderCalendar();const target=$$(`[data-event="${selectedId}"]`).find(el=>el.getClientRects().length);target?.focus({preventScroll:true});};}
-function openDay(iso){$('#day-title').textContent=formatDate(iso,true);const items=events.filter(matches).filter(e=>onDate(e,iso)).sort(sortEvents);$('#day-events').innerHTML=items.length?items.map(agendaButton).join(''):`<p>${esc(t('noDayEvents'))}</p>`;bindEvents($('#day-events'));$('#day-dialog').showModal();}
+function bindClose(){$('#close-detail').onclick=()=>{document.body.classList.remove('mobile-detail');document.body.classList.add('detail-closed');syncDetailMode();const selectedId=state.selected;state.selected=null;renderCalendar();const target=$$(`[data-event="${selectedId}"]`).find(el=>el.getClientRects().length);const fallback=detailReturnDay?$$(`[data-day="${detailReturnDay}"]`).find(el=>el.getClientRects().length):null;(target||fallback)?.focus({preventScroll:true});window.scrollTo(0,detailScrollY);};}
+function openDay(iso){$('#day-dialog').dataset.date=iso;$('#day-title').textContent=formatDate(iso,true);const items=events.filter(matches).filter(e=>onDate(e,iso)).sort(sortEvents);$('#day-events').innerHTML=items.length?items.map(agendaButton).join(''):`<p>${esc(t('noDayEvents'))}</p>`;bindEvents($('#day-events'));$('#day-dialog').showModal();}
 function renderMini(){const names=state.lang?['M','T','W','T','F','S','S']:['一','二','三','四','五','六','日'];const first=new Date(state.year,state.month,1,12);const count=new Date(state.year,state.month+1,0,12).getDate();$('.mini-title strong').textContent=new Intl.DateTimeFormat(state.lang?'en-GB':'zh-CN',{year:'numeric',month:'long'}).format(first);$('#mini-calendar').innerHTML=names.map(n=>`<span class="mini-day">${n}</span>`).join('')+'<span></span>'.repeat((first.getDay()+6)%7)+Array.from({length:count},(_,i)=>`<span class="${state.year===2026&&state.month===8&&i===18?'marked':''}">${i+1}</span>`).join('');}
 function render(){
   document.documentElement.lang=state.lang?'en':'zh-CN';$$('[data-i18n]').forEach(el=>el.textContent=t(el.dataset.i18n));
