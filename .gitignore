@@ -2,3 +2,9 @@ node_modules/
 .scratch/
 .DS_Store
 test-results/
+.data/
+.env
+.env.*
+!.env.example
+*.sqlite*
+backups/

@@ -4,8 +4,15 @@
     "checkJs": true,
     "noEmit": true,
     "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "strict": false
   },
-  "include": ["designs/*.js", "designs/*.d.ts"]
+  "include": [
+    "public/*.js",
+    "public/*.d.ts"
+  ]
 }
