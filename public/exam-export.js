@@ -1,3 +1,7 @@
+let fontsReady;
+export function prepareExamPdf(){
+ return fontsReady??=Promise.all([document.fonts.load('14px ExamPdf'),document.fonts.load('700 14px ExamPdf')]).catch(error=>{fontsReady=null;throw error;});
+}
 // Capture the table's layout, not a bitmap: PDF text stays selectable/searchable.
 function color(value){
  const match=value.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/);
@@ -16,7 +20,11 @@ function layout(panel){
   for(const child of element.childNodes){
    if(child.nodeType===Node.ELEMENT_NODE){visit(child);continue;}
    if(child.nodeType!==Node.TEXT_NODE||!child.textContent.trim())continue;
-   const range=document.createRange();let line=null;
+   const range=document.createRange();range.selectNodeContents(child);
+   if(range.getClientRects().length===1){
+    const r=range.getBoundingClientRect();items.push({kind:'text',text:child.textContent,x:r.x-origin.x,y:r.y-origin.y,width:r.width,height:r.height,size:parseFloat(style.fontSize),bold:Number(style.fontWeight)>=600,color:color(style.color)||[36,55,70]});continue;
+   }
+   let line=null;
    for(let i=0;i<child.textContent.length;){
     const char=String.fromCodePoint(child.textContent.codePointAt(i));range.setStart(child,i);i+=char.length;range.setEnd(child,i);const r=range.getBoundingClientRect();if(!r.width)continue;
     if(!line||Math.abs(line.y-(r.y-origin.y))>1){line={kind:'text',text:'',x:r.x-origin.x,y:r.y-origin.y,width:0,height:r.height,size:parseFloat(style.fontSize),bold:Number(style.fontWeight)>=600,color:color(style.color)||[36,55,70]};items.push(line);}
@@ -26,14 +34,16 @@ function layout(panel){
  };
  visit(panel);return {width:origin.width,height:origin.height,items};
 }
-export async function downloadExamView(filename,panels=[document.querySelector('.schedule-panel')]){
- await Promise.all([document.fonts.load('14px ExamPdf'),document.fonts.load('700 14px ExamPdf')]);
+export async function downloadExamView(filename,panels=[document.querySelector('.schedule-panel')],onProgress=(_stage)=>{}){
+ onProgress('fonts');await prepareExamPdf();
+ onProgress('layout');await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
  const host=document.createElement('div');host.className='pdf-export-host pdf-vector-export';host.setAttribute('aria-hidden','true');document.body.append(host);
  try{
   const pages=panels.map(panel=>{
    const clone=/** @type {HTMLElement} */(panel.cloneNode(true));host.append(clone);clone.querySelectorAll('input[type=checkbox]').forEach(input=>input.remove());
    return layout(clone);
   });
+  onProgress('generate');
   const response=await fetch('/api/exam-schedule-pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pages})});
   if(!response.ok)throw new Error('PDF export failed');
   const url=URL.createObjectURL(await response.blob()),link=document.createElement('a');link.href=url;link.download=filename;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);

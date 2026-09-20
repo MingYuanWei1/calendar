@@ -13,3 +13,9 @@ test('schedule PDF embeds searchable Chinese and English text across vector page
  assert.equal(schedulePdfSchema.safeParse({pages:[{...page,width:0}]}).success,false);
  assert.equal(schedulePdfSchema.safeParse({pages:[{...page,items:[{...page.items[1],size:10000}]}]}).success,false);
 });
+test('dense timetable generation avoids repeated WOFF decompression',async()=>{
+ const items=Array.from({length:600},(_,i)=>({kind:'text',text:['数学','Computer Science 1','08:10–09:40','G12','示例教室 2101'][i%5],x:20+(i%5)*280,y:20+Math.floor(i/5)*15,width:150,height:18,size:12,bold:i%2===0,color:[36,55,70]}));
+ const start=performance.now();const pdf=await vectorSchedulePdf([{width:1540,height:2000,items}]);
+ assert.ok(performance.now()-start<1500,'600 text runs should not spend seconds repeatedly inflating font tables');
+ assert.ok(pdf.length>1000);
+});

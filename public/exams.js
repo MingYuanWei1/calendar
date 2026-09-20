@@ -1,6 +1,6 @@
 import {roomSlotExams} from './exam-seats.mjs';
 import {subjectColors,normalizeCourse} from './exam-subjects.mjs';
-import {downloadExamView} from './exam-export.js';
+import {downloadExamView,prepareExamPdf} from './exam-export.js';
 import {examSlotRows,groupExamLevels} from './exam-times.mjs';
 import {$,esc,api,date,addDays,monday,divisions,sorted,seatingMarkup} from './exam-common.js';
 let lang=Number(localStorage.getItem('exam-language')||0),batch=null,batches=[],week='',division='high',grade='',mine=false,chosen=new Set(),school={configured:false,user:null},config={timeZone:'Asia/Shanghai',schoolName:'学校校历',schoolNameEn:'School calendar'},saving=false,loadNumber=0;
@@ -84,6 +84,7 @@ function updateDownloadScope(){
 }
 $('#download').onclick=()=>{
  if(!batch)return;
+ prepareExamPdf().catch(()=>{});
  $('#pdf-title').textContent=T('下载考试表','Download exam schedule');
  $('#pdf-description').textContent=T('导出整个批次，按学部和周分页，保留考试表布局。','Export the full series, with separate pages by division and week.');
  $('#pdf-all-label').textContent=T('下载全部考试','All exams');$('#pdf-grade-label').textContent=T('下载所选年级考试','Selected grades');$('#pdf-mine-label').textContent=T('下载我的考试','My exams');$('#pdf-grade-summary').textContent=T('选择年级（可多选）','Choose grades (multiple)');$('#pdf-submit').textContent=T('下载 PDF','Download PDF');
@@ -114,9 +115,9 @@ $('#pdf-submit').onclick=async()=>{
   }
  }
  document.body.append(container);$('#pdf-submit').disabled=true;$('#pdf-close').disabled=true;
- try{await downloadExamView(`exam-schedule-${scope}-${batch.start}.pdf`,panels);$('#pdf-dialog').close();}
+ try{await downloadExamView(`exam-schedule-${scope}-${batch.start}.pdf`,panels,stage=>{$('#pdf-submit').textContent=stage==='fonts'?T('正在加载字体…','Loading fonts…'):stage==='layout'?T('正在排版…','Preparing layout…'):T('正在生成 PDF…','Generating PDF…');});$('#pdf-dialog').close();}
  catch(error){$('#pdf-error').textContent=T('PDF 导出失败，请重试。','PDF export failed. Please retry.');}
- finally{container.remove();$('#pdf-submit').disabled=false;$('#pdf-close').disabled=false;}
+ finally{container.remove();$('#pdf-submit').textContent=T('下载 PDF','Download PDF');$('#pdf-submit').disabled=false;$('#pdf-close').disabled=false;}
 };
 async function start(){try{[school,batches,config]=await Promise.all([api('/school/session'),api('/exams'),api('/config')]);const params=new URLSearchParams(location.search),requested=batches.find(b=>b.id===params.get('batch'));const today=new Intl.DateTimeFormat('en-CA',{timeZone:config.timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());if(Object.hasOwn(divisions,params.get('division')))division=params.get('division');const matching=batches.find(b=>b.start<=params.get('date')&&b.end>=params.get('date'));const nearest=[...batches].filter(b=>b.end>=today).sort((a,b)=>a.start.localeCompare(b.start))[0];render();if(batches.length)await loadBatch((requested||matching||nearest||batches[0]).id);if(params.has('auth'))notice(params.get('auth')==='unconfigured'?T('学校 Microsoft SSO 尚未配置，请联系管理员。','Microsoft SSO is not configured.'):T('登录未完成，请重试。','Sign-in failed. Please retry.'));}catch(e){notice(e.message);}}
 start();
