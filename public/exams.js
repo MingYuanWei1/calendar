@@ -1,6 +1,6 @@
 import {examDatePages} from './exam-dates.mjs';
 import {seatViewTimes} from './exam-seats.mjs';
-import {subjectColors,normalizeCourse} from './exam-subjects.mjs';
+import {subjectColors} from './exam-subjects.mjs';
 import {downloadExamView,prepareExamPdf} from './exam-export.js';
 import {examSlotRows,groupExamLevels} from './exam-times.mjs';
 import {$,esc,api,date,monday,divisions,sorted,seatingMarkup} from './exam-common.js';
@@ -51,7 +51,7 @@ function scheduleMarkup(visible,shownDays,highlightSelected=true){
 }
 async function loadBatch(id){
  const generation=++loadNumber;$('#download').disabled=true;
- try{const [data,ids]=await Promise.all([api('/exams/'+id),school.user?api('/exams/'+id+'/choices'):[]]);if(generation!==loadNumber)return;batch={...data,sessions:data.sessions.map(s=>normalizeCourse(s,data.subjects||[]))};chosen=new Set(ids);week=monday(batch.start);grade='';render();history.replaceState(null,'','?batch='+encodeURIComponent(id));}
+ try{const [data,ids]=await Promise.all([api('/exams/'+id),school.user?api('/exams/'+id+'/choices'):[]]);if(generation!==loadNumber)return;batch=data;chosen=new Set(ids);week=monday(batch.start);grade='';render();history.replaceState(null,'','?batch='+encodeURIComponent(id));}
  catch(e){if(generation===loadNumber){batch=null;render();notice(e.message);}}
 }
 async function saveChoices(next){
