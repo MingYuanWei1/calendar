@@ -136,3 +136,5 @@
 .room-seat-map button.movable-seat{cursor:grab;touch-action:none;user-select:none}.room-seat-map button.dragging-seat{opacity:.5;cursor:grabbing}.room-seat-map button.seat-drop-target{outline:3px solid var(--accent);outline-offset:-3px;background:var(--soft)}
 
 .room-exam-tag{display:inline-block;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft)}.room-exam-tag small{color:var(--muted);margin-left:6px}
+
+#extract-form label{margin:12px 0}.extract-table{min-width:1000px}.extract-table input:not([type=checkbox]),.extract-table select{width:100%;min-width:105px;margin:2px 0}.extract-table td{vertical-align:top}.extract-table th:nth-child(2){min-width:180px}

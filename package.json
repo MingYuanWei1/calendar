@@ -22,6 +22,7 @@
     "html2canvas": "^1.4.1",
     "jose": "^6.2.12",
     "jspdf": "^4.2.1",
+    "pdfjs-dist": "^6.3.289",
     "pdfkit": "^0.20.2",
     "sharp": "^0.35.4",
     "unzipper": "^0.12.5",

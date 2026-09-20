@@ -1,13 +1,15 @@
+import {installExamExtract} from './exam-extract.mjs';
 import {installSubjects} from './exam-subjects.mjs';
 import express from 'express';
 import {randomUUID} from 'node:crypto';
 import {batchSchema,seatErrors,schedule} from './exam-model.mjs';
 import {seatTemplate,parseSeats,makeSchedulePdf} from './exam-files.mjs';
 import {installSchoolAuth} from './school-auth.mjs';
-export function installExams(app,db,{requireAdmin,isAdmin,origin,schoolName,timeZone,sso={}}){
+export function installExams(app,db,{requireAdmin,isAdmin,origin,schoolName,timeZone,sso={},llm={}}){
  db.exec(`CREATE TABLE IF NOT EXISTS exam_batches(id TEXT PRIMARY KEY,version INTEGER NOT NULL,draft TEXT NOT NULL,published TEXT,seating TEXT);
  CREATE TABLE IF NOT EXISTS exam_choices(user_id TEXT NOT NULL,batch_id TEXT NOT NULL,exam_id TEXT NOT NULL,PRIMARY KEY(user_id,batch_id,exam_id));`);
  const subjects=installSubjects(app,db,requireAdmin);
+ installExamExtract(app,requireAdmin,llm,subjects.list);
  for(const r of db.prepare('SELECT draft FROM exam_batches').all())subjects.register(JSON.parse(r.draft).sessions);
  const {user}=installSchoolAuth(app,db,{origin,...sso});
  const signedIn=(req,res,next)=>{if(!user(req)&&!isAdmin(req))return res.status(401).json({error:'请使用学校 Microsoft 账号登录后查看。'});next();};

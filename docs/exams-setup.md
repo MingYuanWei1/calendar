@@ -55,3 +55,11 @@ MICROSOFT_CLIENT_SECRET=应用客户端密钥的值
 在本地 `.env` 设置 `SSO_PREVIEW=true` 并重启服务，学生端自动使用固定的体验账号。支持保存考试选择、查看已发布座位表和下载个人考试 PDF；顶部按钮仍可体验登出、再次登录。管理员继续使用已有管理员登录。
 
 此模式只允许非生产环境、回环监听地址和本地 APP_ORIGIN，请求还会检查实际连接地址与 Host。体验选择独立于 Microsoft 账号保存。恢复 SSO 时将开关设为 `false` 并重启服务即可。
+
+## PDF 提取考试场次
+
+在 `.env` 中配置 `LLM_WORKER_URL`（仅 Worker origin，不含 `/v1`）和 `LLM_WORKER_TOKEN`，然后重启服务。调用协议与 Keydion 相同：Bearer 认证，先请求 `/v1/capabilities`，再向 `/v1/chat/completions` 发送 `model: "flash"`，不回退到 think 或 vision；Worker 的 flash 路由须启用并支持图片输入。令牌仅留在服务器，不下发浏览器。
+
+批次编辑页的「考试场次 → LLM 提取」仅接收 PDF，单次最多 20 MB、10 页。浏览器使用本地 PDF.js 渲染页面，支持文本及扫描 PDF；页面图像及可提取文字发送至已配置的 Worker，不发送已有座位名单。加密 PDF 需先解密。
+
+提取结果先进入可编辑预览：核对考试、学科、Level、学部、年级、日期、时间和教室，可取消勾选不需要的场次。确认后仅追加到当前草稿，需另行保存和发布。新教室默认 5 排 × 5 列，请在教室设置中核对尺寸。模型遗漏或不确定的信息须人工补全，不自动推断学生座位。

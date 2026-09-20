@@ -10,7 +10,8 @@
       "DOM.Iterable"
     ],
     "strict": false,
-    "types": []
+    "types": [],
+    "module": "es2022"
   },
   "include": [
     "public/*.js",

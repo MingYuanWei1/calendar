@@ -1,3 +1,4 @@
+import {readExamPdf} from './exam-pdf-input.js';
 import {moveSeat,roomSlotExams} from './exam-seats.mjs';
 import {subjectName} from './exam-subjects.mjs';
 import {defaultExamSlots,examSlotRows} from './exam-times.mjs';
@@ -34,8 +35,9 @@ function edit(){
  draft.timeSlots??=structuredClone(defaultExamSlots);
  $('#admin-content').innerHTML=`<div class="actions"><button id="back">← 批次列表</button><button id="save-batch" class="primary">保存草稿</button><button id="preview-schedule">预览并发布考试安排</button><button id="preview-seats">预览并发布座位表</button><span id="dirty-warning">${dirty?'有未保存的修改':''}</span></div><section class="admin-panel"><h2>批次信息</h2><form id="batch-meta" class="form-grid">${field('title','名称',draft.title)}${field('titleEn','英文名称（可选）',draft.titleEn,'text',false)}${field('start','开始日期',draft.start,'date')}${field('end','结束日期',draft.end,'date')}</form><p class="muted">考试安排：${draft.publishedAt?esc(draft.publishedAt):'尚未发布'} · 座位表：${draft.seatingPublishedAt?esc(draft.seatingPublishedAt):'尚未发布'}。公开页面继续显示上次发布内容，直到再次发布。</p></section>
  <section class="admin-panel"><div class="section-heading"><h2>时间段</h2><button id="edit-slots">修改时间段</button></div><p>${draft.timeSlots.map(s=>`${s.start}–${s.end}`).join(' · ')}</p><p class="muted">按考试开始时间归入左侧时间段；卡片保留实际起止时间。修改分组不会更改已有考试时间。保存并发布后生效。</p></section>
- <section class="admin-panel"><div class="section-heading"><h2>教室与座位表</h2><button id="add-room">新增教室</button></div><p class="muted">展开教室，选择日期、时间段及考试查看座位。讲台在上，排从前向后，列从左到右。</p><div class="actions"><button id="template">下载 Excel 模板</button><label>导入 Excel（先保存教室和场次）<input id="import-file" type="file" accept=".xlsx"></label></div>${draft.rooms.map((r,i)=>`<div class="room-section"><div class="room-actions"><button data-room="${i}">编辑教室</button> ${deleteButton('data-remove-room',i,'删除教室 '+r.name)}</div><details data-room-expand="${i}" ${roomView(r.name).open?'open':''}><summary><strong>${esc(r.name)}</strong><span class="muted">${r.rows} 排 × ${r.columns} 列</span></summary><div id="room-seats-${i}" class="room-seats"></div></details></div>`).join('')||'<p class="muted">暂无教室，请先新增教室。</p>'}</section>
- <section class="admin-panel"><div class="section-heading"><h2>考试场次</h2><button id="add-exam">新增考试</button></div><div class="table-scroll"><table><thead><tr><th>日期 / 时间</th><th>考试</th><th>学部 / 年级</th><th>教室</th><th>操作</th></tr></thead><tbody>${sorted(draft.sessions).map(s=>`<tr><td>${s.date}<br>${s.start}–${s.end}</td><td>${esc(s.title)}${s.cancelled?' · 已取消':''}<br><small>${esc(s.id)}</small></td><td>${divisions[s.division][0]} · ${esc(s.grades.join(' / '))}</td><td>${esc(s.rooms.join(' / '))}</td><td><button data-exam="${s.id}">编辑</button> ${deleteButton('data-remove-exam',s.id,'删除考试 '+s.title)}</td></tr>`).join('')}</tbody></table></div></section>`;
+ <section class="admin-panel"><div class="section-heading"><h2>考试场次</h2><div class="actions"><button id="extract-exams">LLM 提取</button><button id="add-exam">新增考试</button></div></div><div class="table-scroll"><table><thead><tr><th>日期 / 时间</th><th>考试</th><th>学部 / 年级</th><th>教室</th><th>操作</th></tr></thead><tbody>${sorted(draft.sessions).map(s=>`<tr><td>${s.date}<br>${s.start}–${s.end}</td><td>${esc(s.title)}${s.cancelled?' · 已取消':''}<br><small>${esc(s.id)}</small></td><td>${divisions[s.division][0]} · ${esc(s.grades.join(' / '))}</td><td>${esc(s.rooms.join(' / '))}</td><td><button data-exam="${s.id}">编辑</button> ${deleteButton('data-remove-exam',s.id,'删除考试 '+s.title)}</td></tr>`).join('')}</tbody></table></div></section>
+ <section class="admin-panel"><div class="section-heading"><h2>教室与座位表</h2><button id="add-room">新增教室</button></div><p class="muted">展开教室，选择日期、时间段及考试查看座位。讲台在上，排从前向后，列从左到右。</p><div class="actions"><button id="template">下载 Excel 模板</button><label>导入 Excel（先保存教室和场次）<input id="import-file" type="file" accept=".xlsx"></label></div>${draft.rooms.map((r,i)=>`<div class="room-section"><div class="room-actions"><button data-room="${i}">编辑教室</button> ${deleteButton('data-remove-room',i,'删除教室 '+r.name)}</div><details data-room-expand="${i}" ${roomView(r.name).open?'open':''}><summary><strong>${esc(r.name)}</strong><span class="muted">${r.rows} 排 × ${r.columns} 列</span></summary><div id="room-seats-${i}" class="room-seats"></div></details></div>`).join('')||'<p class="muted">暂无教室，请先新增教室。</p>'}</section>`;
+ $('#extract-exams').onclick=extractExams;
  $('#edit-slots').onclick=slotEditor;
  $('#batch-meta').oninput=e=>{draft[e.target.name]=e.target.value;markDirty();};
  $('#back').onclick=()=>{if(dirty&&!confirm('放弃未保存修改并返回？'))return;list();};
@@ -157,3 +159,40 @@ $('#delete-batch').onclick=async()=>{
   dirty=false;draft=null;$('#delete-batch').hidden=true;await refreshList();list();notice('考试批次已删除。',true);
  }catch(e){notice(e.message);}finally{busy=false;$('#delete-batch').disabled=false;}
 };
+
+async function extractExams(){
+ if(!draft.start||!draft.end){notice('请先填写批次开始、结束日期。');return;}
+ const target=draft;
+ $('#preview-title').textContent='LLM 提取考试场次';
+ $('#preview-content').innerHTML=`<form id="extract-form"><label>考试日程表 PDF（最多 20 MB、10 页）<input name="pdf" type="file" accept=".pdf,application/pdf" required></label><p class="muted">支持普通及扫描版 PDF。页面内容将发送到配置的 LLM Worker，提取后可核对修改，不会自动保存或发布。</p><p id="extract-error" role="status"></p><button class="primary" id="run-extract">开始提取</button></form>`;
+ $('#preview-dialog').showModal();
+ try{const status=await api('/admin/exam-extract');if(!status.configured&&$('#extract-error'))$('#extract-error').textContent='尚未配置 LLM_WORKER_URL 和 LLM_WORKER_TOKEN，请配置后重启服务。';}catch(e){if($('#extract-error'))$('#extract-error').textContent=e.message;}
+ if(!$('#extract-form'))return;
+ const form=$('#extract-form');form.onsubmit=async e=>{
+  e.preventDefault();const button=$('#run-extract');button.disabled=true;$('#extract-error').textContent='正在提取…';
+  try{
+   const pages=await readExamPdf(form.elements.pdf.files[0],message=>{if($('#extract-error'))$('#extract-error').textContent=message;});
+   if(!$('#preview-dialog').open||$('#extract-form')!==form)return;
+   $('#extract-error').textContent='正在提取考试场次…';
+   const result=await api('/admin/exam-extract',{method:'POST',body:JSON.stringify({...pages,start:target.start,end:target.end})});
+   if(!$('#preview-dialog').open||$('#extract-form')!==form||draft!==target)return;
+   extractedPreview(result,target);
+  }catch(error){if($('#extract-error'))$('#extract-error').textContent=error.message;}finally{button.disabled=false;}
+ };
+}
+function extractedPreview(result,target){
+ const rows=result.sessions;
+ $('#preview-content').innerHTML=`<form id="extracted-form"><p>提取到 ${rows.length} 场考试。请核对日期、时间、学部、年级及教室；取消勾选可跳过某行。</p>${result.warnings.length?`<p class="warning">${result.warnings.map(esc).join('<br>')}</p>`:''}<div class="table-scroll"><table class="extract-table"><thead><tr><th>加入</th><th>考试名称</th><th>学科 / Level</th><th>学部 / 年级</th><th>日期</th><th>开始 / 结束</th><th>教室（逗号分隔）</th></tr></thead><tbody>${rows.map((s,i)=>`<tr data-extracted="${i}"><td><input type="checkbox" name="include" checked aria-label="加入第 ${i+1} 场"></td><td><input name="title" aria-label="考试名称 ${i+1}" value="${esc(s.title)}"></td><td><input name="subject" aria-label="学科 ${i+1}" value="${esc(s.subject)}"><input name="level" aria-label="Level ${i+1}" value="${esc(s.level)}"></td><td><select name="division" aria-label="学部 ${i+1}"><option value="">请选择</option>${options(Object.entries(divisions).map(([k,v])=>[k,v[0]]),s.division)}</select><input name="grades" aria-label="年级 ${i+1}" value="${esc(s.grades.join(','))}"></td><td><input type="date" name="date" aria-label="日期 ${i+1}" value="${esc(s.date)}"></td><td><input type="time" name="start" aria-label="开始 ${i+1}" value="${esc(s.start)}"><input type="time" name="end" aria-label="结束 ${i+1}" value="${esc(s.end)}"></td><td><input name="rooms" aria-label="教室 ${i+1}" value="${esc(s.rooms.join(','))}"></td></tr>`).join('')}</tbody></table></div><p class="muted">仅追加选中场次。新教室会以 5 排 × 5 列加入草稿，可在教室设置中调整；不会生成学生座位数据。</p><p id="extract-error" role="alert"></p><button class="primary" ${rows.length?'':'disabled'}>确认加入草稿</button></form>`;
+ $('#extracted-form').onsubmit=async e=>{
+  e.preventDefault();const button=e.target.querySelector('button');button.disabled=true;
+  try{
+   const sessions=[...document.querySelectorAll('[data-extracted]')].filter(el=>/** @type {HTMLInputElement} */(el.querySelector('[name=include]')).checked).map(node=>{const el=/** @type {any} */(node);const item={...rows[Number(el.getAttribute('data-extracted'))]};for(const name of ['title','subject','level','division','date','start','end'])item[name]=el.querySelector(`[name=${name}]`).value.trim();for(const name of ['grades','rooms'])item[name]=[...new Set(el.querySelector(`[name=${name}]`).value.split(/[,，]/).map(s=>s.trim()).filter(Boolean))];return item;});
+   if(!sessions.length)throw new Error('请至少选择一场考试');
+   const rooms=[...target.rooms];for(const name of new Set(sessions.flatMap(s=>s.rooms)))if(!rooms.some(r=>r.name===name))rooms.push({name,rows:5,columns:5});
+   const candidate={...target,rooms,sessions:[...target.sessions,...sessions]};
+   await api('/admin/exam-extract/validate',{method:'POST',body:JSON.stringify(candidate)});
+   if(draft!==target)return;
+   draft.rooms=rooms;draft.sessions=candidate.sessions;markDirty();$('#preview-dialog').close();edit();notice(`已加入 ${sessions.length} 场考试，请保存草稿后再预览发布。`,true);
+  }catch(error){$('#extract-error').textContent=error.message;}finally{button.disabled=false;}
+ };
+}
