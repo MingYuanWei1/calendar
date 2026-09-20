@@ -34,12 +34,11 @@
  .exam-page .exam-time-grid{height:100%}
 }
 
-.exam-group{display:flex;margin:10px 6px;border:1px solid #ddd9eb;border-left:3px solid #7869a1;border-radius:7px;overflow:hidden;background:#f7f6fb}
-.exam-group>header{display:flex;flex:0 1 auto;width:max-content;min-width:0;align-items:center;padding:10px;border-right:1px solid #e3dfec;background:#eff0fa}
-.exam-group>header>div{min-width:0}
-.exam-group h3{font-size:12px;overflow-wrap:break-word}
+.exam-group{display:grid;grid-template-columns:minmax(0,30%) minmax(0,1fr);margin:10px 6px;border:1px solid #ddd9eb;border-left:3px solid #7869a1;border-radius:7px;overflow:hidden;background:#f7f6fb}
+.exam-group>header{display:flex;align-items:center;padding:10px;border-right:1px solid #e3dfec;background:#eff0fa}
+.exam-group h3{font-size:12px;overflow-wrap:anywhere}
 .exam-group time{font-size:11px;color:var(--accent);font-weight:600}
-.exam-levels{flex:1 1 auto;width:max-content;min-width:0}
+.exam-levels{min-width:0}
 .exam-level{display:flex;align-items:flex-start;gap:7px;padding:10px;background:#fff}
 .exam-level+.exam-level{border-top:1px solid var(--line)}
 .exam-level>input{margin:5px 0 0;flex-shrink:0}
@@ -107,6 +106,7 @@
 #schedule .exam-time-grid{min-width:0;width:100%}
 #schedule .time-axis{width:66px;padding:6px 4px}
 #schedule .exam-group,#schedule .exam-card{margin:3px}
+#schedule .exam-group{grid-template-columns:minmax(0,30%) minmax(0,1fr)}
 #schedule .exam-group>header{padding:5px}
 #schedule .exam-group h3{font-size:11px;line-height:1.25}
 #schedule .exam-group-grade{margin-top:2px;font-size:10px}
@@ -117,9 +117,8 @@
 #schedule td{height:64px}
 #schedule .empty-slot{padding:12px 0}
 @media(max-width:1200px){
- #schedule .exam-group{flex-direction:column}
- #schedule .exam-levels{width:auto}
- #schedule .exam-group>header{width:auto;flex:none;border-right:0;border-bottom:1px solid var(--exam-line);padding:4px 5px}
+ #schedule .exam-group{grid-template-columns:minmax(0,1fr)}
+ #schedule .exam-group>header{border-right:0;border-bottom:1px solid var(--exam-line);padding:4px 5px}
  #schedule .exam-group-grade{display:inline;margin-left:4px}
  #schedule .exam-group h3{display:inline}
  #schedule .exam-level{padding:4px 5px}
@@ -147,4 +146,6 @@
 .pdf-vector-export .exam-time-grid{min-width:0;width:100%;height:auto}
 .pdf-vector-export .exam-time-grid th{position:static}
 .pdf-vector-export .exam-group{display:flex}
+.pdf-vector-export .exam-group>header{flex:0 0 30%;min-width:0}
+.pdf-vector-export .exam-levels{flex:1;min-width:0}
 .pdf-vector-export .exam-card label{display:block}
