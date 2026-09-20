@@ -69,8 +69,8 @@
 .exam-group h3{line-height:1.4}
 .exam-level{gap:5px;padding:5px 6px;line-height:1.35}
 .exam-level>input{margin-top:2px}
-.exam-level strong{display:inline;font-size:12px;margin-right:6px}
-.exam-level time{white-space:nowrap}
+.exam-level strong{display:block;font-size:12px}
+.exam-level time{display:block;white-space:nowrap}
 .exam-level p{margin-top:2px;line-height:1.35}
 .exam-time-grid td{height:76px;vertical-align:middle}
 .exam-time-grid .empty-slot{padding:22px 0}
@@ -111,7 +111,7 @@
 #schedule .exam-group h3{font-size:11px;line-height:1.25}
 #schedule .exam-group-grade{margin-top:2px;font-size:10px}
 #schedule .exam-level{padding:5px;line-height:1.25}
-#schedule .exam-level strong{font-size:11px;margin-right:4px}
+#schedule .exam-level strong{font-size:11px}
 #schedule .exam-level time{font-size:10px}
 #schedule .exam-level p{font-size:10px;line-height:1.25}
 #schedule td{height:64px}
