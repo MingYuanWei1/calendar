@@ -46,7 +46,8 @@ export function makeSchedulePdf(batch,sessions,{schoolName,timeZone,scope,englis
  if(!sessions.length)doc.fontSize(12).text(english?'No exams selected.':'当前范围没有考试。',40,doc.y+15);
  for(const s of sessions){
   const title=(s.cancelled?(english?'[Cancelled] ':'[已取消] '):s.changed?(english?'[Updated] ':'[已变更] '):'')+(english?(s.titleEn||s.title):s.title);
-  const values=[s.date,`${s.start}–${s.end}`,title,`${english?s.division:divisionNames[s.division]}\n${s.grades.join(' / ')}`,s.rooms.join(' / ')];
+  const examTitle=title+[s.level].filter(value=>value&&!title.includes(value)).map(value=>' · '+value).join('');
+  const values=[s.date,`${s.start}–${s.end}`,examTitle,`${english?s.division:divisionNames[s.division]}\n${s.grades.join(' / ')}`,s.rooms.join(' / ')];
   doc.fontSize(10);const height=Math.max(36,...values.map((value,i)=>doc.heightOfString(value,{width:widths[i]-10})+16));
   if(doc.y+height>doc.page.height-45){doc.addPage();header();}
   const y=doc.y;let x=40;doc.fillColor('#243746').fontSize(10);

@@ -9,3 +9,14 @@ export function examSlotRows(slots,sessions){
  }
  return rows.sort((a,b)=>a.start.localeCompare(b.start));
 }
+
+// Called within one date/time-slot cell; division remains part of the grouping key.
+export function groupExamLevels(sessions){
+ const groups=new Map();
+ for(const exam of sessions){
+  const key=exam.subject&&exam.level?JSON.stringify([exam.division,exam.date,exam.subject,[...exam.grades].sort()]):exam.id;
+  if(!groups.has(key))groups.set(key,[]);
+  groups.get(key).push(exam);
+ }
+ return [...groups.values()];
+}

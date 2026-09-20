@@ -116,6 +116,8 @@ export function createApplication({dataDir,origin,schoolName='学校校历',scho
   });
   installExams(app,db,{requireAdmin,isAdmin:req=>Boolean(session(req)),origin,schoolName,timeZone,sso});
   app.use('/api',(req,res)=>res.status(404).json({error:'接口不存在。'}));
+  app.get('/vendor/html2canvas.js',(req,res)=>res.sendFile(join(root,'node_modules/html2canvas/dist/html2canvas.min.js')));
+  app.get('/vendor/jspdf.js',(req,res)=>res.sendFile(join(root,'node_modules/jspdf/dist/jspdf.umd.min.js')));
   app.use(express.static(join(root,'public'),{etag:true,maxAge:0}));
   app.use((error,req,res,next)=>{
     if(res.headersSent)return next(error);

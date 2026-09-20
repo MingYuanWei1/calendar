@@ -1,0 +1,22 @@
+/* Print the actual visible week and filters, not a separate list representation. */
+@page{size:A3 landscape;margin:10mm}
+html,body.exam-page{height:auto!important;min-height:0!important;overflow:visible!important;background:white!important}
+body.exam-page{display:block!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+#site-header,.exam-page .filters,#notice,dialog{display:none!important}
+.exam-page .exam-shell{display:block;max-width:none;width:100%;margin:0;padding:0;overflow:visible}
+.exam-page .exam-layout{display:block;min-height:0}
+.exam-page .schedule-panel{display:block;overflow:visible;border-radius:0;min-height:0}
+.exam-page .schedule{display:block;overflow:visible;max-height:none;min-height:0;height:auto}
+.exam-page .exam-time-grid{min-width:0;width:100%;height:auto;table-layout:fixed}
+.exam-time-grid thead{display:table-header-group}
+.exam-time-grid thead th,.exam-time-grid .time-axis{position:static}
+.exam-time-grid tr,.exam-card,.exam-group{break-inside:avoid;page-break-inside:avoid}
+.exam-time-grid input[type=checkbox]{display:none!important}
+.exam-time-grid .exam-card label{display:block}
+.exam-time-grid button{cursor:default}
+.exam-page .schedule-panel footer{break-inside:avoid}
+/* Equivalent flex layout also renders consistently in the PDF canvas engine. */
+.exam-group{display:flex}
+.exam-group>header{flex:0 0 36%;min-width:0}
+.exam-levels{flex:1;min-width:0}
+.exam-time-grid .exam-card.chosen,.exam-level.chosen{box-shadow:none;outline:1px solid var(--exam-border);outline-offset:-1px}

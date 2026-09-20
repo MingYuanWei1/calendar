@@ -1,3 +1,4 @@
+import {installSubjects} from './exam-subjects.mjs';
 import express from 'express';
 import {randomUUID} from 'node:crypto';
 import {batchSchema,seatErrors,schedule} from './exam-model.mjs';
@@ -6,6 +7,8 @@ import {installSchoolAuth} from './school-auth.mjs';
 export function installExams(app,db,{requireAdmin,isAdmin,origin,schoolName,timeZone,sso={}}){
  db.exec(`CREATE TABLE IF NOT EXISTS exam_batches(id TEXT PRIMARY KEY,version INTEGER NOT NULL,draft TEXT NOT NULL,published TEXT,seating TEXT);
  CREATE TABLE IF NOT EXISTS exam_choices(user_id TEXT NOT NULL,batch_id TEXT NOT NULL,exam_id TEXT NOT NULL,PRIMARY KEY(user_id,batch_id,exam_id));`);
+ const subjects=installSubjects(app,db,requireAdmin);
+ for(const r of db.prepare('SELECT draft FROM exam_batches').all())subjects.register(JSON.parse(r.draft).sessions);
  const {user}=installSchoolAuth(app,db,{origin,...sso});
  const signedIn=(req,res,next)=>{if(!user(req)&&!isAdmin(req))return res.status(401).json({error:'请使用学校 Microsoft 账号登录后查看。'});next();};
  const row=id=>db.prepare('SELECT * FROM exam_batches WHERE id=?').get(id);
@@ -15,7 +18,7 @@ export function installExams(app,db,{requireAdmin,isAdmin,origin,schoolName,time
  const conflict=(req,res,r)=>{if(!r){res.status(404).json({error:'考试批次不存在。'});return true;}if(req.body.version!==r.version){res.status(409).json({error:'其他窗口已修改本批次，请刷新后再试。'});return true;}return false;};
  const info=r=>({id:r.id,...JSON.parse(r.draft),version:r.version,publishedAt:publicBatch(r)?.publishedAt||null,seatingPublishedAt:r.seating?JSON.parse(r.seating).publishedAt:null});
  app.get('/api/exams',(req,res)=>res.json(db.prepare('SELECT * FROM exam_batches WHERE published IS NOT NULL').all().map(r=>{const b=publicBatch(r);return {id:b.id,title:b.title,titleEn:b.titleEn,start:b.start,end:b.end};}).sort((a,b)=>b.start.localeCompare(a.start))));
- app.get('/api/exams/:id',(req,res)=>{const r=row(req.params.id),b=publicBatch(r);if(!b)return res.status(404).json({error:'考试安排尚未发布。'});res.json({...b,seatingPublished:Boolean(r.seating)});});
+ app.get('/api/exams/:id',(req,res)=>{const r=row(req.params.id),b=publicBatch(r);if(!b)return res.status(404).json({error:'考试安排尚未发布。'});res.json({...b,subjects:subjects.list(),seatingPublished:Boolean(r.seating)});});
  app.get('/api/exams/:id/seats',signedIn,(req,res)=>{const r=row(req.params.id);if(!r?.published||!r.seating)return res.status(404).json({error:'座位表尚未发布。'});res.json(JSON.parse(r.seating));});
  app.get('/api/exams/:id/choices',(req,res)=>{if(!user(req))return res.status(401).json({error:'请先使用学校账号登录。'});res.json(choices(req,req.params.id));});
  app.put('/api/exams/:id/choices',(req,res)=>{
@@ -36,28 +39,43 @@ export function installExams(app,db,{requireAdmin,isAdmin,origin,schoolName,time
   res.set({'Content-Type':'application/pdf','Content-Disposition':'attachment; filename="exam-schedule.pdf"'}).send(pdf);
  });
  app.get('/api/admin/exams',requireAdmin,(req,res)=>res.json(db.prepare('SELECT * FROM exam_batches').all().map(info)));
+ app.delete('/api/admin/exams/:id',requireAdmin,(req,res)=>{
+  const r=row(req.params.id);if(conflict(req,res,r))return;
+  db.exec('BEGIN IMMEDIATE');try{
+   db.prepare('DELETE FROM exam_choices WHERE batch_id=?').run(r.id);
+   db.prepare('DELETE FROM exam_batches WHERE id=?').run(r.id);
+   db.exec('COMMIT');
+  }catch(error){db.exec('ROLLBACK');throw error;}
+  res.sendStatus(204);
+ });
  app.post('/api/admin/exams',requireAdmin,(req,res)=>{
   const parsed=batchSchema.safeParse(req.body);if(!parsed.success)return fail(res,parsed.error.issues.map(i=>i.message).join('；'));
   const b={...parsed.data,id:randomUUID(),version:1,updatedAt:new Date().toISOString()};const errors=seatErrors(b);if(errors.length)return fail(res,errors.join('；'));
+  subjects.register(b.sessions);
   db.prepare('INSERT INTO exam_batches VALUES(?,?,?,NULL,NULL)').run(b.id,1,JSON.stringify(b));res.status(201).json(b);
  });
  app.put('/api/admin/exams/:id',requireAdmin,(req,res)=>{
   const r=row(req.params.id);if(conflict(req,res,r))return;
   const parsed=batchSchema.safeParse(req.body);if(!parsed.success)return fail(res,parsed.error.issues.map(i=>i.message).join('；'));
-  const published=publicBatch(r),data=parsed.data;
-  if(published?.sessions.some(s=>!data.sessions.some(n=>n.id===s.id)))return fail(res,'已发布场次不能删除，请标记取消以保留学生选择。');
+  const data=parsed.data;
   const errors=seatErrors(data);if(errors.length)return fail(res,errors.join('；'));
-  const b={...data,id:r.id,version:r.version+1,updatedAt:new Date().toISOString()};db.prepare('UPDATE exam_batches SET version=?,draft=? WHERE id=?').run(b.version,JSON.stringify(b),r.id);res.json(info(row(r.id)));
+  const b={...data,id:r.id,version:r.version+1,updatedAt:new Date().toISOString()};subjects.register(b.sessions);db.prepare('UPDATE exam_batches SET version=?,draft=? WHERE id=?').run(b.version,JSON.stringify(b),r.id);res.json(info(row(r.id)));
  });
  app.post('/api/admin/exams/:id/publish',requireAdmin,(req,res)=>{
   const r=row(req.params.id);if(conflict(req,res,r))return;
   const b=JSON.parse(r.draft),previous=publicBatch(r),publishedAt=new Date().toISOString();
-  if(!b.sessions.length)return fail(res,'至少添加一场考试再发布。');
+  if(!b.sessions.length&&!previous)return fail(res,'至少添加一场考试再发布。');
   const published=schedule(b);published.publishedAt=publishedAt;
   published.sessions=b.sessions.map(s=>{const old=previous?.sessions.find(e=>e.id===s.id);return {...s,changed:Boolean(old&&(old.changed||JSON.stringify({...old,changed:undefined})!==JSON.stringify({...s,changed:undefined})))};});
   // A changed schedule can invalidate room occupancy; require a fresh seating publication.
   const layoutChanged=previous&&JSON.stringify(previous.sessions.map(s=>[s.id,s.date,s.start,s.end,s.rooms,s.cancelled]))!==JSON.stringify(published.sessions.map(s=>[s.id,s.date,s.start,s.end,s.rooms,s.cancelled]));
-  db.prepare('UPDATE exam_batches SET published=?,seating=?,version=? WHERE id=?').run(JSON.stringify(published),layoutChanged?null:r.seating,r.version+1,r.id);res.json(info(row(r.id)));
+  db.exec('BEGIN IMMEDIATE');try{
+   db.prepare('UPDATE exam_batches SET published=?,seating=?,version=? WHERE id=?').run(JSON.stringify(published),layoutChanged?null:r.seating,r.version+1,r.id);
+   const removeChoice=db.prepare('DELETE FROM exam_choices WHERE batch_id=? AND exam_id=?');
+   for(const exam of previous?.sessions||[])if(!published.sessions.some(s=>s.id===exam.id))removeChoice.run(r.id,exam.id);
+   db.exec('COMMIT');
+  }catch(error){db.exec('ROLLBACK');throw error;}
+  res.json(info(row(r.id)));
  });
  app.post('/api/admin/exams/:id/publish-seats',requireAdmin,(req,res)=>{
   const r=row(req.params.id);if(conflict(req,res,r))return;

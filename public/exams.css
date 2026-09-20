@@ -10,7 +10,7 @@
 #detail>.dialog-top button{flex-shrink:0}
 #detail-content{min-height:0;overflow:auto;overscroll-behavior:contain;padding:18px 24px 24px}
 
-.exam-time-grid{table-layout:fixed;min-width:760px;width:100%;border-collapse:separate;border-spacing:0}
+.exam-time-grid{table-layout:fixed;min-width:calc(100px + var(--day-count,5)*240px);width:100%;border-collapse:separate;border-spacing:0}
 .exam-time-grid th,.exam-time-grid td{padding:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);vertical-align:top}
 .exam-time-grid thead th{position:sticky;top:0;z-index:2;background:#f7fafc;padding:12px 10px}
 .exam-time-grid .time-axis{vertical-align:middle;position:sticky;left:0;width:100px;z-index:1;background:#f7fafc;text-align:center;padding:20px 8px;color:var(--muted);font-weight:500}
@@ -33,3 +33,100 @@
  .exam-page .schedule{flex:1;min-height:0;max-height:none}
  .exam-page .exam-time-grid{height:100%}
 }
+
+.exam-group{display:grid;grid-template-columns:minmax(0,36%) minmax(0,1fr);margin:10px 6px;border:1px solid #ddd9eb;border-left:3px solid #7869a1;border-radius:7px;overflow:hidden;background:#f7f6fb}
+.exam-group>header{display:flex;align-items:center;padding:10px;border-right:1px solid #e3dfec;background:#eff0fa}
+.exam-group h3{font-size:12px;overflow-wrap:anywhere}
+.exam-group time{font-size:11px;color:var(--accent);font-weight:600}
+.exam-levels{min-width:0}
+.exam-level{display:flex;align-items:flex-start;gap:7px;padding:10px;background:#fff}
+.exam-level+.exam-level{border-top:1px solid var(--line)}
+.exam-level>input{margin:5px 0 0;flex-shrink:0}
+.exam-level>button{border:0;border-radius:0;padding:0;background:none;flex:1;min-width:0;text-align:left;overflow-wrap:anywhere}
+.exam-level strong{display:block;font-size:13px;color:var(--accent)}
+.exam-level p{font-size:11px;color:var(--muted);margin-top:3px}
+.exam-level.chosen{background:#e4f0f5}
+.exam-level.cancelled strong{text-decoration:line-through}
+
+/* Every exam group keeps its palette when filtered or selected. */
+.exam-time-grid .exam-card,.exam-time-grid .exam-group{background:var(--exam-bg);border-color:var(--exam-line);border-left-color:var(--exam-border)}
+.exam-group>header{background:var(--exam-bg);border-color:var(--exam-line)}
+.exam-level{background:var(--exam-bg)}
+.exam-level+.exam-level{border-color:var(--exam-line)}
+.exam-time-grid .exam-card time,.exam-group time,.exam-level strong{color:var(--exam-ink)}
+.exam-time-grid .exam-card input,.exam-group input{accent-color:var(--exam-border)}
+.exam-time-grid .exam-card.chosen,.exam-level.chosen{background:var(--exam-selected);box-shadow:inset 0 0 0 1px var(--exam-border)}
+
+/* Compact timetable: keep time and room information visible without tall cards. */
+.exam-time-grid thead th{padding:6px 8px}
+.exam-time-grid .exam-day-header strong{font-size:18px;line-height:1.3}
+.exam-time-grid .time-axis{padding:10px 6px;width:84px}
+.exam-time-grid .exam-card,.exam-time-grid .exam-group{margin:5px 4px}
+.exam-time-grid .exam-card{padding:6px 7px;line-height:1.35}
+.exam-time-grid .exam-card h3{margin:3px 0;font-size:12px;line-height:1.35}
+.exam-time-grid .exam-card p{margin-top:2px;line-height:1.35}
+.exam-group>header{padding:6px 7px}
+.exam-group h3{line-height:1.4}
+.exam-level{gap:5px;padding:5px 6px;line-height:1.35}
+.exam-level>input{margin-top:2px}
+.exam-level strong{display:inline;font-size:12px;margin-right:6px}
+.exam-level time{white-space:nowrap}
+.exam-level p{margin-top:2px;line-height:1.35}
+.exam-time-grid td{height:76px;vertical-align:middle}
+.exam-time-grid .empty-slot{padding:22px 0}
+.exam-page .selection-toolbar{padding:6px 12px}
+.exam-page .schedule-panel footer{padding:7px 12px}
+.exam-group-grade{margin-top:4px;font-size:11px;line-height:1.35;color:var(--muted)}
+
+.room-picker{min-width:0;margin:0;padding:0;border:0}
+.room-picker legend{padding:0;margin-bottom:8px;font-size:12px}
+.room-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;max-height:200px;overflow:auto;padding:3px}
+.room-option{flex-direction:row;align-items:center;gap:8px;padding:9px 10px;border:1px solid var(--line);border-radius:6px;cursor:pointer}
+.room-option:has(input:checked){background:var(--soft);border-color:var(--accent)}
+#edit-form .checkbox-row{flex-direction:row;align-items:center;justify-content:flex-start;gap:8px}
+#edit-form .room-option input,#edit-form .checkbox-row input{width:16px;height:16px;flex:0 0 16px;margin:0;padding:0}
+
+/* Level sections fill their shared card even when only one selected level remains. */
+.exam-levels{display:flex;flex-direction:column;align-self:stretch}
+.exam-level{flex:1;align-items:center}
+
+#pdf-dialog .pdf-scope-options>label{display:flex;flex-direction:row;align-items:center;gap:9px;padding:10px 0;margin:0}
+#pdf-dialog input{margin:0;flex-shrink:0}
+#pdf-grades{margin:0 0 10px;padding:10px;border:1px solid var(--line);border-radius:6px;background:#f7fafc}
+#pdf-grade-options fieldset{border:0;padding:8px 0;margin:0;display:flex;gap:10px;flex-wrap:wrap}
+#pdf-grade-options legend{font-size:12px;color:var(--muted)}
+#pdf-dialog .pdf-grade-option{display:flex;flex-direction:row;align-items:center;gap:6px;margin:0;padding:4px}
+#pdf-error:not(:empty){margin:10px 0}
+.pdf-export-host{position:absolute;left:-20000px;top:0;width:1540px;pointer-events:none}
+.pdf-export-host .schedule-panel{width:1540px;display:block}
+.pdf-export-host .schedule{max-height:none;height:auto;overflow:visible}
+.pdf-export-host .exam-time-grid{height:auto}
+
+/* Both schedule views fit all visible days using the same compact cards. */
+#schedule .exam-time-grid{min-width:0;width:100%}
+#schedule .time-axis{width:66px;padding:6px 4px}
+#schedule .exam-group,#schedule .exam-card{margin:3px}
+#schedule .exam-group{grid-template-columns:minmax(0,42%) minmax(0,1fr)}
+#schedule .exam-group>header{padding:5px}
+#schedule .exam-group h3{font-size:11px;line-height:1.25}
+#schedule .exam-group-grade{margin-top:2px;font-size:10px}
+#schedule .exam-level{padding:5px;line-height:1.25}
+#schedule .exam-level strong{font-size:11px;margin-right:4px}
+#schedule .exam-level time{font-size:10px}
+#schedule .exam-level p{font-size:10px;line-height:1.25}
+#schedule td{height:64px}
+#schedule .empty-slot{padding:12px 0}
+@media(max-width:1200px){
+ #schedule .exam-group{grid-template-columns:minmax(0,1fr)}
+ #schedule .exam-group>header{border-right:0;border-bottom:1px solid var(--exam-line);padding:4px 5px}
+ #schedule .exam-group-grade{display:inline;margin-left:4px}
+ #schedule .exam-group h3{display:inline}
+ #schedule .exam-level{padding:4px 5px}
+}
+
+.subject-list{display:grid;gap:8px;margin:16px 0 24px}.subject-row{display:grid;grid-template-columns:24px 70px minmax(100px,1fr) auto;gap:10px;align-items:center}.subject-swatch{width:24px;height:24px;border:3px solid;border-radius:6px}.subject-row input{min-width:0;width:100%}
+
+.admin-title-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-left:auto;flex-wrap:wrap}
+
+.delete-icon{display:inline-flex;align-items:center;justify-content:center;padding:7px;color:#b83242;border-color:#eccbd0;background:#fff;vertical-align:middle}.delete-icon:hover{color:#942432;background:#fff0f2;border-color:#d98a94}.admin-panel td:last-child{white-space:nowrap}
+.room-section{position:relative;margin-top:12px;border:1px solid var(--line);border-radius:9px;background:white;overflow:hidden}.admin-panel .room-section details{margin:0}.room-section summary{padding:14px 180px 14px 16px;min-height:58px;background:#f7fafc}.room-section summary strong{margin-right:16px}.room-actions{position:absolute;right:12px;top:10px;display:flex;gap:8px}.room-seats{padding:16px;min-width:0}.room-tabs{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}.room-tabs button[aria-pressed=true]{background:var(--soft);border-color:var(--accent);color:var(--accent)}.room-seat-map{margin:20px 0}.room-seats>label{max-width:640px}@media(max-width:650px){.room-section summary{padding-right:150px}.room-section summary .muted{display:block}.room-seats{padding:10px}}
