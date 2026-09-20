@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {defaultExamSlots} from '../public/exam-times.mjs';
 const text=n=>z.string().trim().max(n);
 const required=n=>text(n).min(1);
 const id=z.string().regex(/^[A-Za-z0-9_-]{1,80}$/);
@@ -6,8 +7,10 @@ const day=z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(v=>{const d=new Date(v+
 const time=z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 export const sessionSchema=z.object({id,title:required(180),titleEn:text(180).default(''),division:z.enum(['primary','middle','high']),grades:z.array(required(30)).min(1).max(20),date:day,start:time,end:time,rooms:z.array(required(60)).min(1).max(30),cancelled:z.boolean().default(false),note:text(1000).default('')}).refine(s=>s.end>s.start,'考试结束必须晚于开始');
 export const seatSchema=z.object({examId:id,room:required(60),row:z.number().int().min(1).max(40),column:z.number().int().min(1).max(40),className:required(60),name:text(80),englishName:text(120)}).refine(s=>s.name||s.englishName,'至少填写一种姓名');
-export const batchSchema=z.object({title:required(180),titleEn:text(180).default(''),start:day,end:day,version:z.number().int().min(1).optional(),sessions:z.array(sessionSchema).max(500),rooms:z.array(z.object({name:required(60),rows:z.number().int().min(1).max(40),columns:z.number().int().min(1).max(40)})).max(100),seats:z.array(seatSchema).max(20000)}).superRefine((b,ctx)=>{
+export const batchSchema=z.object({title:required(180),titleEn:text(180).default(''),start:day,end:day,version:z.number().int().min(1).optional(),timeSlots:z.array(z.object({start:time,end:time})).min(1).max(20).default(defaultExamSlots),sessions:z.array(sessionSchema).max(500),rooms:z.array(z.object({name:required(60),rows:z.number().int().min(1).max(40),columns:z.number().int().min(1).max(40)})).max(100),seats:z.array(seatSchema).max(20000)}).superRefine((b,ctx)=>{
  const fail=message=>ctx.addIssue({code:'custom',message});
+ const slots=[...b.timeSlots].sort((a,b)=>a.start.localeCompare(b.start));
+ if(slots.some((s,i)=>s.end<=s.start||(i>0&&s.start<slots[i-1].end)))fail('时间段结束须晚于开始，且时间段不能重叠');
  if(b.end<b.start||Date.parse(b.end)-Date.parse(b.start)>366*86400000)fail('考试批次日期范围无效（最多 366 天）');
  if(new Set(b.sessions.map(s=>s.id)).size!==b.sessions.length)fail('考试编号重复');
  if(new Set(b.rooms.map(r=>r.name)).size!==b.rooms.length)fail('教室名称重复');
@@ -25,5 +28,5 @@ export function seatErrors(batch,seats=batch.seats){
  });
  return errors.slice(0,100);
 }
-export const schedule=b=>({id:b.id,title:b.title,titleEn:b.titleEn,start:b.start,end:b.end,sessions:b.sessions,rooms:b.rooms,updatedAt:b.updatedAt});
+export const schedule=b=>({id:b.id,title:b.title,titleEn:b.titleEn,start:b.start,end:b.end,timeSlots:b.timeSlots||defaultExamSlots,sessions:b.sessions,rooms:b.rooms,updatedAt:b.updatedAt});
 export const divisionNames={primary:'小学部',middle:'初中部',high:'高中部'};

@@ -19,7 +19,7 @@
  const english=()=>document.documentElement.lang.startsWith('en');
  function renderAccount(){
   accountButton.textContent=session?.user?(english()?'Sign out':'登出'):(english()?'Sign in':'登录');
-  accountButton.title=session?.user?.name||(english()?'Sign in with your school Microsoft account':'使用学校 Microsoft 账号登录');
+  accountButton.title=session?.preview?(english()?'Local preview account — Microsoft SSO bypassed':'本地体验账号 · 已跳过 Microsoft SSO'):session?.user?.name||(english()?'Sign in with your school Microsoft account':'使用学校 Microsoft 账号登录');
  }
  async function loadSession(){
   const response=await fetch('/api/school/session');
@@ -32,13 +32,25 @@
   accountButton.disabled=true;
   try{
    if(!session)await loadSession();
-   if(!session.user){location.href='/api/school/login';return;}
+   if(!session.user){
+    sessionStorage.setItem('school-login-scroll',JSON.stringify({url:location.pathname+location.search+location.hash,y:scrollY}));
+    location.href='/api/school/login?returnTo='+encodeURIComponent(location.pathname+location.search+location.hash);return;
+   }
    const response=await fetch('/api/school/logout',{method:'POST'});
    if(!response.ok)throw new Error(english()?'Sign-out failed. Please retry.':'登出失败，请重试。');
    location.reload();
   }catch(error){alert(error.message);}
   finally{accountButton.disabled=false;}
  };
+ const savedScroll=sessionStorage.getItem('school-login-scroll');
+ if(savedScroll){
+  sessionStorage.removeItem('school-login-scroll');
+  try{const saved=JSON.parse(savedScroll);if(saved.url===location.pathname+location.search+location.hash)window.addEventListener('load',()=>requestAnimationFrame(()=>scrollTo(0,saved.y)),{once:true});}catch{}
+ }
+ if(!exams&&new URLSearchParams(location.search).has('auth')){
+  const unconfigured=new URLSearchParams(location.search).get('auth')==='unconfigured';
+  window.addEventListener('load',()=>alert(unconfigured?(english()?'Microsoft SSO is not configured.':'学校 Microsoft SSO 尚未配置，请联系管理员。'):(english()?'Sign-in failed. Please retry.':'登录未完成，请重试。')),{once:true});
+ }
  renderAccount();
  loadSession().catch(error=>{accountButton.title=error.message;}).finally(()=>{accountButton.disabled=false;});
 })();

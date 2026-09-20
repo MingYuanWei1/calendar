@@ -15,9 +15,13 @@ test('exam publication, private seating, per-account choices, import validation 
   assert.equal((await call('/admin/exams','POST',source())).status,401);
   await setAdminPassword(instance.db,'admin','exam-testing-password');const login=await call('/login','POST',{username:'admin',password:'exam-testing-password'}),admin=login.headers.get('set-cookie').split(';')[0];
   let res=await call('/admin/exams','POST',source(),admin);assert.equal(res.status,201);let batch=await res.json(),path='/admin/exams/'+batch.id;
+  assert.equal(batch.timeSlots.length,5);assert.deepEqual(batch.timeSlots[0],{start:'08:10',end:'09:40'});
+  assert.equal((await call(path,'PUT',{...batch,timeSlots:[{start:'09:00',end:'08:00'}]},admin)).status,422);
+  assert.equal((await call(path,'PUT',{...batch,timeSlots:[{start:'08:00',end:'10:00'},{start:'09:00',end:'11:00'}]},admin)).status,422);
+  res=await call(path,'PUT',{...batch,timeSlots:[{start:'08:00',end:'10:00'},{start:'11:00',end:'12:30'}]},admin);assert.equal(res.status,200);batch=await res.json();
   assert.deepEqual(await (await call('/exams')).json(),[]);assert.equal((await call('/exams/'+batch.id)).status,404);
   res=await call(path+'/publish','POST',{version:batch.version},admin);assert.equal(res.status,200);batch=await res.json();
-  const pub=await (await call('/exams/'+batch.id)).json();assert.equal(pub.sessions.length,2);assert.equal(pub.seats,undefined);assert.equal(JSON.stringify(pub).includes('示例甲'),false);
+  const pub=await (await call('/exams/'+batch.id)).json();assert.equal(pub.sessions.length,2);assert.deepEqual(pub.timeSlots,[{start:'08:00',end:'10:00'},{start:'11:00',end:'12:30'}]);assert.equal(pub.seats,undefined);assert.equal(JSON.stringify(pub).includes('示例甲'),false);
   assert.equal((await call('/exams/'+batch.id+'/seats')).status,401);
   instance.db.prepare('INSERT INTO school_sessions VALUES(?,?,?,?)').run(digest('student-a'),'tenant:student-a','Student A',Date.now()+60000);
   instance.db.prepare('INSERT INTO school_sessions VALUES(?,?,?,?)').run(digest('student-b'),'tenant:student-b','Student B',Date.now()+60000);
@@ -47,7 +51,7 @@ test('exam publication, private seating, per-account choices, import validation 
   assert.equal((await call(path,'PUT',{...batch,version:1},admin)).status,409);
   batch.sessions[0].cancelled=true;res=await call(path,'PUT',batch,admin);batch=await res.json();res=await call(path+'/publish','POST',{version:batch.version},admin);assert.equal(res.status,200);
   assert.equal((await (await call('/exams/'+batch.id)).json()).sessions[0].cancelled,true);assert.deepEqual(await (await call('/exams/'+batch.id+'/choices','GET',null,a)).json(),['english','math']);
-  const oauth=await fetch(base+'/api/school/login',{redirect:'manual'});assert.equal(oauth.headers.get('location'),'/exams.html?auth=unconfigured');
+  const oauth=await fetch(base+'/api/school/login',{redirect:'manual'});assert.equal(oauth.headers.get('location'),'/?auth=unconfigured');
   assert.equal((await call('/school/logout','POST',null,a)).status,204);assert.equal((await call('/exams/'+batch.id+'/choices','GET',null,a)).status,401);
  }finally{await new Promise(r=>server.close(r));instance.close();await rm(directory,{recursive:true,force:true});}
 });
