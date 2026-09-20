@@ -2,9 +2,10 @@ import {z} from 'zod';
 import {presetSubjects,nextHue,subjectName} from '../public/exam-subjects.mjs';
 export function installSubjects(app,db,requireAdmin){
  db.exec('CREATE TABLE IF NOT EXISTS exam_subjects(name TEXT PRIMARY KEY,english TEXT NOT NULL,hue REAL NOT NULL UNIQUE)');
+ db.prepare("UPDATE exam_subjects SET name='中文 Non-DP' WHERE name='语文Non-DP' AND NOT EXISTS (SELECT 1 FROM exam_subjects WHERE name='中文 Non-DP')").run();
  const insert=db.prepare('INSERT OR IGNORE INTO exam_subjects VALUES(?,?,?)');
- for(const s of presetSubjects)insert.run(s.name,s.english,s.hue);
  const list=()=>db.prepare('SELECT name,english,hue FROM exam_subjects ORDER BY rowid').all();
+ for(const s of presetSubjects){const existing=list();if(!existing.some(x=>x.name===s.name))insert.run(s.name,s.english,existing.some(x=>x.hue===s.hue)?nextHue(existing):s.hue);}
  const schema=z.object({name:z.string().trim().min(1).max(100),english:z.string().trim().max(100).default('')});
  const register=sessions=>{for(const s of sessions){if(!s.subject)continue;const subjects=list(),name=subjectName(s,subjects);if(!subjects.some(s=>s.name===name))insert.run(name,s.subjectEn||'',nextHue(subjects));}};
  app.get('/api/exam-subjects',(req,res)=>res.json(list()));
