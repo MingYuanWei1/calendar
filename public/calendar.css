@@ -136,3 +136,8 @@ body.admin-mode .app-header .calendar-toolbar{display:none}
 .agenda-plan{font-size:12px;color:#286747;margin:4px 0 8px}.agenda-day.day-off{background:#e3f2e7;border-radius:8px;padding-left:8px;padding-right:8px}.agenda-day.day-school .agenda-plan{color:#28647b}
 .saved-day-plans{margin-top:22px}.saved-day-plans h3{font-size:13px;margin-bottom:10px}#saved-plans{display:flex;flex-direction:column;gap:6px;max-height:180px;overflow:auto}#saved-plans button{text-align:left;font-size:12px}
 @media(max-width:760px){.day-legend{justify-content:flex-start;padding:12px 18px}.agenda-date .day-badge{margin-top:5px}}
+
+@media(min-width:761px){
+  .airy .day-items{display:grid;grid-auto-rows:20px;row-gap:3px;padding-top:2px}
+  .day-event-slot{min-width:0}
+}

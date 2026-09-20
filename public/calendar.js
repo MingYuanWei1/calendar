@@ -67,20 +67,35 @@ function renderCalendar(){
     const dates=Array.from({length:7},(_,i)=>new Date(state.year,state.month,1-offset+w*7+i,12));
     const weekStart=isoDate(dates[0]),weekEnd=isoDate(dates[6]);
     const multi=events.filter(matches).filter(isMulti).filter(e=>e.start<=weekEnd&&e.end>=weekStart).sort((a,b)=>a.start.localeCompare(b.start)||b.end.localeCompare(a.end));
-    const lanes=[];const hiddenMulti=[];const bars=multi.map(e=>{
+    const lanes=[];const occupied=Array.from({length:7},()=>new Set());
+    const placements=multi.map(e=>{
       const from=Math.max(0,dates.findIndex(d=>isoDate(d)>=e.start));
       let to=dates.findIndex(d=>isoDate(d)>e.end);if(to<0)to=7;
       let lane=lanes.findIndex(end=>end<=from);if(lane<0)lane=lanes.length;lanes[lane]=to;
-      if(lane>=Math.min(3,calendarSlots)){hiddenMulti.push(e);return "";}
+      return {event:e,from,to,lane};
+    });
+    const hiddenMulti=placements.filter(p=>p.lane>=calendarSlots).map(p=>p.event);
+    const dailyCounts=dates.map(date=>events.filter(matches).filter(e=>onDate(e,isoDate(date))).length);
+    // Reserve the final row for expansion only on dates that really have overflow.
+    for(const p of placements){
+      if(p.lane===calendarSlots-1&&dates.slice(p.from,p.to).some((date,index)=>dailyCounts[p.from+index]>calendarSlots||hiddenMulti.some(e=>onDate(e,isoDate(date)))))hiddenMulti.push(p.event);
+    }
+    const bars=placements.filter(p=>!hiddenMulti.includes(p.event)).map(({event:e,from,to,lane})=>{
+      for(let column=from;column<to;column++)occupied[column].add(lane);
       return `<button class="span-event ${e.type}${e.cancelled?' cancelled':''}${state.selected===e.id?' selected':''}${e.start<weekStart?' continues-left':''}${e.end>weekEnd?' continues-right':''}" data-event="${e.id}" style="grid-column:${from+1}/${to+1};grid-row:${lane+1}" aria-label="${esc(label(e))}" title="${esc(label(e))}">${e.cancelled?esc(t('cancelled'))+' · ':''}${e.oldDate?esc(t('changed'))+' · ':''}${esc(text(e.title))} · ${esc(scopeText(e))}</button>`;
     }).join('');
     html+=`<div class="week">`;
     for(let i=0;i<7;i++){
       const d=dates[i],iso=isoDate(d),plan=dayPlan(iso);const items=events.filter(matches).filter(e=>!isMulti(e)&&onDate(e,iso)).sort(sortEvents);
-      const visibleLanes=Math.min(3,calendarSlots,lanes.length);
-      const cap=calendarSlots-visibleLanes;
-      const hiddenCount=Math.max(0,items.length-cap)+hiddenMulti.filter(e=>onDate(e,iso)).length;
-      html+=`<div class="day${d.getMonth()!==state.month?' outside':''}${i>4?' weekend':''}${plan?' day-'+plan.kind:''}${iso===schoolToday()?' today':''}"><div class="day-date"><button class="day-number" data-day="${iso}" aria-label="${esc(formatDate(iso,true))}" ${iso===schoolToday()?'aria-current="date"':''}>${d.getDate()}</button>${dayBadge(plan)}</div><div class="day-plan-name" title="${esc(dayPlanName(plan))}">${esc(dayPlanName(plan))}</div><div class="day-items" style="padding-top:${visibleLanes*23}px">${items.slice(0,cap).map(eventButton).join('')}${hiddenCount>0?`<button class="more" data-day="${iso}">${state.lang?`+${hiddenCount} more`:`还有 ${hiddenCount} 项`}</button>`:''}</div></div>`;
+      // A cross-day bar occupies only the dates it actually covers. Fill gaps on each date.
+      const freeRows=Array.from({length:calendarSlots},(_,row)=>row).filter(row=>!occupied[i].has(row));
+      const hiddenSpans=hiddenMulti.filter(e=>onDate(e,iso)).length;
+      const needsMore=items.length>freeRows.length||hiddenSpans>0;
+      const eventRows=needsMore?freeRows.filter(row=>row<calendarSlots-1):freeRows;
+      const visibleItems=items.slice(0,eventRows.length);
+      const hiddenCount=items.length-visibleItems.length+hiddenSpans;
+      const itemMarkup=visibleItems.map((event,index)=>`<div class="day-event-slot" style="grid-row:${eventRows[index]+1}">${eventButton(event)}</div>`).join('');
+      html+=`<div class="day${d.getMonth()!==state.month?' outside':''}${i>4?' weekend':''}${plan?' day-'+plan.kind:''}${iso===schoolToday()?' today':''}"><div class="day-date"><button class="day-number" data-day="${iso}" aria-label="${esc(formatDate(iso,true))}" ${iso===schoolToday()?'aria-current="date"':''}>${d.getDate()}</button>${dayBadge(plan)}</div><div class="day-plan-name" title="${esc(dayPlanName(plan))}">${esc(dayPlanName(plan))}</div><div class="day-items">${itemMarkup}${hiddenCount>0?`<button class="more" data-day="${iso}" style="grid-row:${Math.max(1,calendarSlots)}">${state.lang?`+${hiddenCount} more`:`还有 ${hiddenCount} 项`}</button>`:''}</div></div>`;
     }
     html+=`<div class="spans">${bars}</div></div>`;
   }
@@ -141,7 +156,7 @@ function fitMonthDensity(){
   if(mobileQuery.matches||!grid.getClientRects().length)return;
   const weeks=grid.querySelectorAll('.week').length;
   if(!weeks)return;
-  const slots=Math.max(0,Math.min(4,Math.floor((grid.clientHeight/weeks-70)/23)));
+  const slots=Math.max(0,Math.floor((grid.clientHeight/weeks-52)/23));
   if(slots!==calendarSlots){calendarSlots=slots;renderCalendar();}
 }
 const monthSizeObserver=new ResizeObserver(fitMonthDensity);
