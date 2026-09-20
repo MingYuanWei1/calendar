@@ -1,7 +1,8 @@
+import {moveSeat,roomSlotExams} from './exam-seats.mjs';
 import {subjectName} from './exam-subjects.mjs';
 import {defaultExamSlots,examSlotRows} from './exam-times.mjs';
 import {$,esc,api,divisions,sorted,seatingMarkup} from './exam-common.js';
-let subjects=[],batches=[],draft=null,dirty=false,busy=false,seatPage=0,imported=null;
+let subjects=[],batches=[],draft=null,dirty=false,busy=false,imported=null;
 const roomViews=new Map();
 const notice=(message,ok=false)=>{$('#notice').textContent=message;$('#notice').classList.toggle('success',ok);};
 function markDirty(){dirty=true;if($('#dirty-warning'))$('#dirty-warning').textContent='有未保存的修改';}
@@ -14,12 +15,12 @@ function removeRoom(index){
  if(affected.some(s=>s.rooms.length===1)){alert('该教室是部分考试的唯一教室，请先为这些考试选择其他教室或删除场次。');return;}
  const seats=draft.seats.filter(s=>s.room===room.name).length;
  if(!confirm(`删除教室“${room.name}”？将从 ${affected.length} 场考试中移除该教室，并删除 ${seats} 条关联座位数据。保存并发布后对学生生效。`))return;
- draft.rooms.splice(index,1);for(const exam of affected)exam.rooms=exam.rooms.filter(r=>r!==room.name);draft.seats=draft.seats.filter(s=>s.room!==room.name);seatPage=0;markDirty();edit();
+ draft.rooms.splice(index,1);for(const exam of affected)exam.rooms=exam.rooms.filter(r=>r!==room.name);draft.seats=draft.seats.filter(s=>s.room!==room.name);markDirty();edit();
 }
 function removeExam(id){
  const exam=draft.sessions.find(s=>s.id===id),seats=draft.seats.filter(s=>s.examId===id).length;
  if(!confirm(`删除考试“${exam.title}”？同时删除 ${seats} 条关联座位数据。保存并发布后，学生端将移除该考试及其个人勾选。`))return;
- draft.sessions=draft.sessions.filter(s=>s.id!==id);draft.seats=draft.seats.filter(s=>s.examId!==id);seatPage=0;markDirty();edit();
+ draft.sessions=draft.sessions.filter(s=>s.id!==id);draft.seats=draft.seats.filter(s=>s.examId!==id);markDirty();edit();
 }
 function payload(){const {id,publishedAt,seatingPublishedAt,updatedAt,...data}=draft;return data;}
 async function start(){try{const session=await api('/session');if(!session.authenticated){login();return;}subjects=await api('/exam-subjects');$('#manage-subjects').hidden=false;$('#logout').hidden=false;$('#new-batch').hidden=false;batches=await api('/admin/exams');list();}catch(e){notice(e.message);}}
@@ -27,7 +28,7 @@ function login(){
  $('#admin-content').innerHTML=`<form id="login" class="admin-panel login-box"><h2>管理员登录</h2><p class="muted">使用现有校历管理员账号；学校 Microsoft 登录仅用于学生端。</p>${field('username','账号')}${field('password','密码','','password')}<button class="primary">登录</button></form>`;
  $('#login').onsubmit=async e=>{e.preventDefault();const values=Object.fromEntries(new FormData(e.target));try{await api('/login',{method:'POST',body:JSON.stringify(values)});await start();}catch(error){notice(error.message);}};
 }
-function list(){$('#delete-batch').hidden=true;draft=null;dirty=false;$('#admin-content').innerHTML=`<div class="batch-list">${batches.map(b=>`<button class="batch-item" data-batch="${b.id}"><strong>${esc(b.title)}</strong><small>${b.start} — ${b.end}</small><small>${b.sessions.length} 场考试 · ${b.publishedAt?'考试已发布':'草稿'} · ${b.seatingPublishedAt?'座位已发布':'座位未发布'}</small></button>`).join('')||'<p class="admin-panel">暂无批次，点击新建开始。</p>'}</div>`;document.querySelectorAll('[data-batch]').forEach(el=>el.addEventListener('click',()=>{draft=structuredClone(batches.find(b=>b.id===el.getAttribute('data-batch')));seatPage=0;edit();}));}
+function list(){$('#delete-batch').hidden=true;draft=null;dirty=false;$('#admin-content').innerHTML=`<div class="batch-list">${batches.map(b=>`<button class="batch-item" data-batch="${b.id}"><strong>${esc(b.title)}</strong><small>${b.start} — ${b.end}</small><small>${b.sessions.length} 场考试 · ${b.publishedAt?'考试已发布':'草稿'} · ${b.seatingPublishedAt?'座位已发布':'座位未发布'}</small></button>`).join('')||'<p class="admin-panel">暂无批次，点击新建开始。</p>'}</div>`;document.querySelectorAll('[data-batch]').forEach(el=>el.addEventListener('click',()=>{draft=structuredClone(batches.find(b=>b.id===el.getAttribute('data-batch')));edit();}));}
 function edit(){
  $('#delete-batch').hidden=false;
  draft.timeSlots??=structuredClone(defaultExamSlots);
@@ -46,25 +47,43 @@ function edit(){
  $('#template').onclick=()=>{if(!draft.id||dirty){notice('请先保存草稿，再下载与当前场次对应的模板。');return;}location.href='/api/admin/exams/'+draft.id+'/template';};
  $('#import-file').onchange=importFile;$('#preview-schedule').onclick=()=>preview(false);$('#preview-seats').onclick=()=>preview(true);document.querySelectorAll('[data-room-expand]').forEach(el=>{const index=Number(el.getAttribute('data-room-expand'));el.addEventListener('toggle',()=>{roomView(draft.rooms[index].name).open=/** @type {HTMLDetailsElement} */(el).open;if(roomView(draft.rooms[index].name).open)renderRoomSeats(index);});if(roomView(draft.rooms[index].name).open)renderRoomSeats(index);});
 }
-function roomView(name){const key=JSON.stringify([draft.id||'new',name]);if(!roomViews.has(key))roomViews.set(key,{open:false,date:'',slot:'',exam:'',page:0});return roomViews.get(key);}
+function roomView(name){const key=JSON.stringify([draft.id||'new',name]);if(!roomViews.has(key))roomViews.set(key,{open:false,date:'',slot:'',exam:''});return roomViews.get(key);}
 function renderRoomSeats(index){
  const room=draft.rooms[index],view=roomView(room.name),host=$('#room-seats-'+index),exams=sorted(draft.sessions.filter(s=>s.rooms.includes(room.name))),dates=[...new Set(exams.map(s=>s.date))];
  if(!dates.length){host.innerHTML='<p class="muted">此教室暂无考试。请先在考试场次中分配此教室。</p>';return;}
- if(!dates.includes(view.date)){view.date=dates[0];view.page=0;}
+ if(!dates.includes(view.date)){view.date=dates[0];}
  const rows=examSlotRows(draft.timeSlots,exams.filter(s=>s.date===view.date)).filter(r=>r.sessions.length);
- if(!rows.some(r=>r.start===view.slot)){view.slot=rows[0].start;view.page=0;}
+ if(!rows.some(r=>r.start===view.slot)){view.slot=rows[0].start;}
  const row=rows.find(r=>r.start===view.slot);
- if(!row.sessions.some(s=>s.id===view.exam)){view.exam=row.sessions[0].id;view.page=0;}
- const exam=row.sessions.find(s=>s.id===view.exam),seats=draft.seats.map((seat,i)=>({seat,i})).filter(({seat})=>seat.examId===exam.id&&seat.room===room.name);
- view.page=Math.min(view.page,Math.max(0,Math.ceil(seats.length/50)-1));
- host.innerHTML=`<div class="room-tabs" aria-label="考试日期">${dates.map(d=>`<button data-room-date="${d}" aria-pressed="${view.date===d}">${d}</button>`).join('')}</div><div class="room-tabs" aria-label="考试时间段">${rows.map(r=>`<button data-room-slot="${esc(r.start)}" aria-pressed="${view.slot===r.start}">${esc(r.start)}–${esc(r.end)}</button>`).join('')}</div><label>考试<select data-room-exam>${options(row.sessions.map(s=>[s.id,s.title+(s.level&&!s.title.includes(s.level)?' · '+s.level:'')+' '+s.start+'–'+s.end+(s.cancelled?'（已取消）':'')]),exam.id)}</select></label><div class="room-seat-map">${seatingMarkup({...draft,sessions:[{...exam,cancelled:false}]},draft,exam,room.name,exam.start)}</div><div class="section-heading"><h3>本场座位 · ${seats.length} 人</h3><button data-add-room-seat>新增座位</button></div><div class="table-scroll"><table><thead><tr><th>排 / 列</th><th>班级</th><th>中文名 / 英文名</th><th>操作</th></tr></thead><tbody>${seats.slice(view.page*50,view.page*50+50).map(({seat:s,i})=>`<tr><td>${s.row} / ${s.column}</td><td>${esc(s.className)}</td><td>${esc(s.name)}<br>${esc(s.englishName)}</td><td><button data-seat="${i}">编辑</button> ${deleteButton('data-remove-seat',i,'删除座位 '+(s.name||s.englishName))}</td></tr>`).join('')||'<tr><td colspan="4">暂无座位数据，可新增或导入 Excel。</td></tr>'}</tbody></table></div><div class="actions"><span>第 ${view.page+1} 页</span><button data-seat-prev ${view.page===0?'disabled':''}>上一页</button><button data-seat-next ${(view.page+1)*50>=seats.length?'disabled':''}>下一页</button></div>`;
- host.querySelectorAll('[data-room-date]').forEach(el=>el.onclick=()=>{view.date=el.dataset.roomDate;view.page=0;renderRoomSeats(index);});
- host.querySelectorAll('[data-room-slot]').forEach(el=>el.onclick=()=>{view.slot=el.dataset.roomSlot;view.page=0;renderRoomSeats(index);});
- host.querySelector('[data-room-exam]').onchange=e=>{view.exam=e.target.value;view.page=0;renderRoomSeats(index);};
- host.querySelector('[data-add-room-seat]').onclick=()=>seatEditor(-1,{examId:exam.id,room:room.name});
- host.querySelectorAll('[data-seat]').forEach(el=>el.onclick=()=>seatEditor(Number(el.dataset.seat)));
- host.querySelectorAll('[data-remove-seat]').forEach(el=>el.onclick=()=>{const i=Number(el.dataset.removeSeat),seat=draft.seats[i];if(!confirm(`删除 ${seat.name||seat.englishName} 在 ${seat.room} 第 ${seat.row} 排、第 ${seat.column} 列的座位数据？保存并发布后生效。`))return;draft.seats.splice(i,1);markDirty();draft.rooms.forEach((r,i)=>{if(roomView(r.name).open)renderRoomSeats(i);});});
- host.querySelector('[data-seat-prev]').onclick=()=>{view.page--;renderRoomSeats(index);};host.querySelector('[data-seat-next]').onclick=()=>{view.page++;renderRoomSeats(index);};
+ if(!row.sessions.some(s=>s.id===view.exam)){view.exam=row.sessions[0].id;}
+ const exam=row.sessions.find(s=>s.id===view.exam),examIds=row.sessions.map(s=>s.id),seats=draft.seats.map((seat,i)=>({seat,i})).filter(({seat})=>examIds.includes(seat.examId)&&seat.room===room.name);
+ host.innerHTML=`<div class="room-tabs" aria-label="考试日期">${dates.map(d=>`<button data-room-date="${d}" aria-pressed="${view.date===d}">${d}</button>`).join('')}</div><div class="room-tabs" aria-label="考试时间段">${rows.map(r=>`<button data-room-slot="${esc(r.start)}" aria-pressed="${view.slot===r.start}">${esc(r.start)}–${esc(r.end)}</button>`).join('')}</div><div class="room-exams"><span class="muted">本时段考试</span><div class="room-tabs">${row.sessions.map(s=>`<span class="room-exam-tag">${esc(s.subject||s.title)}${s.level?' · '+esc(s.level):''} <small>${s.start}–${s.end}${s.cancelled?'（已取消）':''}</small></span>`).join('')}</div></div><div class="room-seat-map">${seatingMarkup({...draft,sessions:row.sessions.map(s=>({...s,cancelled:false}))},draft,exam,room.name,null,0,true)}</div><p class="muted">本时段 ${seats.length} 人 · 点击座位编辑，点击空位添加；拖到空位移动，拖到已有学生的座位交换。</p>`;
+ host.querySelectorAll('[data-room-date]').forEach(el=>el.onclick=()=>{view.date=el.dataset.roomDate;renderRoomSeats(index);});
+ host.querySelectorAll('[data-room-slot]').forEach(el=>el.onclick=()=>{view.slot=el.dataset.roomSlot;renderRoomSeats(index);});
+ host.querySelectorAll('[data-seat-row]').forEach(el=>{
+  const row=Number(el.dataset.seatRow),column=Number(el.dataset.seatColumn),seatIndex=draft.seats.findIndex(s=>examIds.includes(s.examId)&&s.room===room.name&&s.row===row&&s.column===column);
+  el.onclick=()=>seatEditor(seatIndex,{examId:exam.id,room:room.name,row,column,examIds});
+  if(seatIndex<0)return;
+  el.classList.add('movable-seat');
+  el.onpointerdown=event=>{
+   if(event.button!==0)return;
+   const startX=event.clientX,startY=event.clientY;let dragging=false,target=null;
+   const clean=()=>{el.classList.remove('dragging-seat');target?.classList.remove('seat-drop-target');el.removeEventListener('pointermove',move);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',cancel);};
+   const move=e=>{
+    if(!dragging&&Math.hypot(e.clientX-startX,e.clientY-startY)<6)return;
+    dragging=true;el.classList.add('dragging-seat');
+    target?.classList.remove('seat-drop-target');target=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-seat-row]');
+    if(target&&!host.contains(target))target=null;
+    if(target!==el)target?.classList.add('seat-drop-target');
+   };
+   const up=()=>{clean();if(!dragging)return;el.onclick=e=>{e.preventDefault();e.stopPropagation();};
+    try{if(target&&moveSeat(draft,seatIndex,Number(target.dataset.seatRow),Number(target.dataset.seatColumn),examIds))markDirty();}catch(error){notice(error.message);}
+    renderRoomSeats(index);
+   };
+   const cancel=()=>{clean();renderRoomSeats(index);};
+   el.setPointerCapture(event.pointerId);el.addEventListener('pointermove',move);el.addEventListener('pointerup',up);el.addEventListener('pointercancel',cancel);
+  };
+ });
 }
 function dialog(title,html,onSubmit){$('#editor-title').textContent=title;$('#editor-content').innerHTML=`<form id="edit-form">${html}<p id="form-error" class="import-errors" role="alert"></p><div class="actions"><button class="primary">保存到草稿</button></div></form>`;$('#edit-form').onsubmit=e=>{e.preventDefault();try{onSubmit(Object.fromEntries(new FormData(e.target)));markDirty();$('#editor-dialog').close();edit();}catch(error){$('#form-error').textContent=error.message;}};$('#editor-dialog').showModal();}
 function roomEditor(index){const room=draft.rooms[index]||{name:'',rows:5,columns:5};dialog('教室设置',`<div class="form-grid">${field('name','教室名称',room.name)}${field('rows','排数（1–40）',room.rows,'number')}${field('columns','列数（1–40）',room.columns,'number')}</div>`,values=>{const r={name:values.name.trim(),rows:Number(values.rows),columns:Number(values.columns)};if(!r.name||![r.rows,r.columns].every(n=>Number.isInteger(n)&&n>=1&&n<=40))throw new Error('请输入有效名称和 1–40 的整数');if(draft.rooms.some((x,i)=>x.name===r.name&&i!==index))throw new Error('教室名称重复');if(index<0)draft.rooms.push(r);else{draft.rooms[index]=r;for(const s of draft.sessions)s.rooms=s.rooms.map(name=>name===room.name?r.name:name);for(const s of draft.seats)if(s.room===room.name)s.room=r.name;}});}
@@ -92,7 +111,9 @@ function examEditor(id){
  $('#edit-form [name=subject]').onchange=e=>{const custom=e.target.value==='__custom__';$('#custom-subject-field').hidden=!custom;const input=$('#edit-form [name=customSubject]');input.disabled=!custom;input.required=custom;const match=subjects.find(s=>s.name===e.target.value);$('#edit-form [name=subjectEn]').value=match?.english||'';};
  $('#exam-slot').onchange=e=>{const slot=draft.timeSlots[e.target.value];if(slot){$('#edit-form [name=start]').value=slot.start;$('#edit-form [name=end]').value=slot.end;}};
 }
-function seatEditor(index,context=null){if(!draft.sessions.length){notice('请先添加考试和教室。');return;}const s=draft.seats[index]||{examId:context?.examId||draft.sessions[0].id,room:context?.room||draft.sessions[0].rooms[0],row:1,column:1,className:'',name:'',englishName:''};dialog('编辑座位',`<div class="form-grid"><label>考试<select name="examId" id="seat-exam">${options(draft.sessions.map(s=>[s.id,s.title]),s.examId)}</select></label><label>教室<select name="room" id="seat-room"></select></label>${field('row','排',s.row,'number')}${field('column','列',s.column,'number')}${field('className','班级',s.className)}${field('name','中文名',s.name,'text',false)}${field('englishName','英文名',s.englishName,'text',false)}</div>`,v=>{if(!v.name.trim()&&!v.englishName.trim())throw new Error('至少填写一种姓名');const seat={...v,row:Number(v.row),column:Number(v.column)};if(index<0)draft.seats.push(seat);else draft.seats[index]=seat;});const rooms=()=>$('#seat-room').innerHTML=options(draft.sessions.find(e=>e.id===$('#seat-exam').value).rooms.map(r=>[r,r]),s.room);rooms();$('#seat-exam').onchange=rooms;}
+function seatEditor(index,context=null){if(!draft.sessions.length){notice('请先添加考试和教室。');return;}const s=draft.seats[index]||{examId:context?.examId||draft.sessions[0].id,room:context?.room||draft.sessions[0].rooms[0],row:context?.row||1,column:context?.column||1,className:'',name:'',englishName:''};const eligible=draft.sessions.filter(e=>(context?.examIds||[s.examId]).includes(e.id)&&e.rooms.includes(s.room));dialog('编辑座位',`<div class="form-grid"><label>考试（本教室当前时段）<select name="examId">${options(eligible.map(e=>[e.id,(e.subject||e.title)+(e.level?' · '+e.level:'')+' '+e.start+'–'+e.end]),s.examId)}</select></label><div><span class="muted">教室</span><p>${esc(s.room)}</p></div><p class="muted wide">第 ${s.row} 排 · 第 ${s.column} 列（在座位图中拖动换位）</p>${field('className','班级',s.className)}${field('name','中文名',s.name,'text',false)}${field('englishName','英文名',s.englishName,'text',false)}</div>`,v=>{if(!v.name.trim()&&!v.englishName.trim())throw new Error('至少填写一种姓名');if(!eligible.some(e=>e.id===v.examId))throw new Error('请选择本教室当前时段的考试');const seat={...s,examId:v.examId,className:v.className,name:v.name,englishName:v.englishName};if(index<0)draft.seats.push(seat);else draft.seats[index]=seat;});
+ if(index>=0){$('#edit-form .actions').insertAdjacentHTML('beforeend',deleteButton('id','delete-seat','删除座位'));$('#delete-seat').onclick=()=>{if(!confirm(`删除 ${s.name||s.englishName} 在 ${s.room} 第 ${s.row} 排、第 ${s.column} 列的座位数据？保存并发布后生效。`))return;draft.seats.splice(index,1);markDirty();$('#editor-dialog').close();edit();};}
+}
 async function save(){if(busy)return;if(!$('#batch-meta').reportValidity())return;busy=true;$('#save-batch').disabled=true;try{draft=await api('/admin/exams'+(draft.id?'/'+draft.id:''),{method:draft.id?'PUT':'POST',body:JSON.stringify(payload())});dirty=false;subjects=await api('/exam-subjects');await refreshList();notice('草稿已保存，公开版本尚未改变。',true);edit();}catch(e){notice(e.message);}finally{busy=false;if($('#save-batch'))$('#save-batch').disabled=false;}}
 async function refreshList(){batches=await api('/admin/exams');}
 async function importFile(){
@@ -105,16 +126,15 @@ async function importFile(){
 function preview(seats){
  if(!draft.id||dirty){notice('请先保存草稿，再预览发布。');return;}
  $('#preview-title').textContent=seats?'座位表发布预览':'考试安排发布预览';
- $('#preview-content').innerHTML=seats?`<p class="muted">共 ${draft.seats.length} 个座位。选择场次及教室核对；混考名单按时段显示。</p><label>场次<select id="preview-exam">${options(draft.sessions.map(s=>[s.id,s.date+' '+s.start+' '+s.title]),'')}</select></label><label>教室<select id="preview-room"></select></label><label>查看时刻<select id="preview-time"></select></label><div id="preview-grid"></div>`:`<p>${esc(draft.title)} · ${draft.start} — ${draft.end}</p><div class="table-scroll"><table><thead><tr><th>日期 / 时间</th><th>考试</th><th>适用</th><th>教室</th></tr></thead><tbody>${sorted(draft.sessions).map(s=>`<tr><td>${s.date}<br>${s.start}–${s.end}</td><td>${esc(s.title)}${s.cancelled?'（已取消）':''}</td><td>${divisions[s.division][0]} ${esc(s.grades.join(' / '))}</td><td>${esc(s.rooms.join(' / '))}</td></tr>`).join('')}</tbody></table></div><p class="warning">时间、教室或取消状态发生变化时，已发布座位表将撤下，需核对后重新发布。</p>`;
+ $('#preview-content').innerHTML=seats?`<p class="muted">共 ${draft.seats.length} 个座位。选择场次及教室核对座位表。</p><label>场次<select id="preview-exam">${options(draft.sessions.map(s=>[s.id,s.date+' '+s.start+' '+s.title]),'')}</select></label><label>教室<select id="preview-room"></select></label><div id="preview-grid"></div>`:`<p>${esc(draft.title)} · ${draft.start} — ${draft.end}</p><div class="table-scroll"><table><thead><tr><th>日期 / 时间</th><th>考试</th><th>适用</th><th>教室</th></tr></thead><tbody>${sorted(draft.sessions).map(s=>`<tr><td>${s.date}<br>${s.start}–${s.end}</td><td>${esc(s.title)}${s.cancelled?'（已取消）':''}</td><td>${divisions[s.division][0]} ${esc(s.grades.join(' / '))}</td><td>${esc(s.rooms.join(' / '))}</td></tr>`).join('')}</tbody></table></div><p class="warning">时间、教室或取消状态发生变化时，已发布座位表将撤下，需核对后重新发布。</p>`;
  $('#preview-content').insertAdjacentHTML('beforeend',`<p id="publish-error" role="alert" class="import-errors"></p><div class="actions"><button id="publish" class="primary">确认发布${seats?'座位表':'考试安排'}</button></div>`);
  if(seats&&draft.sessions.length){
-  const draw=()=>{const s=draft.sessions.find(s=>s.id===$('#preview-exam').value);$('#preview-grid').innerHTML=seatingMarkup(draft,draft,s,$('#preview-room').value,$('#preview-time').value);};
-  const times=()=>{const s=draft.sessions.find(s=>s.id===$('#preview-exam').value),points=[...new Set([s.start,...draft.sessions.filter(e=>e.date===s.date&&e.rooms.includes($('#preview-room').value)).flatMap(e=>[e.start,e.end]).filter(t=>t>s.start&&t<s.end)])].sort();$('#preview-time').innerHTML=options(points.map(t=>[t,t]),'');draw();};
-  const rooms=()=>{const s=draft.sessions.find(s=>s.id===$('#preview-exam').value);$('#preview-room').innerHTML=options(s.rooms.map(r=>[r,r]),'');times();};rooms();$('#preview-exam').onchange=rooms;$('#preview-room').onchange=times;$('#preview-time').onchange=draw;
+  const draw=()=>{const s=draft.sessions.find(s=>s.id===$('#preview-exam').value);$('#preview-grid').innerHTML=seatingMarkup({...draft,sessions:roomSlotExams(draft,s,$('#preview-room').value)},draft,s,$('#preview-room').value,null);};
+  const rooms=()=>{const s=draft.sessions.find(s=>s.id===$('#preview-exam').value);$('#preview-room').innerHTML=options(s.rooms.map(r=>[r,r]),'');draw();};rooms();$('#preview-exam').onchange=rooms;$('#preview-room').onchange=draw;
  }
  $('#preview-dialog').showModal();$('#publish').onclick=async()=>{$('#publish').disabled=true;try{draft=await api(`/admin/exams/${draft.id}/${seats?'publish-seats':'publish'}`,{method:'POST',body:JSON.stringify({version:draft.version})});await refreshList();$('#preview-dialog').close();edit();notice('发布成功。',true);}catch(e){$('#publish-error').textContent=e.message;}finally{$('#publish').disabled=false;}};
 }
-$('#new-batch').onclick=()=>{if(dirty&&!confirm('放弃未保存修改？'))return;draft={title:'',titleEn:'',start:'',end:'',sessions:[],rooms:[],seats:[]};dirty=false;seatPage=0;edit();};
+$('#new-batch').onclick=()=>{if(dirty&&!confirm('放弃未保存修改？'))return;draft={title:'',titleEn:'',start:'',end:'',sessions:[],rooms:[],seats:[]};dirty=false;edit();};
 $('#logout').onclick=async()=>{if(dirty&&!confirm('放弃未保存修改并退出？'))return;try{await api('/logout',{method:'POST'});dirty=false;location.reload();}catch(e){notice(e.message);}};
 $('#close-editor').onclick=()=>$('#editor-dialog').close();$('#close-preview').onclick=()=>$('#preview-dialog').close();start();
 

@@ -130,3 +130,9 @@
 
 .delete-icon{display:inline-flex;align-items:center;justify-content:center;padding:7px;color:#b83242;border-color:#eccbd0;background:#fff;vertical-align:middle}.delete-icon:hover{color:#942432;background:#fff0f2;border-color:#d98a94}.admin-panel td:last-child{white-space:nowrap}
 .room-section{position:relative;margin-top:12px;border:1px solid var(--line);border-radius:9px;background:white;overflow:hidden}.admin-panel .room-section details{margin:0}.room-section summary{padding:14px 180px 14px 16px;min-height:58px;background:#f7fafc}.room-section summary strong{margin-right:16px}.room-actions{position:absolute;right:12px;top:10px;display:flex;gap:8px}.room-seats{padding:16px;min-width:0}.room-tabs{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}.room-tabs button[aria-pressed=true]{background:var(--soft);border-color:var(--accent);color:var(--accent)}.room-seat-map{margin:20px 0}.room-seats>label{max-width:640px}@media(max-width:650px){.room-section summary{padding-right:150px}.room-section summary .muted{display:block}.room-seats{padding:10px}}
+
+.room-seat-map button.seat{width:100%;text-align:center;cursor:pointer;font:inherit;color:var(--text)}.room-seat-map button.seat:hover{background:var(--soft);border-color:var(--accent)}.room-seat-map button.seat:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
+
+.room-seat-map button.movable-seat{cursor:grab;touch-action:none;user-select:none}.room-seat-map button.dragging-seat{opacity:.5;cursor:grabbing}.room-seat-map button.seat-drop-target{outline:3px solid var(--accent);outline-offset:-3px;background:var(--soft)}
+
+.room-exam-tag{display:inline-block;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft)}.room-exam-tag small{color:var(--muted);margin-left:6px}

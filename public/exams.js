@@ -1,3 +1,4 @@
+import {roomSlotExams} from './exam-seats.mjs';
 import {subjectColors} from './exam-subjects.mjs';
 import {downloadExamView} from './exam-export.js';
 import {examSlotRows,groupExamLevels} from './exam-times.mjs';
@@ -67,10 +68,7 @@ async function showDetail(id){
   const seating=await api('/exams/'+batch.id+'/seats');if(!$('#detail').open)return;
   let room=exam.rooms[0];
   const renderSeats=()=>{
-   const sessions=batch.sessions.filter(s=>s.date===exam.date&&s.rooms.includes(room)&&!s.cancelled&&s.start<exam.end&&exam.start<s.end);
-   const points=[...new Set([exam.start,...sessions.flatMap(s=>[s.start,s.end]).filter(t=>t>exam.start&&t<exam.end)])].sort();
-   $('#seating-content').innerHTML=`<div class="room-tabs">${exam.rooms.map(r=>`<button data-room="${esc(r)}" aria-pressed="${r===room}">${esc(r)}</button>`).join('')}</div><label class="time-select">${T('查看时段（含本教室混考）','Time slot (all exams in this room)')}<select id="seat-time">${points.map((t,i)=>`<option value="${t}">${t}–${points[i+1]||exam.end}</option>`).join('')}</select></label><div id="seat-grid"></div>`;
-   const draw=()=>$('#seat-grid').innerHTML=seatingMarkup(batch,seating,exam,room,$('#seat-time').value,lang);draw();$('#seat-time').onchange=draw;
+   $('#seating-content').innerHTML=`<div class="room-tabs">${exam.rooms.map(r=>`<button data-room="${esc(r)}" aria-pressed="${r===room}">${esc(r)}</button>`).join('')}</div><div id="seat-grid">${seatingMarkup({...batch,sessions:roomSlotExams(batch,exam,room)},seating,exam,room,null,lang)}</div>`;
    document.querySelectorAll('[data-room]').forEach(el=>el.addEventListener('click',()=>{room=el.getAttribute('data-room');renderSeats();}));
   };renderSeats();
  }catch(e){$('#seating-content').textContent=e.message;}
