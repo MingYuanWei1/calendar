@@ -1,4 +1,5 @@
 import express from 'express';
+import {pdfFonts,schedulePdfSchema,vectorSchedulePdf} from './schedule-pdf.mjs';
 import {randomBytes,randomUUID} from 'node:crypto';
 import {mkdirSync} from 'node:fs';
 import {join,resolve} from 'node:path';
@@ -29,7 +30,15 @@ export function createApplication({dataDir,origin,schoolName='学校校历',scho
   const clearCookie=res=>res.clearCookie('calendar_session',{path:'/',httpOnly:true,sameSite:'strict',secure:base.protocol==='https:'});
   app.use('/api/admin/exam-extract',express.json({limit:'20mb'}));
   app.use('/api/admin/exams',express.json({limit:'4mb'}));
+  app.use('/api/exam-schedule-pdf',express.json({limit:'4mb'}));
   app.use('/api',express.json({limit:'128kb'}));
+  app.post('/api/exam-schedule-pdf',async(req,res)=>{
+    const parsed=schedulePdfSchema.safeParse(req.body);
+    if(!parsed.success)return res.status(422).json({error:'考试表布局无效或内容过多，请缩小导出范围。'});
+    res.set({'Content-Type':'application/pdf','Content-Disposition':'attachment; filename="exam-schedule.pdf"'}).send(await vectorSchedulePdf(parsed.data.pages));
+  });
+  app.get('/vendor/exam-font-regular.woff',(req,res)=>res.sendFile(pdfFonts.regular));
+  app.get('/vendor/exam-font-bold.woff',(req,res)=>res.sendFile(pdfFonts.bold));
   app.get('/api/config',(req,res)=>res.json({schoolName,schoolNameEn,timeZone}));
   app.get('/api/session',(req,res)=>res.json({authenticated:Boolean(session(req))}));
   app.post('/api/login',async(req,res)=>{

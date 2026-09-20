@@ -138,3 +138,14 @@
 .room-exam-tag{display:inline-block;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft)}.room-exam-tag small{color:var(--muted);margin-left:6px}
 
 #extract-form label{margin:12px 0}.extract-table{min-width:1000px}.extract-table input:not([type=checkbox]),.extract-table select{width:100%;min-width:105px;margin:2px 0}.extract-table td{vertical-align:top}.extract-table th:nth-child(2){min-width:180px}
+
+@font-face{font-family:ExamPdf;src:url('/vendor/exam-font-regular.woff') format('woff');font-weight:400;font-display:block}
+@font-face{font-family:ExamPdf;src:url('/vendor/exam-font-bold.woff') format('woff');font-weight:700;font-display:block}
+.pdf-vector-export,.pdf-vector-export button{font-family:ExamPdf,sans-serif}
+.pdf-vector-export .schedule-panel{border-radius:0;overflow:visible}
+.pdf-vector-export .exam-time-grid{min-width:0;width:100%;height:auto}
+.pdf-vector-export .exam-time-grid th{position:static}
+.pdf-vector-export .exam-group{display:flex}
+.pdf-vector-export .exam-group>header{flex:0 0 30%;min-width:0}
+.pdf-vector-export .exam-levels{flex:1;min-width:0}
+.pdf-vector-export .exam-card label{display:block}
