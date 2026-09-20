@@ -5,13 +5,13 @@ const $ = selector => document.querySelector(selector);
 /** @returns {any[]} */
 const $$ = selector => [...document.querySelectorAll(selector)];
 const copy = {
-  school:['学校校历','School calendar'], publicCalendar:['属于每一位同学的校园日程','A calendar for every student'], searchLabel:['搜索','Search'], september:['2026 年 9 月','September 2026'], autumn:['秋季学期','Autumn term'], scope:['适用学部','School division'], reset:['重置','Reset'], types:['事件类型','Event types'], scopeNote:['选择学部时，同时显示全校事件。','School-wide events are included in every division.'], publicNote:['公开校历 · 无需登录','Public calendar · No sign-in'], schoolLife:['校园生活 / SCHOOL LIFE','SCHOOL LIFE'], term:['2026—2027 学年 · 秋季学期','2026–2027 · Autumn term'], today:['今天','Today'], monthView:['月历','Month'], listView:['日程','Agenda'], emptyTitle:['没有符合条件的事件','No matching events'], emptyHelp:['试试其他关键词，或重置筛选。','Try another search or reset your filters.'], timezone:['学校当地时间','School local time'], dayEvents:['当天事件','EVENTS ON THIS DAY'], registrationPreview:['报名入口示意','Registration preview'], registrationNotice:['正式发布时，此处打开管理员填写的外部报名表。当前设计稿未连接真实表单。','In the published calendar, this opens the external form provided by an administrator. This design is not connected to a real form.'], understood:['知道了','Got it'], detail:['事件详情','EVENT DETAILS'], close:['关闭详情','Close details'], when:['时间','When'], where:['地点','Where'], for:['适用','For'], host:['主办','Host'], about:['事件说明','About this event'], allDay:['全天','All day'], till:['截止','Due'], cancelled:['已取消','Cancelled'], changed:['已改期','Rescheduled'], registration:['查看报名表','Open registration form'], external:['通过外部表单报名，本平台仅展示信息。','Registration is handled by an external form.'], updated:['更新于 9 月 18 日 16:30','Updated 18 Sep, 16:30'], chooseEvent:['选择一项事件查看详情','Select an event to see the details'], missingLocation:['未设置地点','No location specified'], allSchools:['全部学部','All divisions'], schoolwide:['全校','School-wide'], primary:['小学部','Primary'], middle:['初中部','Middle'], high:['高中部','High'], noDayEvents:['当天没有符合条件的事件','No matching events on this day'], searchPlaceholder:['搜索事件','Search events'], previous:['上个月','Previous month'], next:['下个月','Next month'], closeDay:['关闭当天事件','Close day events']
+  school:['学校校历','School calendar'], publicCalendar:['属于每一位同学的校园日程','A calendar for every student'], searchLabel:['搜索','Search'], september:['2026 年 9 月','September 2026'], autumn:['秋季学期','Autumn term'], scope:['适用学部','School division'], reset:['重置','Reset'], types:['事件类型','Event types'], scopeNote:['选择学部时，同时显示全校事件。','School-wide events are included in every division.'], publicNote:['公开校历 · 无需登录','Public calendar · No sign-in'], schoolLife:['校园生活 / SCHOOL LIFE','SCHOOL LIFE'], term:['2026—2027 学年 · 秋季学期','2026–2027 · Autumn term'], today:['今天','Today'], monthView:['月历','Month'], weekView:['周历','Week'], listView:['日程','Agenda'], emptyTitle:['没有符合条件的事件','No matching events'], emptyHelp:['试试其他关键词，或重置筛选。','Try another search or reset your filters.'], timezone:['学校当地时间','School local time'], dayEvents:['当天事件','EVENTS ON THIS DAY'], registrationPreview:['报名入口示意','Registration preview'], registrationNotice:['正式发布时，此处打开管理员填写的外部报名表。当前设计稿未连接真实表单。','In the published calendar, this opens the external form provided by an administrator. This design is not connected to a real form.'], understood:['知道了','Got it'], detail:['事件详情','EVENT DETAILS'], close:['关闭详情','Close details'], when:['时间','When'], where:['地点','Where'], for:['适用','For'], host:['主办','Host'], about:['事件说明','About this event'], allDay:['全天','All day'], till:['截止','Due'], cancelled:['已取消','Cancelled'], changed:['已改期','Rescheduled'], registration:['查看报名表','Open registration form'], external:['通过外部表单报名，本平台仅展示信息。','Registration is handled by an external form.'], updated:['更新于 9 月 18 日 16:30','Updated 18 Sep, 16:30'], chooseEvent:['选择一项事件查看详情','Select an event to see the details'], missingLocation:['未设置地点','No location specified'], allSchools:['全部学部','All divisions'], schoolwide:['全校','School-wide'], primary:['小学部','Primary'], middle:['初中部','Middle'], high:['高中部','High'], noDayEvents:['当天没有符合条件的事件','No matching events on this day'], searchPlaceholder:['搜索事件','Search events'], previous:['上个月','Previous month'], next:['下个月','Next month'], closeDay:['关闭当天事件','Close day events']
 };
 const types = {
   exam:{label:['考试','Exams'],color:'var(--exam)'}, holiday:{label:['假期','Holidays'],color:'var(--holiday)'}, competition:{label:['比赛','Competitions'],color:'var(--competition)'}, activity:{label:['活动','Activities'],color:'var(--activity)'}, deadline:{label:['截止日','Deadlines'],color:'var(--deadline)'}
 };
 const schools = ['allSchools','primary','middle','high'];
-const state = {lang:0,year:new Date().getFullYear(),month:new Date().getMonth(),school:'allSchools',types:new Set(Object.keys(types)),query:'',view:'month',selected:null};
+const state = {lang:0,year:new Date().getFullYear(),month:new Date().getMonth(),school:'allSchools',types:new Set(Object.keys(types)),query:'',view:'month',anchor:'',selected:null};
 const mobileQuery = matchMedia('(max-width:760px)');
 /** @type {SchoolEvent[]} */
 const events = [];
@@ -55,6 +55,14 @@ function bindEvents(root){root.querySelectorAll('[data-event]').forEach(b=>b.onc
 function syncDetailMode(){const modal=mobileQuery.matches&&document.body.classList.contains('mobile-detail');$$('.app-header,.school-tabs,.sidebar,.main-calendar').forEach(el=>el.inert=modal);if(modal){$('#details').setAttribute('role','dialog');$('#details').setAttribute('aria-modal','true');}else{$('#details').removeAttribute('role');$('#details').removeAttribute('aria-modal');}}
 function selectEvent(id){detailReturnDay=$('#day-dialog').open?$('#day-dialog').dataset.date:null;detailScrollY=window.scrollY;state.selected=id;document.body.classList.remove('detail-closed');document.body.classList.add('mobile-detail');$('#day-dialog').close();renderCalendar();renderDetail();syncDetailMode();if(mobileQuery.matches)$('#close-detail')?.focus();}
 function renderCalendar(){
+  document.body.classList.toggle('week-mode',state.view==='week');
+  $('#week-board').hidden=state.view!=='week';
+  $('#month-title').removeAttribute('title');
+  $('#week-view').setAttribute('aria-pressed',String(state.view==='week'));
+  $('#previous').setAttribute('aria-label',state.view==='week'?(state.lang?'Previous week':'上一周'):t('previous'));
+  $('#next').setAttribute('aria-label',state.view==='week'?(state.lang?'Next week':'下一周'):t('next'));
+  if(state.view==='week'){renderWeek();return;}
+
   const first = new Date(state.year,state.month,1,12);const last = new Date(state.year,state.month+1,0,12);
   const offset=(first.getDay()+6)%7;const count=Math.ceil((offset+last.getDate())/7)*7;
   const start=new Date(state.year,state.month,1-offset,12);
@@ -138,9 +146,13 @@ $('#search').oninput=e=>{state.query=e.target.value;state.selected=null;renderCa
 $('#language').onclick=()=>{state.lang=1-state.lang;render();};
 $('#school-select').onchange=e=>setSchool(e.target.value);
 $$('.reset').forEach(b=>b.onclick=resetFilters);
-$('#month-view').onclick=()=>{state.view='month';renderCalendar();};$('#list-view').onclick=()=>{state.view='list';renderCalendar();};
-function moveMonth(delta){const date=new Date(state.year,state.month+delta,1,12);state.year=date.getFullYear();state.month=date.getMonth();state.selected=null;renderCalendar();renderDetail();}
-$('#previous').onclick=()=>moveMonth(-1);$('#next').onclick=()=>moveMonth(1);$('#today').onclick=()=>{const current=schoolToday().split('-').map(Number);state.year=current[0];state.month=current[1]-1;state.selected=null;document.body.classList.remove('detail-closed');render();};
+function changeView(view){state.view=view;renderCalendar();}
+$('#month-view').onclick=()=>changeView('month');$('#list-view').onclick=()=>changeView('list');$('#week-view').onclick=()=>{
+  if(!state.anchor){const today=dateValue(schoolToday());state.anchor=isoDate(new Date(state.year,state.month,today.getFullYear()===state.year&&today.getMonth()===state.month?today.getDate():1,12));}
+  changeView('week');
+};
+function moveMonth(delta){const date=state.view==='week'?dateValue(state.anchor):new Date(state.year,state.month+delta,1,12);if(state.view==='week')date.setDate(date.getDate()+delta*7);state.anchor=state.view==='week'?isoDate(date):'';state.year=date.getFullYear();state.month=date.getMonth();state.selected=null;renderCalendar();renderDetail();}
+$('#previous').onclick=()=>moveMonth(-1);$('#next').onclick=()=>moveMonth(1);$('#today').onclick=()=>{state.anchor=schoolToday();const current=state.anchor.split('-').map(Number);state.year=current[0];state.month=current[1]-1;state.selected=null;document.body.classList.remove('detail-closed');render();};
 $('#close-day').onclick=()=>$('#day-dialog').close();$('#close-registration').onclick=()=>$('#registration-dialog').close();$('#registration-ok').onclick=()=>$('#registration-dialog').close();
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('dialog[open]')&&document.body.classList.contains('mobile-detail'))$('#close-detail')?.click();});
 document.addEventListener('keydown',e=>{if(e.key!=='Tab'||!mobileQuery.matches||!document.body.classList.contains('mobile-detail')||$('dialog[open]'))return;const buttons=[...$('#details').querySelectorAll('button,a[href]')].filter(el=>el.getClientRects().length);const first=buttons[0],last=buttons.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}});

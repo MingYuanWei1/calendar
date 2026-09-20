@@ -141,3 +141,40 @@ body.admin-mode .app-header .calendar-toolbar{display:none}
   .airy .day-items{display:grid;grid-auto-rows:20px;row-gap:3px;padding-top:2px}
   .day-event-slot{min-width:0}
 }
+
+/* Weekly cards: one shared scrolling surface keeps all seven days aligned. */
+.week-board{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
+.week-cards-content{min-width:770px;min-height:100%;display:flex;flex-direction:column}
+.week-date-head,.week-bars,.week-card-columns{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.week-date-head{position:sticky;top:0;z-index:2;background:white;border-bottom:1px solid var(--line)}
+.week-date{padding:10px 6px 5px;border-right:1px solid var(--line)}
+.week-date>span{font-size:11px;color:var(--muted);padding:0 6px}
+.week-date .day-date{height:35px}.week-date .day-number{font-size:20px;width:auto;min-width:29px;height:29px!important}
+.week-all-day{padding:10px 0;background:#fbfcfd;border-bottom:1px solid var(--line)}
+.week-all-day>p{font-size:10px;color:var(--muted);padding:0 10px 8px}.week-bars{gap:5px 0}
+.week-bar{min-width:0;margin:0 4px;text-align:left;border:0;border-radius:5px;background:var(--event-bg);color:var(--event-color);padding:5px 7px;font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.week-card-columns{flex:1;min-height:260px}.week-card-column{padding:10px 6px;border-right:1px solid var(--line);min-width:0}
+.week-card{display:block;width:100%;text-align:left;padding:10px 8px;margin-bottom:9px;border:1px solid var(--line);border-left:3px solid var(--event-color);background:var(--event-bg);border-radius:6px;overflow-wrap:anywhere}
+.week-card time{display:block;font-size:11px;color:var(--event-color);font-weight:600;margin-bottom:6px}.week-card strong{display:block;font-size:12px;font-weight:600;line-height:1.65}.week-card small{display:block;font-size:10px;color:var(--muted);margin-top:7px}
+.week-card.selected,.week-bar.selected{outline:2px solid var(--event-color);outline-offset:-2px}.week-card.cancelled strong,.week-bar.cancelled{text-decoration:line-through}.week-card.cancelled,.week-bar.cancelled{opacity:.65}
+.week-card:hover,.week-bar:hover{background:var(--event-bg);filter:brightness(.97)}
+.week-no-events{text-align:center;color:var(--muted);font-size:11px;padding:16px 0}.week-bars>.week-no-events{grid-column:1/-1;padding:0}
+.week-date.weekend,.week-card-column.weekend{background:#edf0f3}.week-date.day-off,.week-card-column.day-off{background:#e3f2e7}.week-date.day-school,.week-card-column.day-school{background:white}
+.week-mode .agenda{display:none!important}
+@media(max-width:760px){
+  .airy .view-switch{display:flex}.airy .app-header .calendar-toolbar{flex-wrap:wrap}.airy .app-header .calendar-actions{justify-content:space-between;width:100%}
+  .week-board{height:65dvh;min-height:360px;flex:none}.week-mode .calendar-surface{min-width:0}
+}
+@media(min-width:761px){
+  .week-cards-content{min-width:0}
+}
+
+/* Keep header controls anchored identically across calendar views. */
+.airy .app-header .month-heading{flex:1;min-width:0}
+.airy .app-header .month-heading h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Date navigation stays beside the heading, independently of the view switch. */
+.airy .app-header .date-controls{display:flex;align-items:center;gap:16px;min-width:0;flex:1}
+.airy .app-header .date-controls .month-heading{flex:0 1 auto}
+.airy .app-header .date-controls .date-nav{flex-shrink:0}
+@media(max-width:760px){.airy .app-header .date-controls{flex:1 0 100%;gap:10px}.airy .app-header .calendar-actions{justify-content:flex-end}}
