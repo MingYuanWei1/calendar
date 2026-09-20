@@ -34,7 +34,7 @@
  .exam-page .exam-time-grid{height:100%}
 }
 
-.exam-group{display:grid;grid-template-columns:minmax(0,36%) minmax(0,1fr);margin:10px 6px;border:1px solid #ddd9eb;border-left:3px solid #7869a1;border-radius:7px;overflow:hidden;background:#f7f6fb}
+.exam-group{display:grid;grid-template-columns:minmax(0,30%) minmax(0,1fr);margin:10px 6px;border:1px solid #ddd9eb;border-left:3px solid #7869a1;border-radius:7px;overflow:hidden;background:#f7f6fb}
 .exam-group>header{display:flex;align-items:center;padding:10px;border-right:1px solid #e3dfec;background:#eff0fa}
 .exam-group h3{font-size:12px;overflow-wrap:anywhere}
 .exam-group time{font-size:11px;color:var(--accent);font-weight:600}
@@ -106,7 +106,7 @@
 #schedule .exam-time-grid{min-width:0;width:100%}
 #schedule .time-axis{width:66px;padding:6px 4px}
 #schedule .exam-group,#schedule .exam-card{margin:3px}
-#schedule .exam-group{grid-template-columns:minmax(0,42%) minmax(0,1fr)}
+#schedule .exam-group{grid-template-columns:minmax(0,30%) minmax(0,1fr)}
 #schedule .exam-group>header{padding:5px}
 #schedule .exam-group h3{font-size:11px;line-height:1.25}
 #schedule .exam-group-grade{margin-top:2px;font-size:10px}
