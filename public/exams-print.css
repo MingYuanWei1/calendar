@@ -17,6 +17,6 @@ body.exam-page{display:block!important;print-color-adjust:exact;-webkit-print-co
 .exam-page .schedule-panel footer{break-inside:avoid}
 /* Equivalent flex layout also renders consistently in the PDF canvas engine. */
 .exam-group{display:flex}
-.exam-group>header{flex:0 0 30%;min-width:0}
-.exam-levels{flex:1;min-width:0}
+.exam-group>header{flex:0 1 auto;width:max-content;min-width:0}
+.exam-levels{flex:1 1 auto;width:max-content;min-width:0}
 .exam-time-grid .exam-card.chosen,.exam-level.chosen{box-shadow:none;outline:1px solid var(--exam-border);outline-offset:-1px}
