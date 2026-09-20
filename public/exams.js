@@ -21,12 +21,11 @@ function render(){
  $('#grade').innerHTML=`<option value="">${T('全部年级','All grades')}</option>`+grades.map(g=>`<option ${g===grade?'selected':''}>${esc(g)}</option>`).join('');
  document.querySelectorAll('[data-division]').forEach(el=>el.addEventListener('click',()=>{division=el.getAttribute('data-division');grade='';render();}));
  $('#current').textContent=T('本批次首周','First week');$('#previous').setAttribute('aria-label',T('上一周','Previous week'));$('#next').setAttribute('aria-label',T('下一周','Next week'));
- if(!batch){for(const id of ['previous','current','next'])$('#'+id).hidden=true;$('#schedule').innerHTML=`<p class="no-exams">${T('暂无已发布考试批次','No published exam series')}</p>`;$('#range').textContent='';return;}
+ if(!batch){for(const id of ['previous','current','next'])$('#'+id).hidden=true;$('#schedule').innerHTML=`<p class="no-exams">${T('暂无已发布考试批次','No published exam series')}</p>`;return;}
  const visible=sorted(scopeSessions()),pages=examDatePages(visible);
  let page=pages.findIndex(days=>days.includes(week));if(page<0)page=0;
  const shownDays=pages[page]||[];week=shownDays[0]||'';
  for(const id of ['previous','current','next'])$('#'+id).hidden=pages.length<=1;
- $('#range').textContent=shownDays.length?(shownDays.length===1?shownDays[0]:`${shownDays[0]} — ${shownDays.at(-1)}`):T('暂无考试','No exams');
  $('#previous').disabled=page===0;$('#next').disabled=page>=pages.length-1;
  $('#schedule').innerHTML=shownDays.length?scheduleMarkup(visible,shownDays,!mine):`<p class="no-exams">${T('当前范围暂无考试','No exams in this selection')}</p>`;
  $('#published').textContent=`${T('发布于','Published')} ${new Intl.DateTimeFormat(lang?'en-GB':'zh-CN',{timeZone:config.timeZone,dateStyle:'medium',timeStyle:'short'}).format(new Date(batch.publishedAt))} · ${config.timeZone}`;
