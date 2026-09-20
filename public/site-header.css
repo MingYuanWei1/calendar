@@ -1,0 +1,50 @@
+/* Shared layout and breakpoints for calendar and exam headers. */
+#site-header{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;gap:12px 18px;padding:14px 24px 12px;height:auto;min-height:0;flex-shrink:0;background:var(--base);border:0;font-family:"Avenir Next","PingFang SC",Arial,sans-serif;line-height:1.5}
+#site-header .brand{display:flex;align-items:center;gap:12px;color:var(--text);text-decoration:none;flex-shrink:0}
+#site-header .brand strong{font-size:20px;font-weight:600;letter-spacing:1px}
+#site-header .brand-sub{display:block;font-size:9px;letter-spacing:1.8px;color:var(--muted);margin-top:1px}
+#site-header .logo{display:grid;place-items:center;width:42px;height:42px;padding:0;background:white;border:1px dashed #9daab3;border-radius:11px;font-size:10px;letter-spacing:1px;color:var(--muted)}
+#site-header .header-actions{grid-column:4;grid-row:1;display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:0;margin:0;width:auto}
+#site-header .calendar-toolbar{grid-column:3;grid-row:1;display:flex;align-items:center;gap:12px;min-width:0;min-height:0;padding:0;margin:0;flex-wrap:nowrap}
+#site-header .section-nav{grid-column:2;grid-row:1;display:flex;align-items:center;gap:18px;flex-shrink:0;white-space:nowrap}
+#site-header .section-nav a{font-size:14px;text-decoration:none;color:var(--muted);padding:8px 0;border-bottom:2px solid transparent}
+#site-header .section-nav a.active{color:var(--accent);border-bottom-color:var(--accent)}
+#site-header .date-controls{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+#site-header .month-heading{flex:0 1 auto;min-width:0}
+#site-header .month-heading h1{font-size:18px;font-weight:600;letter-spacing:-.6px;line-height:1.5;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#site-header .date-nav{display:flex;align-items:center;gap:3px;flex-shrink:0}
+#site-header button,#site-header .button{font-size:12px;line-height:1.5;padding:7px 12px;border:1px solid var(--line);border-radius:6px;text-decoration:none;white-space:nowrap}
+#site-header .date-nav button{padding:5px 8px;min-width:27px}
+#site-header .date-nav #previous,#site-header .date-nav #next{border-color:transparent;font-size:23px;line-height:1}
+#site-header .calendar-actions{display:flex;align-items:center;flex-shrink:0;width:auto;margin:0;gap:12px}
+#site-header .view-switch{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+#site-header .view-switch button{border:0;border-radius:0;padding:6px 12px}
+#site-header .view-switch button[aria-pressed=true]{background:var(--soft);color:var(--accent)}
+#site-header .search{display:flex;flex-direction:row;align-items:center;gap:8px;background:white;border:1px solid var(--line);border-radius:20px;padding:8px 12px}
+#site-header .search input{width:120px;min-width:0;border:0;padding:0;background:transparent;outline:none}
+#site-header .search-label,#site-header .header-manage{font-size:12px}
+#site-header .header-manage{text-decoration:none;white-space:nowrap;color:var(--accent)}
+#site-header .language{border-radius:20px;background:transparent}
+#site-header .primary{background:var(--accent);color:white;border-color:var(--accent)}
+body.admin-mode #site-header .calendar-toolbar{display:none}
+body.admin-mode #site-header .search,body.admin-mode #site-header #admin-entry{display:none}
+@media(min-width:761px) and (max-width:1200px){
+ #site-header{padding:14px 14px 12px;gap:10px}
+ #site-header .brand{gap:6px}
+ #site-header .brand strong{font-size:15px;letter-spacing:0}
+ #site-header .brand-sub{display:none}
+ #site-header .logo{width:30px;height:30px;font-size:8px}
+ #site-header .section-nav{gap:10px}
+ #site-header .section-nav a{font-size:12px}
+ #site-header .header-actions,#site-header .calendar-toolbar{gap:8px}
+ #site-header .month-heading h1{font-size:14px;letter-spacing:-.3px}
+ #site-header .date-controls{gap:4px}
+ #site-header button,#site-header .button{padding:6px 7px;font-size:11px}
+ #site-header .date-nav{gap:0}
+ #site-header .date-nav button{padding:5px;min-width:20px}
+ #site-header .view-switch button{padding:6px 7px}
+ #site-header .search-label{display:none}
+ #site-header .search{padding:7px 9px}
+ #site-header .search input{width:70px;font-size:11px}
+}
+@media(max-width:760px){#site-header{grid-template-columns:minmax(0,1fr);padding:16px 18px;gap:12px}#site-header .section-nav{grid-column:1;grid-row:2}#site-header .header-actions{grid-column:1;grid-row:3;justify-content:flex-start;flex-wrap:wrap}#site-header .calendar-toolbar{grid-column:1;grid-row:4;flex-wrap:wrap;gap:12px}#site-header .date-controls{flex:1 0 100%;gap:10px}#site-header .calendar-actions{margin-left:auto}#site-header .search{flex:1;min-width:120px}#site-header .search input{width:100%}#site-header .section-nav a{font-size:13px}#site-header .brand strong{font-size:19px}}

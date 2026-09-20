@@ -5,13 +5,14 @@ const $ = selector => document.querySelector(selector);
 /** @returns {any[]} */
 const $$ = selector => [...document.querySelectorAll(selector)];
 const copy = {
+  calendarNav:['校历','Calendar'], examsNav:['考试安排','Exams'],
   school:['学校校历','School calendar'], publicCalendar:['属于每一位同学的校园日程','A calendar for every student'], searchLabel:['搜索','Search'], september:['2026 年 9 月','September 2026'], autumn:['秋季学期','Autumn term'], scope:['适用学部','School division'], reset:['重置','Reset'], types:['事件类型','Event types'], scopeNote:['选择学部时，同时显示全校事件。','School-wide events are included in every division.'], publicNote:['公开校历 · 无需登录','Public calendar · No sign-in'], schoolLife:['校园生活 / SCHOOL LIFE','SCHOOL LIFE'], term:['2026—2027 学年 · 秋季学期','2026–2027 · Autumn term'], today:['今天','Today'], monthView:['月历','Month'], weekView:['周历','Week'], listView:['日程','Agenda'], emptyTitle:['没有符合条件的事件','No matching events'], emptyHelp:['试试其他关键词，或重置筛选。','Try another search or reset your filters.'], timezone:['学校当地时间','School local time'], dayEvents:['当天事件','EVENTS ON THIS DAY'], registrationPreview:['报名入口示意','Registration preview'], registrationNotice:['正式发布时，此处打开管理员填写的外部报名表。当前设计稿未连接真实表单。','In the published calendar, this opens the external form provided by an administrator. This design is not connected to a real form.'], understood:['知道了','Got it'], detail:['事件详情','EVENT DETAILS'], close:['关闭详情','Close details'], when:['时间','When'], where:['地点','Where'], for:['适用','For'], host:['主办','Host'], about:['事件说明','About this event'], allDay:['全天','All day'], till:['截止','Due'], cancelled:['已取消','Cancelled'], changed:['已改期','Rescheduled'], registration:['查看报名表','Open registration form'], external:['通过外部表单报名，本平台仅展示信息。','Registration is handled by an external form.'], updated:['更新于 9 月 18 日 16:30','Updated 18 Sep, 16:30'], chooseEvent:['选择一项事件查看详情','Select an event to see the details'], missingLocation:['未设置地点','No location specified'], allSchools:['全部学部','All divisions'], schoolwide:['全校','School-wide'], primary:['小学部','Primary'], middle:['初中部','Middle'], high:['高中部','High'], noDayEvents:['当天没有符合条件的事件','No matching events on this day'], searchPlaceholder:['搜索事件','Search events'], previous:['上个月','Previous month'], next:['下个月','Next month'], closeDay:['关闭当天事件','Close day events']
 };
 const types = {
   exam:{label:['考试','Exams'],color:'var(--exam)'}, holiday:{label:['假期','Holidays'],color:'var(--holiday)'}, competition:{label:['比赛','Competitions'],color:'var(--competition)'}, activity:{label:['活动','Activities'],color:'var(--activity)'}, deadline:{label:['截止日','Deadlines'],color:'var(--deadline)'}
 };
 const schools = ['allSchools','primary','middle','high'];
-const state = {lang:0,year:new Date().getFullYear(),month:new Date().getMonth(),school:'allSchools',types:new Set(Object.keys(types)),query:'',view:'month',anchor:'',selected:null};
+const state = {lang:Number(localStorage.getItem('exam-language')||0),year:new Date().getFullYear(),month:new Date().getMonth(),school:'allSchools',types:new Set(Object.keys(types)),query:'',view:'month',anchor:'',selected:null};
 const mobileQuery = matchMedia('(max-width:760px)');
 /** @type {SchoolEvent[]} */
 const events = [];
@@ -143,7 +144,7 @@ function render(){
   document.dispatchEvent(new CustomEvent('calendar-language'));
 }
 $('#search').oninput=e=>{state.query=e.target.value;state.selected=null;renderCalendar();renderDetail();};
-$('#language').onclick=()=>{state.lang=1-state.lang;render();};
+$('#language').onclick=()=>{state.lang=1-state.lang;localStorage.setItem('exam-language',String(state.lang));render();};
 $('#school-select').onchange=e=>setSchool(e.target.value);
 $$('.reset').forEach(b=>b.onclick=resetFilters);
 function changeView(view){state.view=view;renderCalendar();}

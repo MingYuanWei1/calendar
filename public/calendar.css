@@ -180,3 +180,9 @@ body.admin-mode .app-header .calendar-toolbar{display:none}
 @media(max-width:760px){.airy .app-header .date-controls{flex:1 0 100%;gap:10px}.airy .app-header .calendar-actions{justify-content:flex-end}}
 
 .exam-entry{color:var(--accent);font-size:12px;text-decoration:none;white-space:nowrap;padding:6px}
+
+.section-nav{display:flex;align-items:center;gap:18px;flex-shrink:0;white-space:nowrap}
+.section-nav a{color:var(--muted);text-decoration:none;padding:8px 0;font-size:14px;border-bottom:2px solid transparent}
+.section-nav a.active{color:var(--accent);border-bottom-color:var(--accent)}
+@media(min-width:1051px) and (max-width:1400px){.airy .app-header{flex-wrap:wrap}.airy .app-header .calendar-toolbar{order:3;flex:1 0 100%}}
+@media(max-width:760px){.section-nav{gap:14px}.section-nav a{font-size:12px}}

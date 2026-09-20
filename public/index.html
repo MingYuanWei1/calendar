@@ -11,15 +11,9 @@
   <script defer src="calendar.js?v=week"></script>
   <script defer src="admin.js"></script>
   <script defer src="day-plans.js"></script>
-</head>
+<link rel="stylesheet" href="site-header.css"></head>
 <body class="airy">
-  <header class="app-header">
-    <div class="brand"><div class="logo" aria-label="学校 Logo 占位符">LOGO</div><div><strong data-i18n="school">学校校历</strong><span class="brand-sub">CAMPUS CALENDAR</span></div></div>
-    <div class="calendar-toolbar">
-        <div class="date-controls"><div class="month-heading"><h1 id="month-title"></h1></div><div class="date-nav"><button id="previous" aria-label="上个月">‹</button><button id="today" data-i18n="today">今天</button><button id="next" aria-label="下个月">›</button></div></div><div class="calendar-actions"><div class="view-switch" aria-label="日历视图"><button id="month-view" aria-pressed="true" data-i18n="monthView">月历</button><button id="week-view" aria-pressed="false" data-i18n="weekView">周历</button><button id="list-view" aria-pressed="false" data-i18n="listView">日程</button></div></div>
-      </div>
-    <div class="header-actions"><a class="exam-entry" href="exams.html">考试安排</a><label class="search"><span class="search-label" data-i18n="searchLabel">搜索</span><input id="search" type="search" placeholder="搜索事件" aria-label="搜索事件"></label><button id="admin-entry" type="button">管理事件</button><button id="language" class="language" aria-label="Switch to English">EN</button></div>
-  </header>
+  <header id="site-header" class="app-header" data-page="calendar"></header><script src="site-header.js"></script>
   <div class="school-tabs" id="school-tabs" aria-label="适用学部"></div>
   <div class="workspace">
     <aside class="sidebar" aria-label="校历筛选">

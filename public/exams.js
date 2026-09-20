@@ -1,13 +1,12 @@
 import {$,esc,api,date,addDays,monday,divisions,sorted,seatingMarkup} from './exam-common.js';
-let lang=Number(localStorage.getItem('exam-language')||0),batch=null,batches=[],week='',division='high',grade='',mine=false,chosen=new Set(),school={configured:false,user:null},config={timeZone:'Asia/Shanghai'},saving=false,loadNumber=0;
+let lang=Number(localStorage.getItem('exam-language')||0),batch=null,batches=[],week='',division='high',grade='',mine=false,chosen=new Set(),school={configured:false,user:null},config={timeZone:'Asia/Shanghai',schoolName:'学校校历',schoolNameEn:'School calendar'},saving=false,loadNumber=0;
 const T=(zh,en)=>lang?en:zh;
 const title=s=>lang?(s.titleEn||s.title):s.title;
 const notice=(message,error=true)=>{$('#notice').textContent=message;$('#notice').classList.toggle('success',!error);};
 const scopeSessions=()=>batch?batch.sessions.filter(s=>mine?chosen.has(s.id):s.division===division&&(!grade||s.grades.includes(grade))):[];
 function render(){
  document.documentElement.lang=lang?'en':'zh-CN';document.querySelectorAll('[data-zh]').forEach(el=>el.textContent=el.getAttribute(lang?'data-en':'data-zh'));
- $('#language').textContent=lang?'中文':'EN';$('#intro').textContent=T('选择学部查看安排，登录后勾选自己要考的场次。','Browse by division. Sign in to save your own exams.');
- $('#sign-in').hidden=!!school.user;$('#sign-out').hidden=!school.user;$('#sign-out').textContent=T('退出登录','Sign out');$('#sign-in').textContent=T('Microsoft 登录','Microsoft sign-in');$('#user-name').textContent=school.user?.name||'';
+ $('#language').textContent=lang?'中文':'EN';$('#language').setAttribute('aria-label',lang?'切换为中文':'Switch to English');$('[data-school-name]').textContent=lang?(config.schoolNameEn||'School calendar'):(config.schoolName||'学校校历');
  $('#sso-note').textContent=school.configured?'':T('学校 Microsoft 登录尚未配置；公开考试安排仍可查看。','School Microsoft sign-in is not configured yet. Public schedules remain available.');
  $('#selection-note').textContent=school.user?T('勾选逐场自动保存到账号；不代表学校确认的报考记录。','Selections save to your account. They are your personal choices, not official registrations.'):T('登录后可保存选择，并查看完整教室座位表。','Sign in to save selections and view room seating plans.');
  $('#all-mode').textContent=T('全部考试','All exams');$('#mine-mode').textContent=T('我的考试','My exams');$('#all-mode').setAttribute('aria-pressed',String(!mine));$('#mine-mode').setAttribute('aria-pressed',String(mine));$('#division-filters').hidden=mine;
@@ -69,7 +68,6 @@ $('#previous').onclick=()=>{week=addDays(week,-7);render();};$('#next').onclick=
 $('#select-visible').onclick=()=>saveChoices(new Set([...chosen,...scopeSessions().filter(s=>s.date>=week&&s.date<=addDays(week,6)).map(s=>s.id)]));
 $('#clear-visible').onclick=()=>{const visible=new Set(scopeSessions().filter(s=>s.date>=week&&s.date<=addDays(week,6)).map(s=>s.id));saveChoices(new Set([...chosen].filter(id=>!visible.has(id))));};
 $('#language').onclick=()=>{lang=1-lang;localStorage.setItem('exam-language',String(lang));render();};
-$('#sign-out').onclick=async()=>{try{await api('/school/logout',{method:'POST'});school.user=null;chosen=new Set();mine=false;render();notice('');}catch(e){notice(e.message);}};
 $('#download').onclick=()=>{$(`input[name="pdf-scope"][value="${mine?'mine':'all'}"]`).checked=true;$('#pdf-dialog').showModal();};
 $('#confirm-download').onclick=async()=>{
  const own=$('input[name="pdf-scope"]:checked').value==='mine',params=new URLSearchParams(own?{mine:'1',lang:lang?'en':'zh'}:{division,grade,lang:lang?'en':'zh'});$('#confirm-download').disabled=true;
