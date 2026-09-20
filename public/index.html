@@ -9,6 +9,7 @@
   <script defer src="event-details.js"></script>
   <script defer src="calendar.js?v=viewport"></script>
   <script defer src="admin.js"></script>
+  <script defer src="day-plans.js"></script>
 </head>
 <body class="airy">
   <header class="app-header">
@@ -32,11 +33,12 @@
       <div class="inline-filters"><label class="school-select-label"><span data-i18n="scope">适用学部</span><select id="school-select" aria-label="适用学部"></select></label><div id="inline-types"></div><button class="text-button reset" data-i18n="reset">重置</button></div>
       <div class="calendar-surface"><div class="weekdays" id="weekdays"></div><div class="month-grid" id="month-grid"></div><div class="agenda" id="agenda" hidden></div><div class="empty" id="empty" hidden><strong data-i18n="emptyTitle">没有符合条件的事件</strong><p data-i18n="emptyHelp">试试其他关键词，或重置筛选。</p><button class="reset" data-i18n="reset">重置</button></div></div>
       <p id="load-status" class="load-status" role="status"></p><button id="retry-load" hidden>重新加载 / Retry</button>
-      <div class="calendar-footer"><span id="result-count" aria-live="polite"></span><span data-i18n="timezone">学校当地时间</span></div>
+      <div class="day-legend" id="day-legend" aria-label="日期颜色说明 / Day legend"></div><div class="calendar-footer"><span id="result-count" aria-live="polite"></span><span data-i18n="timezone">学校当地时间</span></div>
     </main>
     <aside class="details" id="details" aria-label="事件详情"></aside>
   </div>
   <main id="admin-app" hidden></main>
+  <dialog id="day-plan-dialog" aria-labelledby="day-plan-heading"><div id="day-plan-content"></div></dialog>
   <dialog id="login-dialog" aria-label="管理员登录"><button id="close-login" class="close-button" aria-label="关闭 / Close">×</button><div id="login-content"></div></dialog>
   <dialog id="media-dialog" aria-labelledby="media-heading"><div class="dialog-top"><h2 id="media-heading">事件海报</h2><button id="close-media" class="close-button" aria-label="关闭图片">×</button></div><img id="media-image" alt="完整事件海报"></dialog>
   <dialog id="preview-dialog" aria-labelledby="preview-heading"><div class="dialog-top"><h2 id="preview-heading">事件预览</h2><button id="close-preview" class="close-button" aria-label="关闭预览">×</button></div><div id="preview-detail"></div></dialog>

@@ -5,7 +5,7 @@ import {join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import sharp from 'sharp';
 import {openStore,digest,verifyPassword} from './store.mjs';
-import {eventSchema} from './validation.mjs';
+import {eventSchema,dayPlanSchema} from './validation.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url));
 
 export function createApplication({dataDir,origin,schoolName='学校校历',schoolNameEn='School calendar',timeZone='Asia/Shanghai',trustProxy=''}){
@@ -50,6 +50,22 @@ export function createApplication({dataDir,origin,schoolName='学校校历',scho
   const rowsToEvents=rows=>rows.map(row=>JSON.parse(row.body));
   app.get('/api/events',(req,res)=>res.json(rowsToEvents(db.prepare("SELECT body FROM events WHERE status IN ('published','cancelled') ORDER BY json_extract(body,'$.start'),id").all())));
   app.get('/api/admin/events',requireAdmin,(req,res)=>res.json(rowsToEvents(db.prepare('SELECT body FROM events ORDER BY json_extract(body,\'$.start\'),id').all())));
+  app.get('/api/day-plans',(req,res)=>res.json(db.prepare('SELECT * FROM day_plans ORDER BY date').all().map(row=>({...row,title:JSON.parse(row.title)}))));
+  app.put('/api/admin/day-plans',requireAdmin,(req,res)=>{
+    const parsed=dayPlanSchema.safeParse(req.body);
+    if(!parsed.success)return res.status(422).json({error:'请选择有效日期范围（不超过 366 天），名称不超过 60 字。'});
+    const {start,end,kind,title}=parsed.data;
+    const put=db.prepare('INSERT INTO day_plans VALUES(?,?,?) ON CONFLICT(date) DO UPDATE SET kind=excluded.kind,title=excluded.title');
+    const remove=db.prepare('DELETE FROM day_plans WHERE date=?');
+    db.exec('BEGIN IMMEDIATE');
+    try{
+      for(let day=new Date(start+'T12:00:00Z');day.toISOString().slice(0,10)<=end;day.setUTCDate(day.getUTCDate()+1)){
+        const iso=day.toISOString().slice(0,10);
+        if(kind==='default')remove.run(iso);else put.run(iso,kind,JSON.stringify(title));
+      }
+      db.exec('COMMIT');res.status(204).end();
+    }catch(error){db.exec('ROLLBACK');throw error;}
+  });
   const getEvent=id=>{const row=db.prepare('SELECT body FROM events WHERE id=?').get(id);return row?JSON.parse(row.body):null;};
   const conflict=(res)=>res.status(409).json({error:'事件已在其他窗口更新。请保留输入，返回列表刷新后再编辑。',code:'CONFLICT'});
   function persist(req,res,existing){

@@ -19,6 +19,10 @@ let previewEvent = null;
 let detailReturnDay=null;
 let detailScrollY=0;
 let calendarSlots=4;
+let dayPlans={};
+function dayPlan(iso){return dayPlans[iso];}
+function dayBadge(plan){return plan?`<span class="day-badge ${plan.kind}">${plan.kind==='off'?(state.lang?'Off':'休'):(state.lang?'Class':'上课')}</span>`:'';}
+function dayPlanName(plan){return plan?(text(plan.title)||(plan.kind==='off'?(state.lang?'School holiday':'学校放假'):(state.lang?'School day':'上课日'))):'';}
 
 function t(key){return copy[key]?.[state.lang] ?? key;}
 function text(pair){return pair?.[state.lang] || pair?.find(value=>value?.trim()) || '';}
@@ -72,11 +76,11 @@ function renderCalendar(){
     }).join('');
     html+=`<div class="week">`;
     for(let i=0;i<7;i++){
-      const d=dates[i],iso=isoDate(d);const items=events.filter(matches).filter(e=>!isMulti(e)&&onDate(e,iso)).sort(sortEvents);
+      const d=dates[i],iso=isoDate(d),plan=dayPlan(iso);const items=events.filter(matches).filter(e=>!isMulti(e)&&onDate(e,iso)).sort(sortEvents);
       const visibleLanes=Math.min(3,calendarSlots,lanes.length);
       const cap=calendarSlots-visibleLanes;
       const hiddenCount=Math.max(0,items.length-cap)+hiddenMulti.filter(e=>onDate(e,iso)).length;
-      html+=`<div class="day${d.getMonth()!==state.month?' outside':''}${i>4?' weekend':''}${iso===schoolToday()?' today':''}"><button class="day-number" data-day="${iso}" aria-label="${esc(formatDate(iso,true))}" ${iso===schoolToday()?'aria-current="date"':''}>${d.getDate()}</button><div class="day-items" style="padding-top:${visibleLanes*23}px">${items.slice(0,cap).map(eventButton).join('')}${hiddenCount>0?`<button class="more" data-day="${iso}">${state.lang?`+${hiddenCount} more`:`还有 ${hiddenCount} 项`}</button>`:''}</div></div>`;
+      html+=`<div class="day${d.getMonth()!==state.month?' outside':''}${i>4?' weekend':''}${plan?' day-'+plan.kind:''}${iso===schoolToday()?' today':''}"><div class="day-date"><button class="day-number" data-day="${iso}" aria-label="${esc(formatDate(iso,true))}" ${iso===schoolToday()?'aria-current="date"':''}>${d.getDate()}</button>${dayBadge(plan)}</div><div class="day-plan-name" title="${esc(dayPlanName(plan))}">${esc(dayPlanName(plan))}</div><div class="day-items" style="padding-top:${visibleLanes*23}px">${items.slice(0,cap).map(eventButton).join('')}${hiddenCount>0?`<button class="more" data-day="${iso}">${state.lang?`+${hiddenCount} more`:`还有 ${hiddenCount} 项`}</button>`:''}</div></div>`;
     }
     html+=`<div class="spans">${bars}</div></div>`;
   }
@@ -84,13 +88,14 @@ function renderCalendar(){
   let agenda='';
   for(let day=1;day<=last.getDate();day++){
     const iso=isoDate(new Date(state.year,state.month,day,12));const items=monthEvents.filter(e=>onDate(e,iso)).sort(sortEvents);
-    if(!items.length)continue;
-    agenda+=`<section class="agenda-day"><div class="agenda-date"><strong>${day}</strong><small>${new Intl.DateTimeFormat(state.lang?'en-GB':'zh-CN',{weekday:'short'}).format(dateValue(iso))}</small></div><div>${items.map(agendaButton).join('')}</div></section>`;
+    const plan=dayPlan(iso);
+    if(!items.length&&!plan)continue;
+    agenda+=`<section class="agenda-day${plan?' day-'+plan.kind:''}"><div class="agenda-date"><strong>${day}</strong><small>${new Intl.DateTimeFormat(state.lang?'en-GB':'zh-CN',{weekday:'short'}).format(dateValue(iso))}</small>${dayBadge(plan)}</div><div>${plan?`<p class="agenda-plan">${esc(dayPlanName(plan))}</p>`:''}${items.map(agendaButton).join('')}</div></section>`;
   }
   $('#agenda').innerHTML=agenda;
   $('#agenda').classList.toggle('is-empty',!monthEvents.length);
   $('#agenda').hidden=state.view==='month';$('#month-grid').hidden=state.view!=='month';$('#weekdays').hidden=state.view!=='month';
-  $('#empty').hidden=!!monthEvents.length;
+  $('#empty').hidden=!!monthEvents.length||Object.keys(dayPlans).some(date=>date>=isoDate(first)&&date<=isoDate(last));
   $('#result-count').textContent=state.lang?`${monthEvents.length} events this month`:`本月 ${monthEvents.length} 项事件`;
   $('#month-view').setAttribute('aria-pressed',String(state.view==='month'));$('#list-view').setAttribute('aria-pressed',String(state.view==='list'));
   bindEvents($('#main-calendar'));$$('[data-day]').forEach(b=>b.onclick=()=>openDay(b.dataset.day));
@@ -103,13 +108,14 @@ function renderDetail(){
 }
 
 function bindClose(){$('#close-detail').onclick=()=>{document.body.classList.remove('mobile-detail');document.body.classList.add('detail-closed');syncDetailMode();const selectedId=state.selected;state.selected=null;renderCalendar();const target=$$(`[data-event="${selectedId}"]`).find(el=>el.getClientRects().length);const fallback=detailReturnDay?$$(`[data-day="${detailReturnDay}"]`).find(el=>el.getClientRects().length):null;(target||fallback)?.focus({preventScroll:true});window.scrollTo(0,detailScrollY);};}
-function openDay(iso){$('#day-dialog').dataset.date=iso;$('#day-title').textContent=formatDate(iso,true);const items=events.filter(matches).filter(e=>onDate(e,iso)).sort(sortEvents);$('#day-events').innerHTML=items.length?items.map(agendaButton).join(''):`<p>${esc(t('noDayEvents'))}</p>`;bindEvents($('#day-events'));$('#day-dialog').showModal();}
+function openDay(iso){$('#day-dialog').dataset.date=iso;$('#day-title').textContent=formatDate(iso,true)+(dayPlan(iso)?' · '+dayPlanName(dayPlan(iso)):'');const items=events.filter(matches).filter(e=>onDate(e,iso)).sort(sortEvents);$('#day-events').innerHTML=items.length?items.map(agendaButton).join(''):`<p>${esc(t('noDayEvents'))}</p>`;bindEvents($('#day-events'));$('#day-dialog').showModal();}
 function render(){
   copy.timezone=[settings.timeZone+' · 学校时间',settings.timeZone+' · School time'];
   document.documentElement.lang=state.lang?'en':'zh-CN';$$('[data-i18n]').forEach(el=>el.textContent=t(el.dataset.i18n));
   $('#language').textContent=state.lang?'中文':'EN';$('#language').setAttribute('aria-label',state.lang?'切换为中文':'Switch to English');
   $('#search').placeholder=t('searchPlaceholder');$('#search').setAttribute('aria-label',t('searchPlaceholder'));
   $('#previous').setAttribute('aria-label',t('previous'));$('#next').setAttribute('aria-label',t('next'));$('#school-select').setAttribute('aria-label',t('scope'));$('#details').setAttribute('aria-label',t('detail'));$('#close-day').setAttribute('aria-label',t('closeDay'));$('#close-registration').setAttribute('aria-label',state.lang?'Close':'关闭');
+  $('#day-legend').innerHTML=`<span class="legend-weekday">${state.lang?'Weekday':'工作日'}</span><span class="legend-weekend">${state.lang?'Weekend':'周末'}</span><span class="legend-off">${state.lang?'Holiday':'放假'}</span><span>${dayBadge({kind:'school'})} ${state.lang?'Adjusted school day':'调休上课'}</span>`;
   renderFilters();renderCalendar();renderDetail();
   document.dispatchEvent(new CustomEvent('calendar-language'));
 }
@@ -135,7 +141,7 @@ function fitMonthDensity(){
   if(mobileQuery.matches||!grid.getClientRects().length)return;
   const weeks=grid.querySelectorAll('.week').length;
   if(!weeks)return;
-  const slots=Math.max(0,Math.min(4,Math.floor((grid.clientHeight/weeks-50)/23)));
+  const slots=Math.max(0,Math.min(4,Math.floor((grid.clientHeight/weeks-70)/23)));
   if(slots!==calendarSlots){calendarSlots=slots;renderCalendar();}
 }
 const monthSizeObserver=new ResizeObserver(fitMonthDensity);

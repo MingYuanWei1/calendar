@@ -49,6 +49,10 @@ try{
   db.exec('BEGIN IMMEDIATE');
   const insert=db.prepare('INSERT INTO events(id,status,version,body) VALUES(?,?,?,?) ON CONFLICT(id) DO NOTHING');
   for(const event of records)added+=Number(insert.run(event.id,event.status,event.version,JSON.stringify(event)).changes);
+  const dayInsert=db.prepare('INSERT INTO day_plans VALUES(?,?,?) ON CONFLICT(date) DO NOTHING');
+  for(const day of [25,26,27])dayInsert.run(date(day),'off',JSON.stringify(['秋季休假 · 示例','Autumn break · Sample']));
+  const sunday=Array.from({length:7},(_,i)=>date(19+i)).find(iso=>new Date(iso+'T12:00:00').getDay()===0);
+  dayInsert.run(sunday,'school',JSON.stringify(['调休上课 · 示例','Make-up day · Sample']));
   db.exec('COMMIT');
   console.log(JSON.stringify({month,added,alreadyPresent:records.length-added,samples:records.length,public:records.filter(e=>e.status!=='draft').length,drafts:records.filter(e=>e.status==='draft').length}));
 }catch(error){db.exec('ROLLBACK');throw error;}finally{db.close();}

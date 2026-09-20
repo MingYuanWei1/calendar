@@ -115,3 +115,24 @@ body.admin-mode .app-header .calendar-toolbar{display:none}
   .airy .search input{width:100%}
   .airy .inline-filters{padding-top:14px}
 }
+
+/* School day overrides remain visible independently of event filters. */
+.airy .day.weekend{background:#edf0f3}.airy .day.weekend .day-number{color:#687984}
+.airy .day.day-off,.airy .day.day-off.today{background:#e3f2e7}
+.airy .day.day-school,.airy .day.day-school.today{background:#fff}
+.airy .day.day-school .day-number{color:var(--text)}
+.airy .today .day-number{color:white!important}
+.day-date{display:flex;align-items:center;justify-content:space-between;gap:3px;padding:0 6px;height:25px}
+.airy .day-date .day-number{margin:0}
+.day-badge{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;border-radius:4px;font-size:10px;font-weight:600;line-height:17px;padding:0 4px}
+.day-badge.off{background:#23734c;color:white}.day-badge.school{background:#e2eef5;color:#255d76;border:1px solid #a3c5d7}
+.day-plan-name{height:19px;line-height:18px;padding:0 6px;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#246345}
+.day-school .day-plan-name{color:#386478}
+.airy .spans{top:50px}
+.day-legend{display:flex;align-items:center;justify-content:flex-end;gap:14px;flex-wrap:wrap;padding:7px 16px 0;font-size:10px;color:var(--muted);flex-shrink:0}
+.day-legend>span{display:inline-flex;align-items:center;gap:4px}
+.legend-weekday:before,.legend-weekend:before,.legend-off:before{content:'';width:10px;height:10px;border:1px solid #c8d2d9;border-radius:2px;background:#fff}
+.legend-weekend:before{background:#edf0f3}.legend-off:before{background:#e3f2e7;border-color:#94bca1}
+.agenda-plan{font-size:12px;color:#286747;margin:4px 0 8px}.agenda-day.day-off{background:#e3f2e7;border-radius:8px;padding-left:8px;padding-right:8px}.agenda-day.day-school .agenda-plan{color:#28647b}
+.saved-day-plans{margin-top:22px}.saved-day-plans h3{font-size:13px;margin-bottom:10px}#saved-plans{display:flex;flex-direction:column;gap:6px;max-height:180px;overflow:auto}#saved-plans button{text-align:left;font-size:12px}
+@media(max-width:760px){.day-legend{justify-content:flex-start;padding:12px 18px}.agenda-date .day-badge{margin-top:5px}}

@@ -16,7 +16,8 @@ async function api(path,options={}){
 function schoolToday(){return new Intl.DateTimeFormat('en-CA',{timeZone:settings.timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}
 function setLoadMessage(message,error=false){const el=$('#load-status');el.textContent=message;el.classList.toggle('request-error',error);}
 async function loadEvents(management=false){
-  const list=await api(management?'/admin/events':'/events');
+  const [list,plans]=await Promise.all([api(management?'/admin/events':'/events'),api('/day-plans')]);
+  dayPlans=Object.fromEntries(plans.map(plan=>[plan.date,plan]));
   events.splice(0,events.length,...list);
   if(!events.some(e=>e.id===state.selected&&matches(e)))state.selected=null;
   renderCalendar();renderDetail();
