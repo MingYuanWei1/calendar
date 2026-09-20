@@ -1,13 +1,13 @@
+import {examDatePages} from './exam-dates.mjs';
 import {roomSlotExams} from './exam-seats.mjs';
 import {subjectColors,normalizeCourse} from './exam-subjects.mjs';
 import {downloadExamView,prepareExamPdf} from './exam-export.js';
 import {examSlotRows,groupExamLevels} from './exam-times.mjs';
-import {$,esc,api,date,addDays,monday,divisions,sorted,seatingMarkup} from './exam-common.js';
+import {$,esc,api,date,monday,divisions,sorted,seatingMarkup} from './exam-common.js';
 let lang=Number(localStorage.getItem('exam-language')||0),batch=null,batches=[],week='',division='high',grade='',mine=false,chosen=new Set(),school={configured:false,user:null},config={timeZone:'Asia/Shanghai',schoolName:'学校校历',schoolNameEn:'School calendar'},saving=false,loadNumber=0;
 const T=(zh,en)=>lang?en:zh;
 const title=s=>{const name=lang?(s.titleEn||s.title):s.title.replaceAll('商务管理','商管');return name+[s.level].filter(value=>value&&!name.includes(value)).map(value=>' · '+value).join('');};
 const notice=(message,error=true)=>{$('#notice').textContent=message;$('#notice').classList.toggle('success',!error);};
-const shownWeekDays=(days,sessions)=>days.filter((day,index)=>index<5||sessions.some(exam=>exam.date===day));
 const scopeSessions=()=>batch?batch.sessions.filter(s=>mine?chosen.has(s.id):s.division===division&&(!grade||s.grades.includes(grade))):[];
 function render(){
  document.documentElement.lang=lang?'en':'zh-CN';document.querySelectorAll('[data-zh]').forEach(el=>el.textContent=el.getAttribute(lang?'data-en':'data-zh'));
@@ -21,11 +21,14 @@ function render(){
  $('#grade').innerHTML=`<option value="">${T('全部年级','All grades')}</option>`+grades.map(g=>`<option ${g===grade?'selected':''}>${esc(g)}</option>`).join('');
  document.querySelectorAll('[data-division]').forEach(el=>el.addEventListener('click',()=>{division=el.getAttribute('data-division');grade='';render();}));
  $('#current').textContent=T('本批次首周','First week');$('#previous').setAttribute('aria-label',T('上一周','Previous week'));$('#next').setAttribute('aria-label',T('下一周','Next week'));
- if(!batch){$('#schedule').innerHTML=`<p class="no-exams">${T('暂无已发布考试批次','No published exam series')}</p>`;$('#range').textContent='';return;}
- const days=Array.from({length:7},(_,i)=>addDays(week,i)),visible=sorted(scopeSessions()),thisWeek=visible.filter(s=>days.includes(s.date));
- const shownDays=shownWeekDays(days,thisWeek);
- $('#range').textContent=`${shownDays[0]} — ${shownDays.at(-1)}`;$('#previous').disabled=week<=monday(batch.start);$('#next').disabled=days[6]>=batch.end;
- $('#schedule').innerHTML=scheduleMarkup(visible,week,!mine);
+ if(!batch){for(const id of ['previous','current','next'])$('#'+id).hidden=true;$('#schedule').innerHTML=`<p class="no-exams">${T('暂无已发布考试批次','No published exam series')}</p>`;$('#range').textContent='';return;}
+ const visible=sorted(scopeSessions()),pages=examDatePages(visible);
+ let page=pages.findIndex(days=>days.includes(week));if(page<0)page=0;
+ const shownDays=pages[page]||[];week=shownDays[0]||'';
+ for(const id of ['previous','current','next'])$('#'+id).hidden=pages.length<=1;
+ $('#range').textContent=shownDays.length?(shownDays.length===1?shownDays[0]:`${shownDays[0]} — ${shownDays.at(-1)}`):T('暂无考试','No exams');
+ $('#previous').disabled=page===0;$('#next').disabled=page>=pages.length-1;
+ $('#schedule').innerHTML=shownDays.length?scheduleMarkup(visible,shownDays,!mine):`<p class="no-exams">${T('当前范围暂无考试','No exams in this selection')}</p>`;
  $('#published').textContent=`${T('发布于','Published')} ${new Intl.DateTimeFormat(lang?'en-GB':'zh-CN',{timeZone:config.timeZone,dateStyle:'medium',timeStyle:'short'}).format(new Date(batch.publishedAt))} · ${config.timeZone}`;
  const own=sorted(batch.sessions.filter(s=>chosen.has(s.id)&&!s.cancelled)),clashes=[];
  for(let i=0;i<own.length;i++)for(let j=i+1;j<own.length;j++)if(own[i].date===own[j].date&&own[i].start<own[j].end&&own[j].start<own[i].end)clashes.push(`${title(own[i])} / ${title(own[j])}`);
@@ -33,9 +36,8 @@ function render(){
  document.querySelectorAll('[data-choice]').forEach(el=>el.addEventListener('change',()=>{const next=new Set(chosen),id=el.getAttribute('data-choice');next.has(id)?next.delete(id):next.add(id);saveChoices(next);}));
  document.querySelectorAll('[data-exam]').forEach(el=>el.addEventListener('click',()=>showDetail(el.getAttribute('data-exam'))));
 }
-function scheduleMarkup(visible,weekValue,highlightSelected=true){
- const days=Array.from({length:7},(_,i)=>addDays(weekValue,i)),thisWeek=sorted(visible).filter(s=>days.includes(s.date));
- const shownDays=shownWeekDays(days,thisWeek);
+function scheduleMarkup(visible,shownDays,highlightSelected=true){
+ const thisWeek=sorted(visible).filter(s=>shownDays.includes(s.date));
  const today=new Intl.DateTimeFormat('en-CA',{timeZone:config.timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
  // Use the full batch so filtering, language and selection never reshuffle colors.
  const colorStyle=subjectColors(batch.sessions,batch.subjects||[]);
@@ -75,7 +77,8 @@ async function showDetail(id){
 }
 $('#close-detail').onclick=()=>$('#detail').close();$('#batch').onchange=()=>loadBatch($('#batch').value);$('#grade').onchange=()=>{grade=$('#grade').value;render();};
 $('#all-mode').onclick=()=>{mine=false;render();};$('#mine-mode').onclick=()=>{if(!school.user){notice(T('请先使用学校 Microsoft 账号登录。','Please sign in with your school Microsoft account.'));return;}mine=true;render();};
-$('#previous').onclick=()=>{week=addDays(week,-7);render();};$('#next').onclick=()=>{week=addDays(week,7);render();};$('#current').onclick=()=>{week=monday(batch.start);render();};
+function changeExamPage(offset){const pages=examDatePages(scopeSessions()),index=pages.findIndex(days=>days.includes(week));week=pages[Math.max(0,Math.min(pages.length-1,index+offset))]?.[0]||'';render();}
+$('#previous').onclick=()=>changeExamPage(-1);$('#next').onclick=()=>changeExamPage(1);$('#current').onclick=()=>{week='';render();};
 $('#language').onclick=()=>{lang=1-lang;localStorage.setItem('exam-language',String(lang));render();};
 function updateDownloadScope(){
  const scope=$('input[name="pdf-scope"]:checked').value;
@@ -106,11 +109,9 @@ $('#pdf-submit').onclick=async()=>{
  const panels=[];
  for(const [key,names] of Object.entries(divisions)){
   const scoped=sessions.filter(s=>s.division===key);if(!scoped.length)continue;
-  for(let start=monday(batch.start);start<=batch.end;start=addDays(start,7)){
-   if(!scoped.some(s=>s.date>=start&&s.date<=addDays(start,6)))continue;
-   const exportDays=shownWeekDays(Array.from({length:7},(_,i)=>addDays(start,i)),scoped);
+  for(const exportDays of examDatePages(scoped)){
    const panel=document.createElement('section');panel.className='schedule-panel';
-   panel.innerHTML=`<div class="selection-toolbar"><span>${esc(title(batch))} · ${names[lang]} · ${exportDays[0]} — ${exportDays.at(-1)}</span></div><div class="schedule">${scheduleMarkup(scoped,start,scope==='grades')}</div><footer>${esc($('#published').textContent)}</footer>`;
+   panel.innerHTML=`<div class="selection-toolbar"><span>${esc(title(batch))} · ${names[lang]} · ${exportDays[0]} — ${exportDays.at(-1)}</span></div><div class="schedule">${scheduleMarkup(scoped,exportDays,scope==='grades')}</div><footer>${esc($('#published').textContent)}</footer>`;
    container.append(panel);panels.push(panel);
   }
  }
