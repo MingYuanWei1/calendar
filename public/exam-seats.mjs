@@ -1,7 +1,13 @@
-import {examSlotRows} from './exam-times.mjs';
-export function roomSlotExams(batch,exam,room){
- const sessions=batch.sessions.filter(s=>s.date===exam.date&&s.rooms.includes(room));
- return examSlotRows(batch.timeSlots,sessions).find(row=>row.sessions.some(s=>s.id===exam.id))?.sessions||[];
+export function roomExamsAt(batch,exam,room,point){
+ return batch.sessions.filter(s=>!s.cancelled&&s.date===exam.date&&s.rooms.includes(room)&&s.start<=point&&point<s.end);
+}
+export function seatViewTimes(batch,exam,room){
+ const times=new Set([exam.start]);
+ for(const s of batch.sessions){
+  if(s.cancelled||s.date!==exam.date||!s.rooms.includes(room))continue;
+  for(const time of [s.start,s.end])if(exam.start<time&&time<exam.end)times.add(time);
+ }
+ return [...times].sort();
 }
 export function moveSeat(batch,index,row,column,examIds=null){
  const seat=batch.seats[index],exam=seat&&batch.sessions.find(s=>s.id===seat.examId),room=seat&&batch.rooms.find(r=>r.name===seat.room);

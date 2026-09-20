@@ -1,3 +1,4 @@
+import {roomExamsAt} from './exam-seats.mjs';
 export const $=selector=>/** @type {any} */(document.querySelector(selector));
 export const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export async function api(path,options={}){
@@ -11,9 +12,9 @@ export function addDays(value,n){const d=date(value);d.setDate(d.getDate()+n);re
 export const monday=value=>addDays(value,-((date(value).getDay()+6)%7));
 export const divisions={primary:['小学部','Primary'],middle:['初中部','Middle'],high:['高中部','High']};
 export const sorted=sessions=>[...sessions].sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)||a.title.localeCompare(b.title));
-export function seatingMarkup(batch,seating,exam,roomName,point,lang=0,editable=false){
+export function seatingMarkup(batch,seating,exam,roomName,point=exam.start,lang=0,editable=false){
  const room=seating.rooms.find(r=>r.name===roomName);if(!room)return '<p>座位表尚未发布 / Not published</p>';
- const active=batch.sessions.filter(s=>!s.cancelled&&s.date===exam.date&&s.rooms.includes(roomName)&&(point===null||(s.start<=point&&point<s.end)));
+ const active=roomExamsAt(batch,exam,roomName,point);
  const occupants=seating.seats.filter(seat=>seat.room===roomName&&active.some(s=>s.id===seat.examId));
  let cells=`<span class="seat-label"></span>`;
  for(let c=1;c<=room.columns;c++)cells+=`<span class="seat-label">${lang?'Col '+c:'第 '+c+' 列'}</span>`;

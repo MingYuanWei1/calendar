@@ -1,10 +1,10 @@
 import {examDatePages} from './exam-dates.mjs';
-import {roomSlotExams} from './exam-seats.mjs';
+import {seatViewTimes} from './exam-seats.mjs';
 import {subjectColors,normalizeCourse} from './exam-subjects.mjs';
 import {downloadExamView,prepareExamPdf} from './exam-export.js';
 import {examSlotRows,groupExamLevels} from './exam-times.mjs';
 import {$,esc,api,date,monday,divisions,sorted,seatingMarkup} from './exam-common.js';
-let lang=Number(localStorage.getItem('exam-language')||0),batch=null,batches=[],week='',division='high',grade='',mine=false,chosen=new Set(),school={configured:false,user:null},config={timeZone:'Asia/Shanghai',schoolName:'学校校历',schoolNameEn:'School calendar'},saving=false,loadNumber=0;
+let lang=Number(localStorage.getItem('exam-language')||0),batch=null,batches=[],week='',division='high',grade='',mine=false,chosen=new Set(),school={configured:false,user:null},config={timeZone:'Asia/Shanghai',schoolName:'学校校历',schoolNameEn:'School calendar'},saving=false,loadNumber=0,detailLoadNumber=0;
 const T=(zh,en)=>lang?en:zh;
 const title=s=>{const name=lang?(s.titleEn||s.title):s.title.replaceAll('商务管理','商管');return name+[s.level].filter(value=>value&&!name.includes(value)).map(value=>' · '+value).join('');};
 const notice=(message,error=true)=>{$('#notice').textContent=message;$('#notice').classList.toggle('success',!error);};
@@ -60,21 +60,24 @@ async function saveChoices(next){
  catch(e){notice(e.message);}finally{saving=false;render();}
 }
 async function showDetail(id){
+ const generation=++detailLoadNumber;
  const exam=batch.sessions.find(s=>s.id===id);if(!exam)return;
  $('#detail-title').textContent=title(exam);
  $('#detail-content').innerHTML=`<dl class="detail-meta"><dt>${T('时间','Time')}</dt><dd>${exam.date} ${exam.start}–${exam.end}</dd><dt>${T('适用','For')}</dt><dd>${esc(divisions[exam.division][lang])} · ${esc(exam.grades.join(' / '))}</dd><dt>${T('地点','Rooms')}</dt><dd>${esc(exam.rooms.join(' / '))}</dd></dl>${exam.cancelled?`<p class="warning">${T('此考试已取消','This exam is cancelled')}</p>`:''}<p>${esc(exam.note)}</p><div id="seating-content"><p class="muted">${T('正在读取座位表…','Loading seating…')}</p></div>`;$('#detail').showModal();
  if(!school.user){$('#seating-content').innerHTML=`<p class="muted">${T('请使用学校账号登录后查看座位表。','Sign in with your school account to view seating.')}</p><a href="/api/school/login?returnTo=${esc(encodeURIComponent(location.pathname+location.search+location.hash))}">Microsoft ${T('登录','sign-in')}</a>`;return;}
  if(!batch.seatingPublished){$('#seating-content').textContent=T('座位表待公布','Seating will be published later');return;}
  try{
-  const seating=await api('/exams/'+batch.id+'/seats');if(!$('#detail').open)return;
-  let room=exam.rooms[0];
+  const seating=await api('/exams/'+batch.id+'/seats');if(!$('#detail').open||generation!==detailLoadNumber)return;
+  let room=exam.rooms[0],point=exam.start;
   const renderSeats=()=>{
-   $('#seating-content').innerHTML=`<div class="room-tabs">${exam.rooms.map(r=>`<button data-room="${esc(r)}" aria-pressed="${r===room}">${esc(r)}</button>`).join('')}</div><div id="seat-grid">${seatingMarkup({...batch,sessions:roomSlotExams(batch,exam,room)},seating,exam,room,null,lang)}</div>`;
-   document.querySelectorAll('[data-room]').forEach(el=>el.addEventListener('click',()=>{room=el.getAttribute('data-room');renderSeats();}));
+   const times=seatViewTimes(batch,exam,room);if(!times.includes(point))point=exam.start;
+   $('#seating-content').innerHTML=`<div class="room-tabs">${exam.rooms.map(r=>`<button data-room="${esc(r)}" aria-pressed="${r===room}">${esc(r)}</button>`).join('')}</div><label class="time-select">${T('查看时刻','View at')}<select id="seat-time">${times.map(time=>`<option value="${esc(time)}" ${time===point?'selected':''}>${esc(time)}</option>`).join('')}</select></label><div id="seat-grid">${seatingMarkup(batch,seating,exam,room,point,lang)}</div>`;
+   document.querySelectorAll('[data-room]').forEach(el=>el.addEventListener('click',()=>{room=el.getAttribute('data-room');point=exam.start;renderSeats();}));
+   $('#seat-time').onchange=()=>{point=$('#seat-time').value;renderSeats();};
   };renderSeats();
- }catch(e){$('#seating-content').textContent=e.message;}
+ }catch(e){if(generation===detailLoadNumber&&$('#detail').open)$('#seating-content').textContent=e.message;}
 }
-$('#close-detail').onclick=()=>$('#detail').close();$('#batch').onchange=()=>loadBatch($('#batch').value);$('#grade').onchange=()=>{grade=$('#grade').value;render();};
+$('#close-detail').onclick=()=>{detailLoadNumber++;$('#detail').close();};$('#batch').onchange=()=>loadBatch($('#batch').value);$('#grade').onchange=()=>{grade=$('#grade').value;render();};
 $('#all-mode').onclick=()=>{mine=false;render();};$('#mine-mode').onclick=()=>{if(!school.user){notice(T('请先使用学校 Microsoft 账号登录。','Please sign in with your school Microsoft account.'));return;}mine=true;render();};
 function changeExamPage(offset){const pages=examDatePages(scopeSessions()),index=pages.findIndex(days=>days.includes(week));week=pages[Math.max(0,Math.min(pages.length-1,index+offset))]?.[0]||'';render();}
 $('#previous').onclick=()=>changeExamPage(-1);$('#next').onclick=()=>changeExamPage(1);$('#current').onclick=()=>{week='';render();};
