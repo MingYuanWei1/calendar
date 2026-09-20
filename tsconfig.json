@@ -9,7 +9,8 @@
       "DOM",
       "DOM.Iterable"
     ],
-    "strict": false
+    "strict": false,
+    "types": []
   },
   "include": [
     "public/*.js",

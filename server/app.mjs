@@ -4,11 +4,12 @@ import {mkdirSync} from 'node:fs';
 import {join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import sharp from 'sharp';
+import {installExams} from './exams.mjs';
 import {openStore,digest,verifyPassword} from './store.mjs';
 import {eventSchema,dayPlanSchema} from './validation.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url));
 
-export function createApplication({dataDir,origin,schoolName='学校校历',schoolNameEn='School calendar',timeZone='Asia/Shanghai',trustProxy=''}){
+export function createApplication({dataDir,origin,schoolName='学校校历',schoolNameEn='School calendar',timeZone='Asia/Shanghai',trustProxy='',sso={}}){
   new Intl.DateTimeFormat('en',{timeZone}).format();
   const base=new URL(origin);if(!['http:','https:'].includes(base.protocol)||base.origin!==origin)throw new Error('APP_ORIGIN must contain only scheme and host/port');
   const db=openStore(dataDir),app=express();
@@ -26,6 +27,7 @@ export function createApplication({dataDir,origin,schoolName='学校校历',scho
   const session=req=>db.prepare('SELECT username FROM sessions WHERE token=? AND expires>?').get(digest(tokenFrom(req)),Date.now());
   const requireAdmin=(req,res,next)=>{if(!session(req))return res.status(401).json({error:'登录已失效，请重新登录。',code:'AUTH'});next();};
   const clearCookie=res=>res.clearCookie('calendar_session',{path:'/',httpOnly:true,sameSite:'strict',secure:base.protocol==='https:'});
+  app.use('/api/admin/exams',express.json({limit:'4mb'}));
   app.use('/api',express.json({limit:'128kb'}));
   app.get('/api/config',(req,res)=>res.json({schoolName,schoolNameEn,timeZone}));
   app.get('/api/session',(req,res)=>res.json({authenticated:Boolean(session(req))}));
@@ -112,6 +114,7 @@ export function createApplication({dataDir,origin,schoolName='学校校历',scho
     if(!published&&!session(req))return res.sendStatus(404);
     res.type('image/webp').sendFile(join(mediaDirectory,req.params.id+'.webp'),{dotfiles:'allow'});
   });
+  installExams(app,db,{requireAdmin,isAdmin:req=>Boolean(session(req)),origin,schoolName,timeZone,sso});
   app.use('/api',(req,res)=>res.status(404).json({error:'接口不存在。'}));
   app.use(express.static(join(root,'public'),{etag:true,maxAge:0}));
   app.use((error,req,res,next)=>{

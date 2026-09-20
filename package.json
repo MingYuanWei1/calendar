@@ -8,18 +8,29 @@
     "admin:create": "node --env-file-if-exists=.env scripts/admin.mjs",
     "test": "node --test tests/integration/*.test.mjs",
     "backup": "node --env-file-if-exists=.env scripts/backup.mjs",
-    "samples": "node --env-file-if-exists=.env scripts/sample-events.mjs"
+    "samples": "node --env-file-if-exists=.env scripts/sample-events.mjs",
+    "samples:exams": "node --env-file-if-exists=.env scripts/sample-exams.mjs"
   },
   "devDependencies": {
     "qrcode": "^1.5.4",
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@fontsource/noto-sans-sc": "^5.3.0",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
+    "jose": "^6.2.12",
+    "pdfkit": "^0.20.2",
     "sharp": "^0.35.4",
+    "unzipper": "^0.12.5",
     "zod": "^4.6.5"
   },
   "engines": {
     "node": ">=24.13.0"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
   }
 }

@@ -178,3 +178,5 @@ body.admin-mode .app-header .calendar-toolbar{display:none}
 .airy .app-header .date-controls .month-heading{flex:0 1 auto}
 .airy .app-header .date-controls .date-nav{flex-shrink:0}
 @media(max-width:760px){.airy .app-header .date-controls{flex:1 0 100%;gap:10px}.airy .app-header .calendar-actions{justify-content:flex-end}}
+
+.exam-entry{color:var(--accent);font-size:12px;text-decoration:none;white-space:nowrap;padding:6px}
