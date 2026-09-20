@@ -1,4 +1,5 @@
 import {installExamExtract} from './exam-extract.mjs';
+import {extractSeats} from './seat-extract.mjs';
 import {installSubjects} from './exam-subjects.mjs';
 import express from 'express';
 import {randomUUID} from 'node:crypto';
@@ -87,6 +88,12 @@ export function installExams(app,db,{requireAdmin,isAdmin,origin,schoolName,time
   db.prepare('UPDATE exam_batches SET seating=?,version=? WHERE id=?').run(JSON.stringify({rooms:b.rooms,seats:b.seats,publishedAt:new Date().toISOString()}),r.version+1,r.id);res.json(info(row(r.id)));
  });
  app.get('/api/admin/exams/:id/template',requireAdmin,async(req,res)=>{const r=row(req.params.id);if(!r)return res.sendStatus(404);res.set({'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','Content-Disposition':'attachment; filename="exam-seats-template.xlsx"'}).send(Buffer.from(await seatTemplate(JSON.parse(r.draft))));});
+ app.post('/api/admin/exams/:id/seat-extract',requireAdmin,express.raw({type:'application/octet-stream',limit:'2mb'}),async(req,res)=>{
+  const r=row(req.params.id);if(!r)return res.sendStatus(404);
+  if(Number(req.headers['x-draft-version'])!==r.version)return res.status(409).json({error:'草稿已修改，请刷新后重新提取。'});
+  if(!Buffer.isBuffer(req.body)||!String(req.headers['x-file-name']||'').toLowerCase().endsWith('.xlsx'))return fail(res,'仅支持 .xlsx 文件。');
+  try{res.json(await extractSeats(req.body,JSON.parse(r.draft),llm));}catch(error){const message=error.message||'';return fail(res,/^(请|仅|Excel|最多|表格|工作簿|LLM Worker|模型)/.test(message)?message:'无法提取座位表，请检查文件及 LLM Worker 配置后重试。');}
+ });
  app.post('/api/admin/exams/:id/import-preview',requireAdmin,express.raw({type:'application/octet-stream',limit:'2mb'}),async(req,res)=>{
   const r=row(req.params.id);if(!r)return res.sendStatus(404);if(!Buffer.isBuffer(req.body))return fail(res,'请上传 Excel 文件。');
   try{res.json(await parseSeats(req.body,JSON.parse(r.draft)));}catch(error){return fail(res,error.message||'无法读取 Excel 文件。');}
