@@ -4,7 +4,7 @@ import {inflateSync} from 'node:zlib';
 // fontkit re-inflates a compressed WOFF table on every glyph access. Keep the
 // bundled font as WOFF, but expand its tables once for the server's PDF renderer.
 export function uncompressedWoff(path){
- const source=readFileSync(path);
+ const source=Buffer.isBuffer(path)?path:readFileSync(path);
  if(source.toString('ascii',0,4)!=='wOFF')throw new Error('Expected bundled WOFF font');
  const count=source.readUInt16BE(12),tables=[];
  let length=44+20*count;

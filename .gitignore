@@ -8,3 +8,7 @@ test-results/
 !.env.example
 *.sqlite*
 backups/
+
+dist/
+.wrangler/
+.dev.vars*

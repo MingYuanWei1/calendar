@@ -29,7 +29,7 @@ export function installExams(app,db,{requireAdmin,isAdmin,origin,schoolName,time
   const b=publicBatch(row(req.params.id)),ids=req.body.ids;
   if(!b)return res.status(404).json({error:'考试批次不存在。'});
   if(!Array.isArray(ids)||ids.length>500||ids.some(id=>typeof id!=='string'||!b.sessions.some(s=>s.id===id)))return fail(res,'选择中包含未发布的考试。');
-  db.exec('BEGIN IMMEDIATE');try{db.prepare('DELETE FROM exam_choices WHERE user_id=? AND batch_id=?').run(u.id,b.id);const put=db.prepare('INSERT INTO exam_choices VALUES(?,?,?)');for(const id of new Set(ids))put.run(u.id,b.id,id);db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}
+  db.transactionSync(()=>{db.prepare('DELETE FROM exam_choices WHERE user_id=? AND batch_id=?').run(u.id,b.id);const put=db.prepare('INSERT INTO exam_choices VALUES(?,?,?)');for(const id of new Set(ids))put.run(u.id,b.id,id);});
   res.json([...new Set(ids)]);
  });
  app.get('/api/exams/:id/pdf',async(req,res)=>{
@@ -44,11 +44,10 @@ export function installExams(app,db,{requireAdmin,isAdmin,origin,schoolName,time
  app.get('/api/admin/exams',requireAdmin,(req,res)=>res.json(db.prepare('SELECT * FROM exam_batches').all().map(info)));
  app.delete('/api/admin/exams/:id',requireAdmin,(req,res)=>{
   const r=row(req.params.id);if(conflict(req,res,r))return;
-  db.exec('BEGIN IMMEDIATE');try{
+  db.transactionSync(()=>{
    db.prepare('DELETE FROM exam_choices WHERE batch_id=?').run(r.id);
    db.prepare('DELETE FROM exam_batches WHERE id=?').run(r.id);
-   db.exec('COMMIT');
-  }catch(error){db.exec('ROLLBACK');throw error;}
+  });
   res.sendStatus(204);
  });
  app.post('/api/admin/exams',requireAdmin,(req,res)=>{
@@ -72,12 +71,11 @@ export function installExams(app,db,{requireAdmin,isAdmin,origin,schoolName,time
   published.sessions=b.sessions.map(s=>{const old=previous?.sessions.find(e=>e.id===s.id);return {...s,changed:Boolean(old&&(old.changed||JSON.stringify({...old,changed:undefined})!==JSON.stringify({...s,changed:undefined})))};});
   // A changed schedule can invalidate room occupancy; require a fresh seating publication.
   const layoutChanged=previous&&JSON.stringify(previous.sessions.map(s=>[s.id,s.date,s.start,s.end,s.rooms,s.cancelled]))!==JSON.stringify(published.sessions.map(s=>[s.id,s.date,s.start,s.end,s.rooms,s.cancelled]));
-  db.exec('BEGIN IMMEDIATE');try{
+  db.transactionSync(()=>{
    db.prepare('UPDATE exam_batches SET published=?,seating=?,version=? WHERE id=?').run(JSON.stringify(published),layoutChanged?null:r.seating,r.version+1,r.id);
    const removeChoice=db.prepare('DELETE FROM exam_choices WHERE batch_id=? AND exam_id=?');
    for(const exam of previous?.sessions||[])if(!published.sessions.some(s=>s.id===exam.id))removeChoice.run(r.id,exam.id);
-   db.exec('COMMIT');
-  }catch(error){db.exec('ROLLBACK');throw error;}
+  });
   res.json(info(row(r.id)));
  });
  app.post('/api/admin/exams/:id/publish-seats',requireAdmin,(req,res)=>{

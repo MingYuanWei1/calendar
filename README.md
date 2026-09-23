@@ -2,6 +2,8 @@
 
 面向学生的公开校历，沿用已确认的 C 方案：左侧学部与事件类型筛选、月历／日程、中英切换、事件详情；手机默认日程与全屏详情。管理员可真实登录、维护草稿、上传海报／二维码、发布、改期、取消和删除事件。
 
+线上站点：https://calendar.keydion.com 。Cloudflare 架构、部署与管理说明见 [Cloudflare 部署](docs/cloudflare-deployment.md)。
+
 ## 启动
 
 需要 Node.js 24.13+。

@@ -1,17 +1,15 @@
 import PDFDocument from 'pdfkit';
-import {uncompressedWoff} from './pdf-font.mjs';
-import {createRequire} from 'node:module';
+import {getFontData} from './font-data.mjs';
+export {pdfFonts} from './font-data.mjs';
 import {z} from 'zod';
-const require=createRequire(import.meta.url);
-export const pdfFonts={regular:require.resolve('@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-400-normal.woff'),bold:require.resolve('@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-700-normal.woff')};
-const fontData={regular:uncompressedWoff(pdfFonts.regular),bold:uncompressedWoff(pdfFonts.bold)};
 const number=z.number().finite().min(0).max(50000),rgb=z.tuple([z.number().int().min(0).max(255),z.number().int().min(0).max(255),z.number().int().min(0).max(255)]);
 const position={x:number,y:number,width:number,height:number,color:rgb};
 export const schedulePdfSchema=z.object({pages:z.array(z.object({width:number.min(320).max(5000),height:number.min(20).max(20000),items:z.array(z.discriminatedUnion('kind',[
  z.object({kind:z.literal('box'),...position,radius:number}),
  z.object({kind:z.literal('text'),...position,text:z.string().max(2000),size:z.number().positive().max(100),bold:z.boolean()})
 ])).max(15000)})).min(1).max(50)});
-export function vectorSchedulePdf(pages){
+export async function vectorSchedulePdf(pages){
+ const fontData=await getFontData();
  const doc=new PDFDocument({autoFirstPage:false,compress:true,info:{Title:'Exam schedule'}}),chunks=[];
  const result=new Promise((resolve,reject)=>{doc.on('data',b=>chunks.push(b));doc.on('end',()=>resolve(Buffer.concat(chunks)));doc.on('error',reject);});
  doc.registerFont('regular',fontData.regular);doc.registerFont('bold',fontData.bold);

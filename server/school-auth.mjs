@@ -1,6 +1,6 @@
 import {randomBytes,createHash} from 'node:crypto';
 import {createRemoteJWKSet,jwtVerify} from 'jose';
-import {digest} from './store.mjs';
+import {digest} from './passwords.mjs';
 export async function verifySchoolIdentity(token,keys,{issuer,clientId,tenantId,nonce}){
  const {payload}=await jwtVerify(token,keys,{issuer,audience:clientId,algorithms:['RS256'],requiredClaims:['exp','iat','nonce','tid','oid']});
  if(payload.tid!==tenantId||payload.nonce!==nonce||typeof payload.oid!=='string')throw new Error('Identity mismatch');

@@ -1,9 +1,8 @@
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
-import {createRequire} from 'node:module';
+import {getFontData} from './font-data.mjs';
 import {seatSchema,seatErrors,divisionNames} from './exam-model.mjs';
 import unzipper from 'unzipper';
-const require=createRequire(import.meta.url);
 const columns=['考试编号','教室','排','列','班级','中文名','英文名'];
 export async function seatTemplate(batch){
  const book=new ExcelJS.Workbook(),sheet=book.addWorksheet('座位数据');
@@ -35,10 +34,10 @@ export async function parseSeats(buffer,batch){
  });
  return {seats,errors:[...errors,...seatErrors(batch,seats)].slice(0,100)};
 }
-export function makeSchedulePdf(batch,sessions,{schoolName,timeZone,scope,english=false}){
+export async function makeSchedulePdf(batch,sessions,{schoolName,timeZone,scope,english=false}){
  const doc=new PDFDocument({size:'A4',margin:40,info:{Title:batch.title,Author:schoolName}}),buffers=[];
  const result=new Promise((resolve,reject)=>{doc.on('data',b=>buffers.push(b));doc.on('end',()=>resolve(Buffer.concat(buffers)));doc.on('error',reject);});
- doc.font(require.resolve('@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-400-normal.woff'));
+ doc.font((await getFontData()).regular);
  const widths=[76,76,185,83,95],labels=english?['Date','Time','Exam','Division / Grade','Rooms']:['日期','时间','考试','学部 / 年级','教室'];
  const tableHeader=()=>{const top=doc.y;doc.rect(40,top,515,25).fill('#e4eff4');let x=40;doc.fontSize(9).fillColor('#243746');labels.forEach((label,i)=>{doc.text(label,x+5,top+6,{width:widths[i]-10,lineBreak:false});x+=widths[i];});doc.y=top+25;};
  const header=()=>{doc.fontSize(18).fillColor('#243746').text(english?(batch.titleEn||batch.title):batch.title);doc.fontSize(9).fillColor('#607581').text(`${schoolName} · ${batch.start} — ${batch.end}`).text(scope).text(`${english?'Generated':'生成于'} ${new Intl.DateTimeFormat(english?'en-GB':'zh-CN',{timeZone,dateStyle:'medium',timeStyle:'short'}).format(new Date())} · ${timeZone}`).moveDown();tableHeader();};
