@@ -26,16 +26,20 @@ For future MCP deployments, use the existing resources. Preserve backend binding
 
 ## Automatic deployment from GitHub
 
-`.github/workflows/deploy.yml` validates pull requests and deploys pushes to `main`. It installs locked dependencies, runs integration tests and type checks, builds both outputs, and validates the Worker bundle. After checks pass, it deploys `school-calendar-api`, then the existing `school-calendar` Pages project, and checks the public frontend and API. Production runs are serialized; an active deployment is not canceled by a newer push. You can also run the workflow manually on `main` from GitHub Actions.
+Cloudflare's native Git integration deploys `MingYuanWei1/calendar` on pushes to `main`. GitHub Actions (`.github/workflows/deploy.yml`) only validates changes; it does not publish and needs no Cloudflare API token.
 
-Configure these repository settings under **Settings → Secrets and variables → Actions**:
+Both Cloudflare projects use Node.js `24.17.0` (also pinned in `.node-version`) and the repository root:
 
-- Variable `CLOUDFLARE_ACCOUNT_ID`: `78cd43d461dc48c8fedde38736d5a2d2`.
-- Secret `CLOUDFLARE_API_TOKEN`: a token restricted to this account with **Workers Scripts: Edit** and **Cloudflare Pages: Edit**. Do not commit the token.
+| Project | Build command | Publish configuration |
+| --- | --- | --- |
+| Worker `school-calendar-api` | `npm test && npm run typecheck && npm run build:cloudflare` | `npx wrangler deploy --keep-vars` |
+| Pages `school-calendar` | `npm test && npm run typecheck && npm run build:cloudflare` | Output directory `dist/pages` |
 
-The frontend configuration is `cloudflare/pages/wrangler.jsonc`; it preserves the `CALENDAR_API` service binding. The backend uses the root `wrangler.jsonc`. Deployment uses `--keep-vars` to preserve additional dashboard variables; values explicitly defined in the repository remain managed by Git. Worker secrets remain in Cloudflare. Keep the Pages project's `fail_open` set to `false`.
+Use the existing Cloudflare GitHub authorization and select `main` as the production branch. Disable preview builds because preview frontends must not use the production backend. Worker build credentials are managed in Cloudflare, not in GitHub repository secrets.
 
-The two deployments are sequential, not atomic. If the frontend deployment fails after the backend succeeds, inspect the Actions log and rerun after fixing the issue. Backend changes should remain compatible with the previous frontend during rollout. Pull requests only run validation and never deploy to production.
+The frontend's `CALENDAR_API` service binding points to `school-calendar-api`; its `fail_open` setting remains `false`. The backend uses the root `wrangler.jsonc`. `--keep-vars` preserves additional dashboard variables; values explicitly defined in the repository remain managed by Git. Worker secrets remain in Cloudflare.
+
+The two native builds run independently. Backend changes should remain compatible with the previous frontend during rollout. Inspect and retry failed builds in each project's Cloudflare deployment history.
 
 ## Administration and external services
 
