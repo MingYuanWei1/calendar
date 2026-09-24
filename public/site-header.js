@@ -11,7 +11,7 @@
  const pageActions=exams
   ? '<button id="download" class="primary" disabled>下载 PDF</button>'
   : '<div class="view-switch" aria-label="日历视图"><button id="month-view" aria-pressed="true" data-i18n="monthView">月历</button><button id="week-view" aria-pressed="false" data-i18n="weekView">周历</button><button id="list-view" aria-pressed="false" data-i18n="listView">日程</button></div>';
- header.innerHTML=`<a class="brand" href="/"><span class="logo" aria-label="学校 Logo 占位符">LOGO</span><span><strong data-i18n="school" data-school-name>学校校历</strong><span class="brand-sub">CAMPUS CALENDAR</span></span></a><nav class="section-nav" aria-label="主要导航">${link('/','calendarNav','校历','Calendar',!exams)}${link('exams.html','examsNav','考试安排','Exams',exams)}</nav><div class="calendar-toolbar"><div class="date-controls">${management?'':dateControls}</div><div class="calendar-actions">${management?'':pageActions}</div></div><div class="header-actions"><button id="language" class="language" aria-label="Switch to English">EN</button><div class="user-menu"><button id="school-account" type="button" disabled aria-expanded="false" aria-controls="account-menu">登录</button><div id="account-menu" class="account-menu" hidden><strong id="account-name"></strong><small id="account-role"></small><a id="account-events" href="/?manage=events" hidden>管理事件</a><a id="account-exams" href="/exams-admin.html" hidden>考试管理</a><a id="account-users" href="/accounts.html" hidden>账户管理</a><button id="account-switch" type="button">切换账户</button><button id="account-logout" type="button">退出登录</button><p id="account-error" role="alert"></p></div></div></div>`;
+ header.innerHTML=`<a class="brand" href="/"><span class="logo" aria-label="学校 Logo 占位符">LOGO</span><span><strong data-i18n="school" data-school-name>学校校历</strong><span class="brand-sub">CAMPUS CALENDAR</span></span></a><nav class="section-nav" aria-label="主要导航">${link('/','calendarNav','校历','Calendar',!exams)}${link('exams.html','examsNav','考试安排','Exams',exams)}</nav><div class="calendar-toolbar"><div class="date-controls">${management?'':dateControls}</div><div class="calendar-actions">${management?'':pageActions}</div></div><div class="header-actions"><button id="language" class="language" aria-label="Switch to English">EN</button><div class="user-menu"><button id="school-account" type="button" disabled aria-expanded="false" aria-controls="account-menu">登录</button><div id="account-menu" class="account-menu" hidden><strong id="account-name"></strong><small id="account-role"></small><a id="account-events" href="/?manage=events" hidden>管理事件</a><a id="account-exams" href="/exams-admin.html" hidden>考试管理</a><a id="account-users" href="/accounts.html" hidden>账户管理</a><button id="account-logout" type="button">退出登录</button><p id="account-error" role="alert"></p></div></div></div>`;
  const logo=header.querySelector('.logo');
  const logoImage=new Image();
  logoImage.alt='学校 Logo';
@@ -34,6 +34,7 @@
  function closeMenu(){menu.hidden=true;accountButton.setAttribute('aria-expanded','false');}
  function renderAccount(){
   const user=session?.user;
+  if(user&&dialog.open)dialog.close();
   accountButton.textContent=user?Array.from(user.name)[0].toUpperCase():label('登录','Sign in');
   accountButton.classList.toggle('account-avatar',Boolean(user));
   accountButton.title=user?user.name:label('登录','Sign in');
@@ -44,7 +45,7 @@
   document.getElementById('account-exams').hidden=!(user?.role>=2);
   document.getElementById('account-users').hidden=user?.role!==3;
   set('account-events','管理事件','Manage events');set('account-exams','考试管理','Manage exams');set('account-users','账户管理','Manage accounts');
-  set('account-switch','切换账户','Switch account');set('account-logout','退出登录','Sign out');
+  set('account-logout','退出登录','Sign out');
   set('account-login-title','登录','Sign in');set('account-microsoft','使用 Microsoft 登录','Sign in with Microsoft');
   set('account-divider','或使用账号密码','or use your username and password');set('account-username-label','账号','Username');set('account-password-label','密码','Password');set('account-submit','登录','Sign in');
  }
@@ -54,17 +55,21 @@
   return response.status===204?null:response.json();
  }
  async function loadSession(){session=await request('/school/session');renderAccount();accountButton.disabled=false;}
- function openLogin(){if(!window.dispatchEvent(new Event('account-before-change',{cancelable:true})))return;closeMenu();document.getElementById('account-login-error').textContent='';if(!dialog.open)dialog.showModal();}
+ async function canLogin(){
+  try{await loadSession();if(!session?.user)return true;accountButton.title=label('当前已登录，请先退出登录。','Already signed in. Sign out first.');}
+  catch(error){accountButton.title=error.message;document.getElementById('account-login-error').textContent=error.message;}
+  return false;
+ }
+ async function openLogin(){if(!await canLogin())return false;closeMenu();document.getElementById('account-login-error').textContent='';if(!dialog.open)dialog.showModal();return true;}
  accountButton.onclick=()=>{if(!session?.user){openLogin();return;}menu.hidden=!menu.hidden;accountButton.setAttribute('aria-expanded',String(!menu.hidden));};
- document.getElementById('account-switch').onclick=openLogin;
  document.getElementById('account-close').onclick=()=>dialog.close();
  window.addEventListener('account-login',openLogin);
  document.addEventListener('click',event=>{if(!/** @type {Element} */(event.target).closest('.user-menu'))closeMenu();});
  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!menu.hidden){closeMenu();accountButton.focus();}});
- document.getElementById('account-events').onclick=event=>{if(header.dataset.page==='calendar'){event.preventDefault();closeMenu();window.dispatchEvent(new Event('manage-events'));}};
  document.getElementById('account-login-form').onsubmit=async event=>{
   event.preventDefault();const button=/** @type {HTMLButtonElement} */(document.getElementById('account-submit'));button.disabled=true;
   try{
+   if(!await canLogin())return;
    const values=Object.fromEntries(new FormData(/** @type {HTMLFormElement} */(event.target)));
    await request('/login',{method:'POST',body:JSON.stringify(values)});
    await loadSession();dialog.close();/** @type {HTMLFormElement} */(event.target).reset();
@@ -72,7 +77,8 @@
   }catch(error){document.getElementById('account-login-error').textContent=error.message;}
   finally{button.disabled=false;}
  };
- document.getElementById('account-microsoft').onclick=()=>{
+ document.getElementById('account-microsoft').onclick=async()=>{
+  if(!await canLogin())return;
   sessionStorage.setItem('school-login-scroll',JSON.stringify({url:location.pathname+location.search+location.hash,y:scrollY}));
   location.href='/api/school/login?returnTo='+encodeURIComponent(location.pathname+location.search+location.hash);
  };
@@ -84,7 +90,7 @@
  const savedScroll=sessionStorage.getItem('school-login-scroll');
  if(savedScroll){sessionStorage.removeItem('school-login-scroll');try{const saved=JSON.parse(savedScroll);if(saved.url===location.pathname+location.search+location.hash)window.addEventListener('load',()=>requestAnimationFrame(()=>scrollTo(0,saved.y)),{once:true});}catch{}}
  if(new URLSearchParams(location.search).has('auth')){
-  window.addEventListener('load',()=>{openLogin();document.getElementById('account-login-error').textContent=label('学校登录未完成，请确认账户可用且 Microsoft SSO 已配置。','School sign-in failed. Check your account and Microsoft SSO configuration.');});
+  window.addEventListener('load',async()=>{if(!await openLogin())return;document.getElementById('account-login-error').textContent=label('学校登录未完成，请确认账户可用且 Microsoft SSO 已配置。','School sign-in failed. Check your account and Microsoft SSO configuration.');});
  }
  renderAccount();loadSession().catch(error=>{accountButton.disabled=false;accountButton.title=error.message;});
 })();

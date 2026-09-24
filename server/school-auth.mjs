@@ -38,8 +38,9 @@ export function installSchoolAuth(app,db,{origin,tenantId='',clientId='',clientS
  const tokenEndpoint=new URL('token',authorizationEndpoint);
  const issuer=`https://login.microsoftonline.com/${tenantId}/v2.0`;
  const keys=configured?createRemoteJWKSet(new URL(`https://login.microsoftonline.com/${tenantId}/discovery/v2.0/keys`)):null;
+ const requireSignedOut=(req,res,next)=>{if(localUser(req)||user(req))return res.status(409).json({error:'当前已登录，请先退出登录。',code:'ALREADY_AUTHENTICATED'});next();};
  app.get('/api/school/session',(req,res)=>res.json({configured,preview:localPreview(req),user:localUser(req)||user(req)||null}));
- app.get('/api/school/login',(req,res)=>{
+ app.get('/api/school/login',requireSignedOut,(req,res)=>{
   const destination=returnPath(req.query.returnTo,origin);
   if(localPreview(req)){res.clearCookie('calendar_session',cookie);res.clearCookie('school_preview_out',cookie);return res.redirect(destination);}
   if(!configured)return res.redirect(authFailure(destination,'unconfigured',origin));
@@ -52,7 +53,7 @@ export function installSchoolAuth(app,db,{origin,tenantId='',clientId='',clientS
   for(const [key,value] of params)authorization.searchParams.set(key,value);
   res.redirect(authorization.href);
  });
- app.get('/api/school/callback',async(req,res)=>{
+ app.get('/api/school/callback',requireSignedOut,async(req,res)=>{
   res.clearCookie('school_auth',cookie);
   const state=typeof req.query.state==='string'?req.query.state:'';
   const flow=db.prepare('SELECT * FROM school_auth_states WHERE state=? AND binding=? AND expires>?').get(digest(state),digest(readCookie(req,'school_auth')),Date.now());
@@ -91,5 +92,5 @@ export function installSchoolAuth(app,db,{origin,tenantId='',clientId='',clientS
  const clearSession=(req,res)=>{if(localPreview(req))res.cookie('school_preview_out','1',cookie);db.prepare('DELETE FROM school_sessions WHERE token=?').run(digest(readCookie(req,'school_session')));res.clearCookie('school_session',cookie);};
  const logout=(req,res)=>{clearSession(req,res);res.status(204).end();};
  app.post('/api/school/logout',logout);
- return {user,logout,clearSession};
+ return {user,logout,clearSession,requireSignedOut};
 }

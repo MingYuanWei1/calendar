@@ -4,6 +4,9 @@ const admin = {signedIn:false, open:false, editing:false, eventId:null, notice:'
 const A = (zh, en) => state.lang ? en : zh;
 
 async function openAdmin() {
+  const session=await api('/session');
+  admin.signedIn=session.user?.role>=2;
+  if(!admin.signedIn){document.body.hidden=true;location.replace('/?manage=events');return;}
   admin.open=true;
   document.body.classList.add('admin-mode');
   document.body.classList.remove('mobile-detail');
@@ -30,10 +33,8 @@ function adminNavigation() {
 
 function renderAdmin() {
   if(!admin.open)return;
-  if(!admin.signedIn&&!admin.editing){
-    $('#admin-app').innerHTML=`<div class="admin-shell">${adminNavigation()}<section class="admin-panel login-panel"><span class="overline">CAMPUS CALENDAR</span><h1>${A('需要管理权限','Management access required')}</h1><p>${A('统一维护校园里的每一项公共事件。','Manage public events across all school divisions.')}</p>${admin.notice?`<p class="request-error" role="alert">${esc(admin.notice)}</p>`:''}<button id="open-account-login" class="primary">${A('登录 / 切换账户','Sign in / Switch account')}</button></section></div>`;
-    $('#open-account-login').onclick=openLoginDialog;
-  }else if(admin.editing){renderEditor();}
+  if(!admin.signedIn){document.body.hidden=true;location.replace('/?manage=events');return;}
+  if(admin.editing){renderEditor();}
   else{renderAdminList();}
   $$('[data-public]').forEach(b=>b.onclick=showPublic);
 }
@@ -228,5 +229,3 @@ function bindMediaInputs(){
 }
 window.addEventListener('beforeunload',e=>{if(admin.dirty){e.preventDefault();e.returnValue='';}});
 startCalendar();
-
-window.addEventListener('account-before-change',event=>{if(!mayLeave())event.preventDefault();});

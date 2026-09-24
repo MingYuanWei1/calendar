@@ -23,6 +23,9 @@ test('local SSO preview supports choices and logout without enabling administrat
   instance.db.prepare('INSERT INTO exam_batches VALUES(?,?,?,?,?)').run(batch.id,1,JSON.stringify(batch),JSON.stringify(batch),JSON.stringify({rooms:[],seats:[]}));
   const session=await (await call('/school/session')).json();
   assert.equal(session.preview,true);assert.equal(session.user.id,'local-preview-student');
+  assert.equal((await call('/school/login')).status,409);
+  assert.equal((await call('/school/callback?state=stale&code=stale')).status,409);
+  assert.equal((await call('/login',{method:'POST',body:JSON.stringify({username:'another',password:'irrelevant-password'})})).status,409);
   assert.equal((await call('/admin/exams')).status,403);
   assert.equal((await call('/exams/preview-batch/seats')).status,200);
   assert.equal((await call('/exams/preview-batch/choices',{method:'PUT',body:JSON.stringify({ids:['math']})})).status,200);
@@ -33,11 +36,11 @@ test('local SSO preview supports choices and logout without enabling administrat
   const login=await call('/school/login',{headers:{Cookie:cookie}});
   assert.equal(login.headers.get('location'),'/');
   for(const target of ['/', '/exams.html?batch=preview-batch&division=middle#details', '/exams?batch=preview-batch&division=middle#details']){
-   const result=await call('/school/login?returnTo='+encodeURIComponent(target));
+   const result=await call('/school/login?returnTo='+encodeURIComponent(target),{headers:{Cookie:cookie}});
    assert.equal(result.headers.get('location'),target);
   }
   for(const target of ['//evil.example','/\\evil.example','https://evil.example','/api/school/login']){
-   assert.equal((await call('/school/login?returnTo='+encodeURIComponent(target))).headers.get('location'),'/');
+   assert.equal((await call('/school/login?returnTo='+encodeURIComponent(target),{headers:{Cookie:cookie}})).headers.get('location'),'/');
   }
   assert.match(login.headers.get('set-cookie'),/school_preview_out=;/);
   assert.deepEqual(await (await call('/exams/preview-batch/choices')).json(),['math']);

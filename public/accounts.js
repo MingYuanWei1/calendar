@@ -14,10 +14,10 @@ function render(){
 async function load(){
  try{
   const session=await api('/session');currentId=session.user?.id||'';
-  $('#account-access').hidden=session.user?.role===3;$('#accounts-content').hidden=session.user?.role!==3;
-  if(session.user?.role!==3){accounts=[];$('#account-rows').replaceChildren();return;}
+  if(session.user?.role!==3){document.body.hidden=true;location.reload();return;}
+  $('#accounts-content').hidden=false;
   accounts=await api('/admin/accounts');render();
- }catch(error){$('#accounts-content').hidden=true;notice(error.message);}
+ }catch(error){if(error.status===401||error.status===403){document.body.hidden=true;location.reload();return;}$('#accounts-content').hidden=true;notice(error.message);}
 }
 $('#create-account').onsubmit=async event=>{
  event.preventDefault();const form=/** @type {HTMLFormElement} */(event.target),button=form.querySelector('button');button.disabled=true;
@@ -25,6 +25,5 @@ $('#create-account').onsubmit=async event=>{
  try{await api('/admin/accounts',{method:'POST',body:JSON.stringify({...values,role:Number(values.role)})});form.reset();await load();notice(T('账户已创建。','Account created.'),true);}catch(error){notice(error.message);}finally{button.disabled=false;}
 };
 $('#refresh-accounts').onclick=()=>{notice('');load();};
-$('#accounts-login').onclick=()=>window.dispatchEvent(new Event('account-login'));
 $('#language').onclick=()=>{lang=1-lang;localStorage.setItem('exam-language',String(lang));translate();render();};
 window.addEventListener('account-changed',()=>load());translate();load();

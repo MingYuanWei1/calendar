@@ -1,3 +1,4 @@
+import {pageRole} from './page-access.mjs';
 import {initializeAccounts,installAccounts} from './accounts.mjs';
 import {installSchoolAuth} from './school-auth.mjs';
 import express from 'express';
@@ -36,9 +37,14 @@ export function createApi({db,media,installStatic=()=>{},origin,schoolName='学�
     if(!parsed.success)return res.status(422).json({error:'考试表布局无效或内容过多，请缩小导出范围。'});
     res.set({'Content-Type':'application/pdf','Content-Disposition':'attachment; filename="exam-schedule.pdf"'}).send(await vectorSchedulePdf(parsed.data.pages));
   });
+  app.get('/api/page-access',(req,res)=>{
+    const required=pageRole(new URL(origin+(typeof req.query.path==='string'&&req.query.path.startsWith('/')?req.query.path:'/')));
+    const user=required?session(req):null;
+    res.status(!required||user?.role>=required?204:user?403:401).end();
+  });
   app.get('/api/config',(req,res)=>res.json({schoolName,schoolNameEn,timeZone}));
   app.get('/api/session',(req,res)=>res.json({authenticated:Boolean(session(req)),user:session(req)||null}));
-  app.post('/api/login',async(req,res)=>{
+  app.post('/api/login',schoolAuth.requireSignedOut,async(req,res)=>{
     const {username,password}=req.body||{};
     if(typeof username!=='string'||typeof password!=='string'||username.length>64||password.length>256)return res.status(400).json({error:'请输入账号和密码。'});
     const address=req.calendarClientAddress||req.ip||req.socket.remoteAddress||'unknown',now=Date.now();
@@ -128,6 +134,14 @@ export function createApi({db,media,installStatic=()=>{},origin,schoolName='学�
   installAccounts(app,db,{requireRole,currentUser:session});
   installExams(app,db,{requireAdmin,isAdmin:req=>session(req)?.role>=2,user:session,origin,schoolName,timeZone,llm});
   app.use('/api',(req,res)=>res.status(404).json({error:'接口不存在。'}));
+  app.use((req,res,next)=>{
+    const required=pageRole(new URL(origin+req.originalUrl));
+    if(!required)return next();
+    res.set('Cache-Control','no-store');
+    const user=session(req);
+    if(!user||user.role<required)return res.status(user?403:401).end();
+    next();
+  });
   installStatic(app);
   app.use((error,req,res,next)=>{
     if(res.headersSent)return next(error);
