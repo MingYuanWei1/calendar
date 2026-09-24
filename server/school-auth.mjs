@@ -31,6 +31,8 @@ export function installSchoolAuth(app,db,{origin,tenantId='',clientId='',clientS
  const secure=origin.startsWith('https:'),cookie={httpOnly:true,secure,sameSite:'lax',path:'/'};
  const readCookie=(req,name)=>(req.headers.cookie||'').split(';').map(s=>s.trim()).find(s=>s.startsWith(name+'='))?.slice(name.length+1)||'';
  const user=req=>localPreview(req)?(readCookie(req,'school_preview_out')==='1'?null:{id:'local-preview-student',name:'体验学生 / Preview student'}):db.prepare('SELECT user_id AS id,name FROM school_sessions WHERE token=? AND expires>?').get(digest(readCookie(req,'school_session')),Date.now());
+ const authorizationEndpoint=loginUrl||`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize`;
+ const tokenEndpoint=new URL('token',authorizationEndpoint);
  const issuer=`https://login.microsoftonline.com/${tenantId}/v2.0`;
  const keys=configured?createRemoteJWKSet(new URL(`https://login.microsoftonline.com/${tenantId}/discovery/v2.0/keys`)):null;
  app.get('/api/school/session',(req,res)=>res.json({configured,preview:localPreview(req),user:user(req)||null}));
@@ -43,7 +45,7 @@ export function installSchoolAuth(app,db,{origin,tenantId='',clientId='',clientS
   db.prepare('INSERT INTO school_auth_states(state,binding,nonce,verifier,expires,return_to) VALUES(?,?,?,?,?,?)').run(digest(state),digest(binding),nonce,verifier,Date.now()+600000,destination);
   res.cookie('school_auth',binding,{...cookie,maxAge:600000});
   const params=new URLSearchParams({client_id:clientId,response_type:'code',redirect_uri:origin+'/api/school/callback',response_mode:'query',scope:'openid profile',state,nonce,code_challenge:createHash('sha256').update(verifier).digest('base64url'),code_challenge_method:'S256'});
-  const authorization=new URL(loginUrl||`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize`);
+  const authorization=new URL(authorizationEndpoint);
   for(const [key,value] of params)authorization.searchParams.set(key,value);
   res.redirect(authorization.href);
  });
@@ -59,7 +61,7 @@ export function installSchoolAuth(app,db,{origin,tenantId='',clientId='',clientS
   db.prepare('DELETE FROM school_auth_states WHERE state=?').run(digest(state));
   let stage='token_exchange';
   try{
-   const response=await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:clientId,client_secret:clientSecret,grant_type:'authorization_code',code:req.query.code,redirect_uri:origin+'/api/school/callback',code_verifier:flow.verifier}),signal:AbortSignal.timeout(15000)});
+   const response=await fetch(tokenEndpoint,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:clientId,client_secret:clientSecret,grant_type:'authorization_code',code:req.query.code,redirect_uri:origin+'/api/school/callback',code_verifier:flow.verifier}),signal:AbortSignal.timeout(15000)});
    if(!response.ok){
     const error=await response.json().catch(()=>({}));
     console.warn({event:'school_login_failed',stage,status:response.status,errorCodes:Array.isArray(error.error_codes)?error.error_codes.filter(Number.isInteger).slice(0,5):[]});
@@ -75,7 +77,8 @@ export function installSchoolAuth(app,db,{origin,tenantId='',clientId='',clientS
    res.cookie('school_session',session,{...cookie,maxAge:8*3600000});res.redirect(destination);
   }catch(error){
    const code=typeof error?.code==='string'&&/^ERR_[A-Z_]+$/.test(error.code)?error.code:'UNCLASSIFIED';
-   console.warn({event:'school_login_failed',stage,code});
+   const claim=['iss','aud','exp','iat','nonce','tid','oid'].includes(error?.claim)?error.claim:undefined;
+   console.warn({event:'school_login_failed',stage,code,claim});
    res.redirect(authFailure(destination,'failed',origin));
   }
  });

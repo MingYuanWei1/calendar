@@ -49,7 +49,7 @@ The live database started empty, as requested. The newly generated admin credent
 
 `npm run admin:create` and `npm run backup` affect only the local Node database. They do not modify or back up production. Manage production storage through Cloudflare Durable Objects, including its point-in-time recovery facilities. Preserve the `SchoolCalendar` class, `SCHOOLS` binding, and `SCHOOL_ID=calendar` across deployments; changing the object name selects a different database.
 
-`MICROSOFT_LOGIN_URL` is a plain-text Worker variable for the Microsoft authorization endpoint. It is set in `wrangler.jsonc` to `https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize`. Change this variable to change the login URL; keep the repository configuration in sync with dashboard edits for future deployments. Local Node uses the same variable in `.env`. When unset, login uses the tenant-specific endpoint. Token exchange and identity validation still use `MICROSOFT_TENANT_ID`.
+`MICROSOFT_LOGIN_URL` is a plain-text Worker variable for the Microsoft authorization endpoint. It is set in `wrangler.jsonc` to `https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize`. Change this variable to change the login URL; keep the repository configuration in sync with dashboard edits for future deployments. Local Node uses the same variable in `.env`. When unset, login uses the tenant-specific endpoint. Token exchange uses the sibling `/token` endpoint of this login URL. Identity validation still restricts users to `MICROSOFT_TENANT_ID`, which must identify the allowed school directory.
 
 ## Verification recorded
 

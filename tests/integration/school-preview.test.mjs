@@ -45,7 +45,7 @@ test('local SSO preview supports choices and logout without enabling administrat
  }finally{await new Promise(resolve=>server.close(resolve));instance.close();await rm(directory,{recursive:true,force:true});}
 });
 
-for(const loginUrl of ['', 'https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?prompt=select_account'])test(`Microsoft flow stores the originating page and returns failures there (${loginUrl||'default endpoint'})`,async()=>{
+for(const loginUrl of ['', 'https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?prompt=select_account'])test(`Microsoft flow stores the originating page and returns failures there (${loginUrl||'default endpoint'})`,async(t)=>{
  const directory=await mkdtemp(join(tmpdir(),'school-return-'));
  const instance=createApplication({dataDir:directory,origin:'http://localhost:3000',sso:{tenantId:'11111111-1111-1111-1111-111111111111',clientId:'test-client',clientSecret:'test-secret',loginUrl}});
  const server=instance.app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
@@ -64,5 +64,16 @@ for(const loginUrl of ['', 'https://login.microsoftonline.com/organizations/oaut
   const cookie=login.headers.get('set-cookie').split(';')[0];
   const cancelled=await fetch(base+'/api/school/callback?state='+authorization.searchParams.get('state')+'&error=access_denied',{headers:{Cookie:cookie},redirect:'manual'});
   assert.equal(cancelled.headers.get('location'),'/exams.html?batch=sample&division=middle&auth=failed#details');
+  const httpFetch=globalThis.fetch;let tokenEndpoint;
+  t.mock.method(globalThis,'fetch',async(url,options)=>{
+   tokenEndpoint=new URL(url);
+   return Response.json({error:'invalid_grant',error_codes:[700005]},{status:400});
+  });
+  const failedExchange=await httpFetch(base+'/api/school/callback?state='+authorization.searchParams.get('state')+'&code=test-code',{headers:{Cookie:cookie},redirect:'manual'});
+  assert.equal(tokenEndpoint.origin,authorization.origin);
+  assert.equal(tokenEndpoint.pathname,authorization.pathname.replace(/authorize$/,'token'));
+  assert.equal(tokenEndpoint.search,'');
+  assert.equal(failedExchange.headers.get('location'),'/exams.html?batch=sample&division=middle&auth=failed#details');
+  assert.equal(instance.db.prepare('SELECT COUNT(*) AS count FROM school_sessions').get().count,0);
  }finally{await new Promise(resolve=>server.close(resolve));instance.close();await rm(directory,{recursive:true,force:true});}
 });
