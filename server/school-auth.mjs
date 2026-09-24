@@ -11,7 +11,7 @@ function returnPath(value,origin){
  try{
   if(typeof value!=='string'||!value.startsWith('/')||value.startsWith('//'))return '/';
   const url=new URL(value,origin);
-  if(url.origin!==origin||!['/','/index.html','/exams.html'].includes(url.pathname))return '/';
+  if(url.origin!==origin||!['/','/index.html','/exams.html','/exams'].includes(url.pathname))return '/';
   url.searchParams.delete('auth');
   return url.pathname+url.search+url.hash;
  }catch{return '/';}

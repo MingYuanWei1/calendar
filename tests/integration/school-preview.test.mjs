@@ -32,7 +32,7 @@ test('local SSO preview supports choices and logout without enabling administrat
   assert.equal((await call('/exams/preview-batch/seats',{headers:{Cookie:cookie}})).status,401);
   const login=await call('/school/login',{headers:{Cookie:cookie}});
   assert.equal(login.headers.get('location'),'/');
-  for(const target of ['/', '/exams.html?batch=preview-batch&division=middle#details']){
+  for(const target of ['/', '/exams.html?batch=preview-batch&division=middle#details', '/exams?batch=preview-batch&division=middle#details']){
    const result=await call('/school/login?returnTo='+encodeURIComponent(target));
    assert.equal(result.headers.get('location'),target);
   }
@@ -51,7 +51,7 @@ for(const loginUrl of ['', 'https://login.microsoftonline.com/organizations/oaut
  const server=instance.app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
  const base=`http://127.0.0.1:${server.address().port}`;
  try{
-  const target='/exams.html?batch=sample&division=middle#details';
+  const target='/exams?batch=sample&division=middle#details';
   const login=await fetch(base+'/api/school/login?returnTo='+encodeURIComponent(target),{redirect:'manual'});
   const authorization=new URL(login.headers.get('location'));
   assert.equal(authorization.hostname,'login.microsoftonline.com');
@@ -63,7 +63,7 @@ for(const loginUrl of ['', 'https://login.microsoftonline.com/organizations/oaut
   assert.equal(instance.db.prepare('SELECT return_to FROM school_auth_states').get().return_to,target);
   const cookie=login.headers.get('set-cookie').split(';')[0];
   const cancelled=await fetch(base+'/api/school/callback?state='+authorization.searchParams.get('state')+'&error=access_denied',{headers:{Cookie:cookie},redirect:'manual'});
-  assert.equal(cancelled.headers.get('location'),'/exams.html?batch=sample&division=middle&auth=failed#details');
+  assert.equal(cancelled.headers.get('location'),'/exams?batch=sample&division=middle&auth=failed#details');
   const httpFetch=globalThis.fetch;let tokenEndpoint;
   t.mock.method(globalThis,'fetch',async(url,options)=>{
    tokenEndpoint=new URL(url);
@@ -73,7 +73,7 @@ for(const loginUrl of ['', 'https://login.microsoftonline.com/organizations/oaut
   assert.equal(tokenEndpoint.origin,authorization.origin);
   assert.equal(tokenEndpoint.pathname,authorization.pathname.replace(/authorize$/,'token'));
   assert.equal(tokenEndpoint.search,'');
-  assert.equal(failedExchange.headers.get('location'),'/exams.html?batch=sample&division=middle&auth=failed#details');
+  assert.equal(failedExchange.headers.get('location'),'/exams?batch=sample&division=middle&auth=failed#details');
   assert.equal(instance.db.prepare('SELECT COUNT(*) AS count FROM school_sessions').get().count,0);
  }finally{await new Promise(resolve=>server.close(resolve));instance.close();await rm(directory,{recursive:true,force:true});}
 });
