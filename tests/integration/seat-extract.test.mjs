@@ -26,8 +26,8 @@ test('XLSX seat extraction preserves grid context, validates matches and only pr
   assert.equal((await run('seats.xlsx',saved.version,'')).status,401);
   assert.equal((await run('seats.pdf')).status,422);assert.equal((await run('seats.xlsx',99)).status,409);
   assert.equal((await run('seats.xlsx',saved.version,cookie,Buffer.from('fake'))).status,422);
-  let response=await run();assert.equal(response.status,200);let result=await response.json();assert.deepEqual(result.seats,[seat]);assert.deepEqual(result.errors,[]);assert.equal(result.warnings.length,1);assert.equal(calls[0].model,'flash');assert.match(calls[0].messages[1].content,/B3/);
-  assert.deepEqual(JSON.parse(instance.db.prepare('SELECT draft FROM exam_batches WHERE id=?').get(saved.id).draft).seats,[]);
+  let response=await run();assert.equal(response.status,200);let result=await response.json();assert.deepEqual(result.seats.map(({grade,studentId,student,identityIssues,...original})=>original),[seat]);assert.equal(result.seats[0].grade,12);assert.equal(result.seats[0].student.graduationYear,2027);assert.deepEqual(result.errors,[]);assert.equal(result.warnings.length,1);assert.equal(calls[0].model,'flash');assert.match(calls[0].messages[1].content,/B3/);
+  assert.deepEqual((await (await fetch(base+'/admin/exams',{headers:{Cookie:cookie}})).json()).find(b=>b.id===saved.id).seats,[]);assert.deepEqual(await (await fetch(base+'/admin/students',{headers:{Cookie:cookie}})).json(),[]);
   seats=[seat,{...seat,examId:'sl'}];result=await (await run()).json();assert.match(result.errors.join(''),/重复占用/);
   seats=[{...seat,examId:'unknown'}];result=await (await run()).json();assert.match(result.errors.join(''),/不匹配/);
   seats=[{...seat,row:3}];result=await (await run()).json();assert.match(result.errors.join(''),/范围/);

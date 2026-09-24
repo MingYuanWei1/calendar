@@ -149,3 +149,5 @@
 .pdf-vector-export .exam-group>header{flex:0 0 30%;min-width:0}
 .pdf-vector-export .exam-levels{flex:1;min-width:0}
 .pdf-vector-export .exam-card label{display:block}
+
+.seat.my-seat{outline:3px solid #236346;outline-offset:-3px;background:#e1f4e7;color:#153d2b}.seat.my-seat>small:first-child{font-weight:700}.student-changes{padding-left:1.3rem}.student-changes li{margin:1rem 0}.sync-options{display:flex;gap:.6rem;flex-wrap:wrap}.import-exams-list{display:grid;gap:.8rem;margin:1rem 0}.import-exams-list label{display:flex;gap:.6rem;align-items:flex-start}

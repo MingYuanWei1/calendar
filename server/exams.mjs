@@ -1,3 +1,5 @@
+import {installExamMatching} from './exam-matching.mjs';
+import {installStudents} from './students.mjs';
 import {installExamExtract} from './exam-extract.mjs';
 import {extractSeats} from './seat-extract.mjs';
 import {installSubjects} from './exam-subjects.mjs';
@@ -8,6 +10,8 @@ import {seatTemplate,parseSeats,makeSchedulePdf} from './exam-files.mjs';
 export function installExams(app,db,{requireAdmin,isAdmin,user,origin,schoolName,timeZone,sso={},llm={}}){
  db.exec(`CREATE TABLE IF NOT EXISTS exam_batches(id TEXT PRIMARY KEY,version INTEGER NOT NULL,draft TEXT NOT NULL,published TEXT,seating TEXT);
  CREATE TABLE IF NOT EXISTS exam_choices(user_id TEXT NOT NULL,batch_id TEXT NOT NULL,exam_id TEXT NOT NULL,PRIMARY KEY(user_id,batch_id,exam_id));`);
+ const students=installStudents(app,db,requireAdmin);
+ const matching=installExamMatching(app,db,{user,students});
  const subjects=installSubjects(app,db,requireAdmin);
  installExamExtract(app,requireAdmin,llm,subjects.list);
  for(const r of db.prepare('SELECT draft FROM exam_batches').all())subjects.register(JSON.parse(r.draft).sessions);
@@ -19,15 +23,15 @@ export function installExams(app,db,{requireAdmin,isAdmin,user,origin,schoolName
  const conflict=(req,res,r)=>{if(!r){res.status(404).json({error:'考试批次不存在。'});return true;}if(req.body.version!==r.version){res.status(409).json({error:'其他窗口已修改本批次，请刷新后再试。'});return true;}return false;};
  const info=r=>({id:r.id,...JSON.parse(r.draft),version:r.version,publishedAt:publicBatch(r)?.publishedAt||null,seatingPublishedAt:r.seating?JSON.parse(r.seating).publishedAt:null});
  app.get('/api/exams',(req,res)=>res.json(db.prepare('SELECT * FROM exam_batches WHERE published IS NOT NULL').all().map(r=>{const b=publicBatch(r);return {id:b.id,title:b.title,titleEn:b.titleEn,start:b.start,end:b.end};}).sort((a,b)=>b.start.localeCompare(a.start))));
- app.get('/api/exams/:id',(req,res)=>{const r=row(req.params.id),b=publicBatch(r);if(!b)return res.status(404).json({error:'考试安排尚未发布。'});res.json({...b,subjects:subjects.list(),seatingPublished:Boolean(r.seating)});});
- app.get('/api/exams/:id/seats',signedIn,(req,res)=>{const r=row(req.params.id);if(!r?.published||!r.seating)return res.status(404).json({error:'座位表尚未发布。'});res.json(JSON.parse(r.seating));});
+ app.get('/api/exams/:id',(req,res)=>{const r=row(req.params.id),b=publicBatch(r);if(!b)return res.status(404).json({error:'考试安排尚未发布。'});res.json({...b,subjects:subjects.list(),seatingPublished:Boolean(r.seating),seatingPublishedAt:r.seating?JSON.parse(r.seating).publishedAt:null});});
+ app.get('/api/exams/:id/seats',signedIn,(req,res)=>{const r=row(req.params.id);if(!r?.published||!r.seating)return res.status(404).json({error:'座位表尚未发布。'});const seating=JSON.parse(r.seating);res.json({...seating,seats:seating.seats.map(({matchEmail,...seat})=>seat),personal:matching.personal(user(req),r.id)});});
  app.get('/api/exams/:id/choices',(req,res)=>{if(!user(req))return res.status(401).json({error:'请先使用学校账号登录。'});res.json(choices(req,req.params.id));});
  app.put('/api/exams/:id/choices',(req,res)=>{
   const u=user(req);if(!u)return res.status(401).json({error:'请先使用学校账号登录。'});
   const b=publicBatch(row(req.params.id)),ids=req.body.ids;
   if(!b)return res.status(404).json({error:'考试批次不存在。'});
   if(!Array.isArray(ids)||ids.length>500||ids.some(id=>typeof id!=='string'||!b.sessions.some(s=>s.id===id)))return fail(res,'选择中包含未发布的考试。');
-  db.transactionSync(()=>{db.prepare('DELETE FROM exam_choices WHERE user_id=? AND batch_id=?').run(u.id,b.id);const put=db.prepare('INSERT INTO exam_choices VALUES(?,?,?)');for(const id of new Set(ids))put.run(u.id,b.id,id);});
+  db.transactionSync(()=>{matching.selected(u,b.id,ids);db.prepare('DELETE FROM exam_choices WHERE user_id=? AND batch_id=?').run(u.id,b.id);const put=db.prepare('INSERT INTO exam_choices VALUES(?,?,?)');for(const id of new Set(ids))put.run(u.id,b.id,id);});
   res.json([...new Set(ids)]);
  });
  app.get('/api/exams/:id/pdf',async(req,res)=>{
@@ -44,6 +48,7 @@ export function installExams(app,db,{requireAdmin,isAdmin,user,origin,schoolName
   const r=row(req.params.id);if(conflict(req,res,r))return;
   db.transactionSync(()=>{
    db.prepare('DELETE FROM exam_choices WHERE batch_id=?').run(r.id);
+   db.prepare('DELETE FROM exam_personal_state WHERE batch_id=?').run(r.id);
    db.prepare('DELETE FROM exam_batches WHERE id=?').run(r.id);
   });
   res.sendStatus(204);
@@ -52,14 +57,14 @@ export function installExams(app,db,{requireAdmin,isAdmin,user,origin,schoolName
   const parsed=batchSchema.safeParse(req.body);if(!parsed.success)return fail(res,parsed.error.issues.map(i=>i.message).join('；'));
   const b={...parsed.data,id:randomUUID(),version:1,updatedAt:new Date().toISOString()};const errors=seatErrors(b);if(errors.length)return fail(res,errors.join('；'));
   subjects.register(b.sessions);
-  db.prepare('INSERT INTO exam_batches VALUES(?,?,?,NULL,NULL)').run(b.id,1,JSON.stringify(b));res.status(201).json(b);
+  const organized=db.transactionSync(()=>{const value=students.organize(b);db.prepare('INSERT INTO exam_batches VALUES(?,?,?,NULL,NULL)').run(b.id,1,JSON.stringify(value));return value;});res.status(201).json(organized);
  });
  app.put('/api/admin/exams/:id',requireAdmin,(req,res)=>{
   const r=row(req.params.id);if(conflict(req,res,r))return;
   const parsed=batchSchema.safeParse(req.body);if(!parsed.success)return fail(res,parsed.error.issues.map(i=>i.message).join('；'));
   const data=parsed.data;
   const errors=seatErrors(data);if(errors.length)return fail(res,errors.join('；'));
-  const b={...data,id:r.id,version:r.version+1,updatedAt:new Date().toISOString()};subjects.register(b.sessions);db.prepare('UPDATE exam_batches SET version=?,draft=? WHERE id=?').run(b.version,JSON.stringify(b),r.id);res.json(info(row(r.id)));
+  const b={...data,id:r.id,version:r.version+1,updatedAt:new Date().toISOString()};subjects.register(b.sessions);db.transactionSync(()=>{const value=students.organize(b);db.prepare('UPDATE exam_batches SET version=?,draft=? WHERE id=?').run(b.version,JSON.stringify(value),r.id);});res.json(info(row(r.id)));
  });
  app.post('/api/admin/exams/:id/publish',requireAdmin,(req,res)=>{
   const r=row(req.params.id);if(conflict(req,res,r))return;
@@ -80,18 +85,23 @@ export function installExams(app,db,{requireAdmin,isAdmin,user,origin,schoolName
   const r=row(req.params.id);if(conflict(req,res,r))return;
   const b=JSON.parse(r.draft),published=publicBatch(r);if(!published)return fail(res,'请先发布考试安排。');
   if(JSON.stringify(b.sessions)!==JSON.stringify(published.sessions.map(({changed,...s})=>s)))return fail(res,'考试安排有未发布修改，请先发布考试安排。');
-  const errors=seatErrors(b);if(errors.length)return fail(res,errors.join('；'));if(!b.seats.length)return fail(res,'请先填写座位。');
-  db.prepare('UPDATE exam_batches SET seating=?,version=? WHERE id=?').run(JSON.stringify({rooms:b.rooms,seats:b.seats,publishedAt:new Date().toISOString()}),r.version+1,r.id);res.json(info(row(r.id)));
+  const errors=seatErrors(b);if(errors.length)return fail(res,errors.join('；'));
+  db.prepare('UPDATE exam_batches SET seating=?,version=? WHERE id=?').run(JSON.stringify({rooms:b.rooms,seats:students.publishSeats(b),publishedAt:new Date().toISOString()}),r.version+1,r.id);res.json(info(row(r.id)));
  });
  app.get('/api/admin/exams/:id/template',requireAdmin,async(req,res)=>{const r=row(req.params.id);if(!r)return res.sendStatus(404);res.set({'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','Content-Disposition':'attachment; filename="exam-seats-template.xlsx"'}).send(Buffer.from(await seatTemplate(JSON.parse(r.draft))));});
  app.post('/api/admin/exams/:id/seat-extract',requireAdmin,express.raw({type:'application/octet-stream',limit:'2mb'}),async(req,res)=>{
   const r=row(req.params.id);if(!r)return res.sendStatus(404);
   if(Number(req.headers['x-draft-version'])!==r.version)return res.status(409).json({error:'草稿已修改，请刷新后重新提取。'});
   if(!Buffer.isBuffer(req.body)||!String(req.headers['x-file-name']||'').toLowerCase().endsWith('.xlsx'))return fail(res,'仅支持 .xlsx 文件。');
-  try{res.json(await extractSeats(req.body,JSON.parse(r.draft),llm));}catch(error){const message=error.message||'';return fail(res,/^(请|仅|Excel|最多|表格|工作簿|LLM Worker|模型)/.test(message)?message:'无法提取座位表，请检查文件及 LLM Worker 配置后重试。');}
+  try{const result=await extractSeats(req.body,JSON.parse(r.draft),llm);res.json({...result,seats:students.organize({...JSON.parse(r.draft),seats:result.seats},false).seats});}catch(error){const message=error.message||'';return fail(res,/^(请|仅|Excel|最多|表格|工作簿|LLM Worker|模型)/.test(message)?message:'无法提取座位表，请检查文件及 LLM Worker 配置后重试。');}
+ });
+ app.post('/api/admin/exams/:id/student-preview',requireAdmin,(req,res)=>{
+  const r=row(req.params.id);if(conflict(req,res,r))return;
+  const parsed=batchSchema.safeParse({...JSON.parse(r.draft),seats:req.body.seats});if(!parsed.success)return fail(res,parsed.error.issues.map(i=>i.message).join('；'));
+  res.json({seats:students.organize(parsed.data,false).seats,errors:seatErrors(parsed.data),warnings:[]});
  });
  app.post('/api/admin/exams/:id/import-preview',requireAdmin,express.raw({type:'application/octet-stream',limit:'2mb'}),async(req,res)=>{
   const r=row(req.params.id);if(!r)return res.sendStatus(404);if(!Buffer.isBuffer(req.body))return fail(res,'请上传 Excel 文件。');
-  try{res.json(await parseSeats(req.body,JSON.parse(r.draft)));}catch(error){return fail(res,error.message||'无法读取 Excel 文件。');}
+  try{const result=await parseSeats(req.body,JSON.parse(r.draft));res.json({...result,seats:students.organize({...JSON.parse(r.draft),seats:result.seats},false).seats});}catch(error){return fail(res,error.message||'无法读取 Excel 文件。');}
  });
 }

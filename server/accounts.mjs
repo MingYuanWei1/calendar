@@ -41,6 +41,8 @@ export function installAccounts(app,db,{requireRole,currentUser}){
    }
    db.prepare('DELETE FROM school_sessions WHERE user_id=?').run(account.id);
    db.prepare('DELETE FROM exam_choices WHERE user_id=?').run(account.id);
+   db.prepare('DELETE FROM exam_personal_state WHERE user_id=?').run(account.id);
+   db.prepare('DELETE FROM school_identity_emails WHERE user_id=?').run(account.id);
    db.prepare('DELETE FROM accounts WHERE id=?').run(account.id);
    res.status(204).end();
   });

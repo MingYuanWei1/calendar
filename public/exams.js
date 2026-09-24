@@ -1,9 +1,11 @@
+import {examUpdates} from './exam-updates.js';
 import {examDatePages} from './exam-dates.mjs';
 import {seatViewTimes} from './exam-seats.mjs';
 import {subjectColors} from './exam-subjects.mjs';
 import {downloadExamView,prepareExamPdf} from './exam-export.js';
 import {examSlotRows,groupExamLevels} from './exam-times.mjs';
 import {$,esc,api,date,monday,divisions,sorted,seatingMarkup} from './exam-common.js';
+let detailExamId=null;
 let lang=Number(localStorage.getItem('exam-language')||0),batch=null,batches=[],week='',division='high',grade='',mine=false,chosen=new Set(),school={configured:false,user:null},config={timeZone:'Asia/Shanghai',schoolName:'学校校历',schoolNameEn:'School calendar'},saving=false,loadNumber=0,detailLoadNumber=0;
 const T=(zh,en)=>lang?en:zh;
 const title=s=>{const name=lang?(s.titleEn||s.title):s.title.replaceAll('商务管理','商管');return name+[s.level].filter(value=>value&&!name.includes(value)).map(value=>' · '+value).join('');};
@@ -49,29 +51,29 @@ function scheduleMarkup(visible,shownDays,highlightSelected=true){
  const rows=examSlotRows(batch.timeSlots,thisWeek);
  return `<table class="exam-time-grid" style="--day-count:${shownDays.length}"><thead><tr><th class="time-axis">${T('时间段','Time slot')}</th>${shownDays.map(day=>`<th class="exam-day-header${day===today?' today':''}"><small>${new Intl.DateTimeFormat(lang?'en-GB':'zh-CN',{weekday:'short'}).format(date(day))}</small><strong>${date(day).getDate()}</strong></th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr><th scope="row" class="time-axis"><time>${row.start}</time><span>–</span><time>${row.end}</time></th>${shownDays.map(day=>`<td class="${[0,6].includes(date(day).getDay())?'weekend':''}">${groupExamLevels(row.sessions.filter(s=>s.date===day)).map(levelGroup).join('')||`<span class="empty-slot" aria-label="${T('暂无考试','No exams')}">—</span>`}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 }
+const updates=examUpdates({getBatch:()=>batch,getUser:()=>school.user,isSaving:()=>saving,language:()=>lang,notice,apply:(data,ids)=>{const changed=batch?.seatingPublishedAt!==data.seatingPublishedAt||batch?.publishedAt!==data.publishedAt;batch=data;chosen=new Set(ids);render();if(changed&&$('#detail').open&&detailExamId)showDetail(detailExamId);}});
 async function loadBatch(id){
- const generation=++loadNumber;$('#download').disabled=true;
- try{const [data,ids]=await Promise.all([api('/exams/'+id),school.user?api('/exams/'+id+'/choices'):[]]);if(generation!==loadNumber)return;batch=data;chosen=new Set(ids);week=monday(batch.start);grade='';render();history.replaceState(null,'','?batch='+encodeURIComponent(id));}
+ updates.reset();const generation=++loadNumber;detailLoadNumber++;$('#detail').close();$('#download').disabled=true;
+ try{const [data,sync]=await Promise.all([api('/exams/'+id),school.user?api('/exams/'+id+'/personal-sync',{method:'POST',body:'{}'}):{choices:[]}]);if(generation!==loadNumber)return;batch=data;chosen=new Set(sync.choices);week=monday(batch.start);grade='';render();history.replaceState(null,'','?batch='+encodeURIComponent(id));await updates.check();}
  catch(e){if(generation===loadNumber){batch=null;render();notice(e.message);}}
 }
 async function saveChoices(next){
- if(mine||saving||!school.user)return;saving=true;render();const id=batch.id;
+ if(mine||saving||!school.user)return;updates.reset();saving=true;render();const id=batch.id;
  try{const ids=await api('/exams/'+id+'/choices',{method:'PUT',body:JSON.stringify({ids:[...next]})});if(batch?.id===id){chosen=new Set(ids);notice(T('选择已保存','Selections saved'),false);}}
- catch(e){notice(e.message);}finally{saving=false;render();}
+ catch(e){notice(e.message);}finally{saving=false;render();await updates.check();}
 }
 async function showDetail(id){
  const generation=++detailLoadNumber;
- const exam=batch.sessions.find(s=>s.id===id);if(!exam)return;
+ const exam=batch.sessions.find(s=>s.id===id);if(!exam){$('#detail').close();return;}detailExamId=id;
  $('#detail-title').textContent=title(exam);
  $('#detail-content').innerHTML=`<dl class="detail-meta"><dt>${T('时间','Time')}</dt><dd>${exam.date} ${exam.start}–${exam.end}</dd><dt>${T('适用','For')}</dt><dd>${esc(divisions[exam.division][lang])} · ${esc(exam.grades.join(' / '))}</dd><dt>${T('地点','Rooms')}</dt><dd>${esc(exam.rooms.join(' / '))}</dd></dl>${exam.cancelled?`<p class="warning">${T('此考试已取消','This exam is cancelled')}</p>`:''}<p>${esc(exam.note)}</p><div id="seating-content"><p class="muted">${T('正在读取座位表…','Loading seating…')}</p></div>`;$('#detail').showModal();
  if(!school.user){$('#seating-content').innerHTML=`<p class="muted">${T('请使用学校账号登录后查看座位表。','Sign in with your school account to view seating.')}</p><a href="/api/school/login?returnTo=${esc(encodeURIComponent(location.pathname+location.search+location.hash))}">Microsoft ${T('登录','sign-in')}</a>`;return;}
- if(!batch.seatingPublished){$('#seating-content').textContent=T('座位表待公布','Seating will be published later');return;}
- try{
+  try{
   const seating=await api('/exams/'+batch.id+'/seats');if(!$('#detail').open||generation!==detailLoadNumber)return;
-  let room=exam.rooms[0],point=exam.start;
+  let room=seating.personal?.[exam.id]?.room||exam.rooms[0],point=exam.start;
   const renderSeats=()=>{
    const times=seatViewTimes(batch,exam,room);if(!times.includes(point))point=exam.start;
-   $('#seating-content').innerHTML=`<div class="room-tabs">${exam.rooms.map(r=>`<button data-room="${esc(r)}" aria-pressed="${r===room}">${esc(r)}</button>`).join('')}</div><label class="time-select">${T('查看时刻','View at')}<select id="seat-time">${times.map(time=>`<option value="${esc(time)}" ${time===point?'selected':''}>${esc(time)}</option>`).join('')}</select></label><div id="seat-grid">${seatingMarkup(batch,seating,exam,room,point,lang)}</div>`;
+   $('#seating-content').innerHTML=`<div class="room-tabs">${exam.rooms.map(r=>`<button data-room="${esc(r)}" aria-pressed="${r===room}">${esc(r)}</button>`).join('')}</div><label class="time-select">${T('查看时刻','View at')}<select id="seat-time">${times.map(time=>`<option value="${esc(time)}" ${time===point?'selected':''}>${esc(time)}</option>`).join('')}</select></label><div id="seat-grid">${seatingMarkup(batch,seating,exam,room,point,lang,false,seating.personal?.[exam.id])}</div>`;
    document.querySelectorAll('[data-room]').forEach(el=>el.addEventListener('click',()=>{room=el.getAttribute('data-room');point=exam.start;renderSeats();}));
    $('#seat-time').onchange=()=>{point=$('#seat-time').value;renderSeats();};
   };renderSeats();

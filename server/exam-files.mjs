@@ -6,7 +6,7 @@ import unzipper from 'unzipper';
 const columns=['考试编号','教室','排','列','班级','中文名','英文名'];
 export async function seatTemplate(batch){
  const book=new ExcelJS.Workbook(),sheet=book.addWorksheet('座位数据');
- sheet.addRow(columns);sheet.getRow(1).font={bold:true};sheet.views=[{state:'frozen',ySplit:1}];
+ sheet.addRow([...columns,'年级']);sheet.getRow(1).font={bold:true};sheet.views=[{state:'frozen',ySplit:1}];
  [26,18,8,8,16,18,24].forEach((width,i)=>sheet.getColumn(i+1).width=width);
  const reference=book.addWorksheet('考试及教室参考');reference.addRow(['考试编号','考试名称','日期','开始','结束','教室']);
  for(const s of batch.sessions)reference.addRow([s.id,s.title,s.date,s.start,s.end,s.rooms.join('、')]);
@@ -29,7 +29,7 @@ export async function parseSeats(buffer,batch){
   if(values.every(v=>v==null||v===''))return;
   if(values.some(v=>v!=null&&typeof v==='object')){errors.push(`第 ${n} 行：请使用普通文字或数字，不支持公式和富文本`);return;}
   const [examId,room,r,c,className,name,englishName]=values.map(v=>v==null?'':String(v).trim());
-  const parsed=seatSchema.safeParse({examId,room,row:Number(r),column:Number(c),className,name,englishName});
+  const parsed=seatSchema.safeParse({examId,room,row:Number(r),column:Number(c),className,name,englishName,grade:row.getCell(8).text.trim()?Number(row.getCell(8).text):null});
   if(!parsed.success)errors.push(`第 ${n} 行：${parsed.error.issues.map(i=>i.message).join('；')}`);else seats.push(parsed.data);
  });
  return {seats,errors:[...errors,...seatErrors(batch,seats)].slice(0,100)};
