@@ -186,3 +186,10 @@ body.admin-mode .app-header .calendar-toolbar{display:none}
 .section-nav a.active{color:var(--accent);border-bottom-color:var(--accent)}
 @media(min-width:1051px) and (max-width:1400px){.airy .app-header{flex-wrap:wrap}.airy .app-header .calendar-toolbar{order:3;flex:1 0 100%}}
 @media(max-width:760px){.section-nav{gap:14px}.section-nav a{font-size:12px}}
+
+/* Agenda search stays above the scrolling event list. */
+.agenda-search{padding:16px 24px;flex-shrink:0;border-bottom:1px solid var(--line)}
+.airy .agenda-search .search{max-width:420px;background:var(--subtle)}
+.airy .agenda-search .search input{flex:1;width:100%;min-width:0}
+.airy .agenda-search .search:focus-within{border-color:var(--accent)}
+@media(max-width:760px){.agenda-search{padding:14px 18px}}

@@ -23,6 +23,12 @@ npm start
 
 学校名称、时区、数据目录和站点地址通过 `.env` 配置。默认 `Asia/Shanghai` 为可调整初始值。公网部署需 HTTPS、正确 `APP_ORIGIN` 和持久化磁盘；详见 [运行与部署](docs/deployment.md)。
 
+## 学校 Logo
+
+校历与考试安排页面的页头统一读取固定地址 `/logo.png`，对应项目文件 `public/logo.png`。将学校 Logo 的 PNG 图片放到该位置即可，无需修改代码；建议使用透明背景的正方形图片，显示时会保持比例。
+
+当前未附带学校 Logo 图片；文件不存在或加载失败时，继续显示 `LOGO` 文字占位符。替换图片后刷新页面；线上站点需将文件随项目重新部署，若仍显示旧图可强制刷新浏览器。
+
 ## 文档
 
 - [成品版范围](docs/production-spec.md) · [成品验收记录](tests/production.md)

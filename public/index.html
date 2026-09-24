@@ -20,9 +20,9 @@
 
       <div class="filter-heading"><h2 data-i18n="scope">适用学部</h2><button class="text-button reset" data-i18n="reset">重置</button></div><div id="school-filter"></div>
       <div class="filter-heading"><h2 data-i18n="types">事件类型</h2></div><div id="type-filter"></div>
-      <p class="filter-note" data-i18n="scopeNote">选择学部时，同时显示全校事件。</p>
     </aside>
     <main class="main-calendar" id="main-calendar">
+      <div id="agenda-search" class="agenda-search" hidden><label class="search"><span class="search-label" data-i18n="searchLabel">搜索</span><input id="search" type="search" placeholder="搜索事件" aria-label="搜索事件"></label></div>
       <div class="inline-filters"><label class="school-select-label"><span data-i18n="scope">适用学部</span><select id="school-select" aria-label="适用学部"></select></label><div id="inline-types"></div><button class="text-button reset" data-i18n="reset">重置</button></div>
       <div class="calendar-surface"><div class="weekdays" id="weekdays"></div><div class="month-grid" id="month-grid"></div><div id="week-board" class="week-board" hidden></div><div class="agenda" id="agenda" hidden></div><div class="empty" id="empty" hidden><strong data-i18n="emptyTitle">没有符合条件的事件</strong><p data-i18n="emptyHelp">试试其他关键词，或重置筛选。</p><button class="reset" data-i18n="reset">重置</button></div></div>
       <p id="load-status" class="load-status" role="status"></p><button id="retry-load" hidden>重新加载 / Retry</button>

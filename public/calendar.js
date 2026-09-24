@@ -32,7 +32,7 @@ function dateValue(iso){return new Date(iso+'T12:00:00');}
 function isoDate(date){return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;}
 function formatDate(iso,weekday=false){return new Intl.DateTimeFormat(state.lang?'en-GB':'zh-CN',{month:state.lang?'short':'long',day:'numeric',year:'numeric',...(weekday?{weekday:'long'}:{})}).format(dateValue(iso));}
 function isMulti(event){return event.end && event.end!==event.start;}
-function matches(event){return event.status!=='draft' && state.types.has(event.type) && (state.school==='allSchools'||event.scope.includes('schoolwide')||event.scope.includes(state.school)) && (!state.query||event.title.join(' ').toLocaleLowerCase().includes(state.query.toLocaleLowerCase()));}
+function matches(event){return event.status!=='draft' && state.types.has(event.type) && (state.school==='allSchools'||event.scope.includes('schoolwide')||event.scope.includes(state.school)) && (state.view!=='list'||!state.query||event.title.join(' ').toLocaleLowerCase().includes(state.query.toLocaleLowerCase()));}
 function onDate(event,iso){return event.start<=iso && (event.end||event.start)>=iso;}
 function sortEvents(a,b){return (isMulti(a)?0:1)-(isMulti(b)?0:1) || (a.time||'00:00').localeCompare(b.time||'00:00') || a.id.localeCompare(b.id);}
 function timeText(event){if(!event.time)return t('allDay');return (event.type==='deadline'?t('till')+' ':'')+event.time+(event.endTime?'–'+event.endTime:'');}
@@ -56,6 +56,7 @@ function bindEvents(root){root.querySelectorAll('[data-event]').forEach(b=>b.onc
 function syncDetailMode(){const modal=mobileQuery.matches&&document.body.classList.contains('mobile-detail');$$('.app-header,.school-tabs,.sidebar,.main-calendar').forEach(el=>el.inert=modal);if(modal){$('#details').setAttribute('role','dialog');$('#details').setAttribute('aria-modal','true');}else{$('#details').removeAttribute('role');$('#details').removeAttribute('aria-modal');}}
 function selectEvent(id){detailReturnDay=$('#day-dialog').open?$('#day-dialog').dataset.date:null;detailScrollY=window.scrollY;state.selected=id;document.body.classList.remove('detail-closed');document.body.classList.add('mobile-detail');$('#day-dialog').close();renderCalendar();renderDetail();syncDetailMode();if(mobileQuery.matches)$('#close-detail')?.focus();}
 function renderCalendar(){
+  $('#agenda-search').hidden=state.view!=='list';
   document.body.classList.toggle('week-mode',state.view==='week');
   $('#week-board').hidden=state.view!=='week';
   $('#month-title').removeAttribute('title');

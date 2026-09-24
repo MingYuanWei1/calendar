@@ -12,8 +12,17 @@
   : '<div class="view-switch" aria-label="日历视图"><button id="month-view" aria-pressed="true" data-i18n="monthView">月历</button><button id="week-view" aria-pressed="false" data-i18n="weekView">周历</button><button id="list-view" aria-pressed="false" data-i18n="listView">日程</button></div>';
  const account=exams
   ? '<a class="header-manage" href="exams-admin.html" data-zh="考试管理" data-en="Manage exams">考试管理</a>'
-  : '<label class="search"><span class="search-label" data-i18n="searchLabel">搜索</span><input id="search" type="search" placeholder="搜索事件" aria-label="搜索事件"></label><button id="admin-entry" type="button">管理事件</button>';
+  : '<button id="admin-entry" type="button">管理事件</button>';
  header.innerHTML=`<a class="brand" href="/"><span class="logo" aria-label="学校 Logo 占位符">LOGO</span><span><strong data-i18n="school" data-school-name>学校校历</strong><span class="brand-sub">CAMPUS CALENDAR</span></span></a><nav class="section-nav" aria-label="主要导航">${link('/','calendarNav','校历','Calendar',!exams)}${link('exams.html','examsNav','考试安排','Exams',exams)}</nav><div class="calendar-toolbar"><div class="date-controls">${dateControls}</div><div class="calendar-actions">${pageActions}</div></div><div class="header-actions">${account}<button id="language" class="language" aria-label="Switch to English">EN</button><button id="school-account" type="button" disabled>登录</button></div>`;
+ const logo=header.querySelector('.logo');
+ const logoImage=new Image();
+ logoImage.alt='学校 Logo';
+ logoImage.onload=()=>{
+  logo.replaceChildren(logoImage);
+  logo.classList.add('has-image');
+  logo.removeAttribute('aria-label');
+ };
+ logoImage.src='/logo.png';
  const accountButton=/** @type {HTMLButtonElement} */(document.getElementById('school-account'));
  let session=null;
  const english=()=>document.documentElement.lang.startsWith('en');
