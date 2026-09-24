@@ -5,3 +5,7 @@
 #accounts-notice{color:#ac3845;margin:12px 0}#accounts-notice.success{color:#23734c}
 @media(max-width:900px){.account-create{grid-template-columns:1fr 1fr}}
 @media(max-width:520px){.account-create{grid-template-columns:1fr}}
+
+#account-rows td:last-child{white-space:nowrap}
+#account-rows .delete-account{color:#ac3845}
+#account-rows .delete-account:disabled{color:var(--muted)}

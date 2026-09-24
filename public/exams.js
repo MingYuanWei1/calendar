@@ -28,7 +28,7 @@ function render(){
  for(const id of ['previous','current','next'])$('#'+id).hidden=pages.length<=1;
  $('#previous').disabled=page===0;$('#next').disabled=page>=pages.length-1;
  $('#schedule').innerHTML=shownDays.length?scheduleMarkup(visible,shownDays,!mine):`<p class="no-exams">${T('当前范围暂无考试','No exams in this selection')}</p>`;
- $('#published').textContent=`${T('发布于','Published')} ${new Intl.DateTimeFormat(lang?'en-GB':'zh-CN',{timeZone:config.timeZone,dateStyle:'medium',timeStyle:'short'}).format(new Date(batch.publishedAt))} · ${config.timeZone}`;
+ $('#published').textContent=`${T('发布于','Published')} ${new Intl.DateTimeFormat(lang?'en-GB':'zh-CN',{timeZone:config.timeZone,dateStyle:'medium',timeStyle:'short'}).format(new Date(batch.publishedAt))}`;
  const own=sorted(batch.sessions.filter(s=>chosen.has(s.id)&&!s.cancelled)),clashes=[];
  for(let i=0;i<own.length;i++)for(let j=i+1;j<own.length;j++)if(own[i].date===own[j].date&&own[i].start<own[j].end&&own[j].start<own[i].end)clashes.push(`${title(own[i])} / ${title(own[j])}`);
  $('#conflicts').hidden=!clashes.length;$('#conflicts').textContent=T('已选考试时间冲突：','Your selected exams overlap: ')+clashes.join('；');

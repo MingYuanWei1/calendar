@@ -4,6 +4,7 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createApplication} from '../../server/app.mjs';
+import {initializeAccounts} from '../../server/accounts.mjs';
 import {setAdminPassword,digest} from '../../server/passwords.mjs';
 
 test('roles protect management, migrate old accounts, and apply account changes to live sessions',async()=>{
@@ -86,6 +87,25 @@ test('roles protect management, migrate old accounts, and apply account changes 
   assert.equal((await (await call('/school/session','GET',undefined,school)).json()).user.role,2);
   assert.equal((await call('/admin/accounts/tenant%3Astudent','PATCH',{role:2,disabled:true},admin)).status,200);
   assert.equal((await (await call('/session','GET',undefined,school)).json()).authenticated,false);
+  assert.equal((await call('/admin/accounts/local%3Alegacy','DELETE',undefined,admin)).status,409);
+  assert.equal((await call('/admin/accounts/local%3Aotheradmin','DELETE')).status,401);
+  for(const cookie of [moderator,otherAdmin])assert.equal((await call('/admin/accounts/local%3Aotheradmin','DELETE',undefined,cookie)).status,403);
+  instance.db.prepare('INSERT INTO exam_choices VALUES(?,?,?)').run('local:otheradmin','test-batch','test-exam');
+  assert.equal((await call('/admin/accounts/local%3Aotheradmin','DELETE',undefined,admin)).status,204);
+  assert.equal((await (await call('/session','GET',undefined,otherAdmin)).json()).authenticated,false);
+  assert.equal((await call('/login','POST',{username:'otheradmin',password})).status,401);
+  initializeAccounts(instance.db);
+  assert.equal(instance.db.prepare('SELECT id FROM accounts WHERE id=?').get('local:otheradmin'),undefined);
+  assert.equal(instance.db.prepare('SELECT user_id FROM exam_choices WHERE user_id=?').get('local:otheradmin'),undefined);
+  assert.equal((await call('/admin/accounts/local%3Aotheradmin','DELETE',undefined,admin)).status,404);
+  instance.db.prepare('INSERT INTO school_sessions VALUES(?,?,?,?)').run(digest('delete-school'),'tenant:delete-me','Delete school account',Date.now()+60000);
+  const deletingSchool='school_session=delete-school';
+  assert.equal((await (await call('/session','GET',undefined,deletingSchool)).json()).authenticated,true);
+  instance.db.prepare('INSERT INTO exam_choices VALUES(?,?,?)').run('tenant:delete-me','test-batch','test-exam');
+  assert.equal((await call('/admin/accounts/tenant%3Adelete-me','DELETE',undefined,admin)).status,204);
+  assert.equal((await (await call('/session','GET',undefined,deletingSchool)).json()).authenticated,false);
+  assert.equal(instance.db.prepare('SELECT user_id FROM exam_choices WHERE user_id=?').get('tenant:delete-me'),undefined);
+  assert.equal(instance.db.prepare('SELECT id FROM accounts WHERE id=?').get('tenant:delete-me'),undefined);
   const accounts=await (await call('/admin/accounts','GET',undefined,admin)).json();
   assert.ok(accounts.every(account=>!('hash' in account)&&!('salt' in account)));
   assert.equal((await call('/logout','POST',{},admin)).status,204);

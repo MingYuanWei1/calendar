@@ -29,6 +29,22 @@ export function installAccounts(app,db,{requireRole,currentUser}){
    res.status(201).json(db.prepare(`SELECT ${fields} FROM accounts WHERE id=?`).get('local:'+username));
   });
  });
+ app.delete('/api/admin/accounts/:id',requireRole(3),(req,res)=>{
+  db.transactionSync(()=>{
+   const account=db.prepare('SELECT * FROM accounts WHERE id=?').get(req.params.id);
+   if(!account)return res.status(404).json({error:'账户不存在。'});
+   if(account.id===currentUser(req).id)return res.status(409).json({error:'不能删除当前登录账户。'});
+   if(account.role===3&&!account.disabled&&db.prepare('SELECT count(*) AS count FROM accounts WHERE role=3 AND disabled=0').get().count<=1)return res.status(409).json({error:'至少保留一个可用管理员账户。'});
+   if(account.provider==='local'){
+    db.prepare('DELETE FROM sessions WHERE username=?').run(account.subject);
+    db.prepare('DELETE FROM admins WHERE username=?').run(account.subject);
+   }
+   db.prepare('DELETE FROM school_sessions WHERE user_id=?').run(account.id);
+   db.prepare('DELETE FROM exam_choices WHERE user_id=?').run(account.id);
+   db.prepare('DELETE FROM accounts WHERE id=?').run(account.id);
+   res.status(204).end();
+  });
+ });
  app.patch('/api/admin/accounts/:id',requireRole(3),(req,res)=>{
   const {role,disabled}=req.body||{};
   if(![1,2,3].includes(role)||typeof disabled!=='boolean')return res.status(422).json({error:'角色或账户状态无效。'});
