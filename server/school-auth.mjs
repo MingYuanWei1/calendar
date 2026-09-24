@@ -20,7 +20,7 @@ function authFailure(path,reason,origin){
  const url=new URL(path,origin);url.searchParams.set('auth',reason);
  return url.pathname+url.search+url.hash;
 }
-export function installSchoolAuth(app,db,{origin,tenantId='',clientId='',clientSecret='',preview=false}){
+export function installSchoolAuth(app,db,{origin,tenantId='',clientId='',clientSecret='',loginUrl='',preview=false}){
  if(preview&&(process.env.NODE_ENV==='production'||!['localhost','127.0.0.1','[::1]'].includes(new URL(origin).hostname)))throw new Error('SSO preview is restricted to local development.');
  const localPreview=req=>preview&&['127.0.0.1','::1','::ffff:127.0.0.1'].includes(req.socket.remoteAddress)&&req.get('host')===new URL(origin).host;
  tenantId=tenantId.toLowerCase();
@@ -43,7 +43,9 @@ export function installSchoolAuth(app,db,{origin,tenantId='',clientId='',clientS
   db.prepare('INSERT INTO school_auth_states(state,binding,nonce,verifier,expires,return_to) VALUES(?,?,?,?,?,?)').run(digest(state),digest(binding),nonce,verifier,Date.now()+600000,destination);
   res.cookie('school_auth',binding,{...cookie,maxAge:600000});
   const params=new URLSearchParams({client_id:clientId,response_type:'code',redirect_uri:origin+'/api/school/callback',response_mode:'query',scope:'openid profile',state,nonce,code_challenge:createHash('sha256').update(verifier).digest('base64url'),code_challenge_method:'S256'});
-  res.redirect(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize?${params}`);
+  const authorization=new URL(loginUrl||`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize`);
+  for(const [key,value] of params)authorization.searchParams.set(key,value);
+  res.redirect(authorization.href);
  });
  app.get('/api/school/callback',async(req,res)=>{
   res.clearCookie('school_auth',cookie);

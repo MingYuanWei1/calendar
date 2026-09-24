@@ -45,9 +45,9 @@ test('local SSO preview supports choices and logout without enabling administrat
  }finally{await new Promise(resolve=>server.close(resolve));instance.close();await rm(directory,{recursive:true,force:true});}
 });
 
-test('Microsoft flow stores the originating page and returns failures there',async()=>{
+for(const loginUrl of ['', 'https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?prompt=select_account'])test(`Microsoft flow stores the originating page and returns failures there (${loginUrl||'default endpoint'})`,async()=>{
  const directory=await mkdtemp(join(tmpdir(),'school-return-'));
- const instance=createApplication({dataDir:directory,origin:'http://localhost:3000',sso:{tenantId:'11111111-1111-1111-1111-111111111111',clientId:'test-client',clientSecret:'test-secret'}});
+ const instance=createApplication({dataDir:directory,origin:'http://localhost:3000',sso:{tenantId:'11111111-1111-1111-1111-111111111111',clientId:'test-client',clientSecret:'test-secret',loginUrl}});
  const server=instance.app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
  const base=`http://127.0.0.1:${server.address().port}`;
  try{
@@ -55,6 +55,11 @@ test('Microsoft flow stores the originating page and returns failures there',asy
   const login=await fetch(base+'/api/school/login?returnTo='+encodeURIComponent(target),{redirect:'manual'});
   const authorization=new URL(login.headers.get('location'));
   assert.equal(authorization.hostname,'login.microsoftonline.com');
+  assert.equal(authorization.pathname,loginUrl?'/organizations/oauth2/v2.0/authorize':'/11111111-1111-1111-1111-111111111111/oauth2/v2.0/authorize');
+  assert.equal(authorization.searchParams.get('client_id'),'test-client');
+  assert.equal(authorization.searchParams.get('redirect_uri'),'http://localhost:3000/api/school/callback');
+  assert.equal(authorization.searchParams.get('code_challenge_method'),'S256');
+  if(loginUrl)assert.equal(authorization.searchParams.get('prompt'),'select_account');
   assert.equal(instance.db.prepare('SELECT return_to FROM school_auth_states').get().return_to,target);
   const cookie=login.headers.get('set-cookie').split(';')[0];
   const cancelled=await fetch(base+'/api/school/callback?state='+authorization.searchParams.get('state')+'&error=access_denied',{headers:{Cookie:cookie},redirect:'manual'});

@@ -10,5 +10,5 @@
   "durable_objects": {"bindings": [{"name":"SCHOOLS","class_name":"SchoolCalendar"}]},
   "migrations": [{"tag":"v1","new_sqlite_classes":["SchoolCalendar"]}],
   "images": {"binding":"IMAGES"},
-  "vars": {"APP_ORIGIN":"https://calendar.keydion.com","SCHOOL_ID":"calendar","SCHOOL_NAME":"学校校历","SCHOOL_NAME_EN":"School calendar","SCHOOL_TIMEZONE":"Asia/Shanghai"}
+  "vars": {"MICROSOFT_LOGIN_URL":"https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize","APP_ORIGIN":"https://calendar.keydion.com","SCHOOL_ID":"calendar","SCHOOL_NAME":"学校校历","SCHOOL_NAME_EN":"School calendar","SCHOOL_TIMEZONE":"Asia/Shanghai"}
 }
