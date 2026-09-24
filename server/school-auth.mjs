@@ -52,18 +52,32 @@ export function installSchoolAuth(app,db,{origin,tenantId='',clientId='',clientS
   const state=typeof req.query.state==='string'?req.query.state:'';
   const flow=db.prepare('SELECT * FROM school_auth_states WHERE state=? AND binding=? AND expires>?').get(digest(state),digest(readCookie(req,'school_auth')),Date.now());
   const destination=returnPath(flow?.return_to,origin);
-  if(!configured||!flow||typeof req.query.code!=='string')return res.redirect(authFailure(destination,'failed',origin));
+  if(!configured||!flow||typeof req.query.code!=='string'){
+   console.warn({event:'school_login_failed',stage:!configured?'configuration':!flow?'callback_state':'authorization'});
+   return res.redirect(authFailure(destination,'failed',origin));
+  }
   db.prepare('DELETE FROM school_auth_states WHERE state=?').run(digest(state));
+  let stage='token_exchange';
   try{
    const response=await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:clientId,client_secret:clientSecret,grant_type:'authorization_code',code:req.query.code,redirect_uri:origin+'/api/school/callback',code_verifier:flow.verifier}),signal:AbortSignal.timeout(15000)});
-   if(!response.ok)throw new Error('Token exchange failed');
+   if(!response.ok){
+    const error=await response.json().catch(()=>({}));
+    console.warn({event:'school_login_failed',stage,status:response.status,errorCodes:Array.isArray(error.error_codes)?error.error_codes.filter(Number.isInteger).slice(0,5):[]});
+    return res.redirect(authFailure(destination,'failed',origin));
+   }
    const token=await response.json();
+   stage='identity_verification';
    const payload=await verifySchoolIdentity(token.id_token,keys,{issuer,clientId,tenantId,nonce:flow.nonce});
+   stage='session_creation';
    const session=randomBytes(32).toString('hex');
    db.prepare('DELETE FROM school_sessions WHERE token=?').run(digest(readCookie(req,'school_session')));
    db.prepare('INSERT INTO school_sessions VALUES(?,?,?,?)').run(digest(session),tenantId+':'+payload.oid,String(payload.name||'校内用户').slice(0,160),Date.now()+8*3600000);
    res.cookie('school_session',session,{...cookie,maxAge:8*3600000});res.redirect(destination);
-  }catch{res.redirect(authFailure(destination,'failed',origin));}
+  }catch(error){
+   const code=typeof error?.code==='string'&&/^ERR_[A-Z_]+$/.test(error.code)?error.code:'UNCLASSIFIED';
+   console.warn({event:'school_login_failed',stage,code});
+   res.redirect(authFailure(destination,'failed',origin));
+  }
  });
  app.post('/api/school/logout',(req,res)=>{if(localPreview(req)){res.cookie('school_preview_out','1',cookie);return res.status(204).end();}db.prepare('DELETE FROM school_sessions WHERE token=?').run(digest(readCookie(req,'school_session')));res.clearCookie('school_session',cookie);res.status(204).end();});
  return {user};
