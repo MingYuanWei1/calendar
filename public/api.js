@@ -8,7 +8,7 @@ async function api(path,options={}){
   if(!response.ok){
     const detail=await response.json().catch(()=>({error:'网络请求失败，请重试。'}));
     const english=typeof state!=='undefined'&&state.lang;
-    const messages={400:'Please check the request and try again.',401:path==='/login'?'Incorrect username or password.':'Your session has expired. Please sign in again.',403:'Request origin does not match the website address.',404:'This item no longer exists.',409:'This event changed in another window. Keep your inputs, then reload the list before editing.',413:'File is too large. Maximum image size is 5 MB.',415:'Please upload a PNG, JPEG or WebP image.',422:'Please check the event fields or image file.',429:'Too many sign-in attempts. Please retry in 15 minutes.'};
+    const messages={400:'Please check the request and try again.',401:path==='/login'?'Incorrect username or password.':'Your session has expired. Please sign in again.',403:'You do not have permission for this action.',404:'This item no longer exists.',409:'This event changed in another window. Keep your inputs, then reload the list before editing.',413:'File is too large. Maximum image size is 5 MB.',415:'Please upload a PNG, JPEG or WebP image.',422:'Please check the event fields or image file.',429:'Too many sign-in attempts. Please retry in 15 minutes.'};
     const error=new Error(english?(messages[response.status]||'Service unavailable. Please retry.'):detail.error);Object.assign(error,{status:response.status,fields:detail.fields});throw error;
   }
   return response.status===204?null:response.json();
@@ -29,8 +29,9 @@ async function startCalendar(){
     copy.school=[settings.schoolName,settings.schoolNameEn];
     const current=schoolToday().split('-').map(Number);state.year=current[0];state.month=current[1]-1;
     await loadEvents();render();setLoadMessage('');
-    const session=await api('/session');admin.signedIn=session.authenticated;
+    const session=await api('/session');admin.signedIn=session.user?.role>=2;
     if(admin.open&&admin.signedIn)await loadEvents(true);
     renderAdmin();
+    if(new URLSearchParams(location.search).get('manage')==='events')await openAdmin();
   }catch(error){setLoadMessage('校历暂时无法加载，请点击重试。',true);$('#retry-load').hidden=false;}
 }

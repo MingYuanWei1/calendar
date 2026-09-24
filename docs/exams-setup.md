@@ -3,7 +3,7 @@
 ## 入口
 
 - 学生端：`/exams.html`。不登录可按批次、学部、年级浏览并下载整个批次的考试 PDF。
-- 后台：`/exams-admin.html`，使用现有校历管理员账号。Microsoft 登录不会授予编辑权限。
+- 后台：`/exams-admin.html`，使用 role 为 moderator（2）或 admin（3）的账户。Microsoft 新账户默认 reader（1），由 admin 在 `/accounts.html` 授权后可管理考试。
 - 原校历顶部增加「考试安排」，考试类型事件详情也有入口。
 
 ## Microsoft Entra ID 单组织登录
@@ -52,7 +52,7 @@ MICROSOFT_CLIENT_SECRET=应用客户端密钥的值
 
 ## 本地免 SSO 体验
 
-在本地 `.env` 设置 `SSO_PREVIEW=true` 并重启服务，学生端自动使用固定的体验账号。支持保存考试选择、查看已发布座位表和下载个人考试 PDF；顶部按钮仍可体验登出、再次登录。管理员继续使用已有管理员登录。
+在本地 `.env` 设置 `SSO_PREVIEW=true` 并重启服务，学生端自动使用固定的体验账号。支持保存考试选择、查看已发布座位表和下载个人考试 PDF；顶部账户菜单可体验退出、切换账户与再次登录。体验账户默认 reader；使用已有本地管理员账号登录后，可从账户菜单进入管理页面。
 
 此模式只允许非生产环境、回环监听地址和本地 APP_ORIGIN，请求还会检查实际连接地址与 Host。体验选择独立于 Microsoft 账号保存。恢复 SSO 时将开关设为 `false` 并重启服务即可。
 

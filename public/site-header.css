@@ -50,3 +50,24 @@ body.admin-mode #site-header .search,body.admin-mode #site-header #admin-entry{d
  #site-header .search input{width:70px;font-size:11px}
 }
 @media(max-width:760px){#site-header{grid-template-columns:minmax(0,1fr);padding:16px 18px;gap:12px}#site-header .section-nav{grid-column:1;grid-row:2}#site-header .header-actions{grid-column:1;grid-row:3;justify-content:flex-start;flex-wrap:wrap}#site-header .calendar-toolbar{grid-column:1;grid-row:4;flex-wrap:wrap;gap:12px}#site-header .date-controls{flex:1 0 100%;gap:10px}#site-header .calendar-actions{margin-left:auto}#site-header .search{flex:1;min-width:120px}#site-header .search input{width:100%}#site-header .section-nav a{font-size:13px}#site-header .brand strong{font-size:19px}}
+
+#site-header .user-menu{position:relative}
+#site-header .account-avatar{width:36px;height:36px;border-radius:50%;background:var(--accent);color:white;padding:0;font-weight:600}
+#site-header .account-menu{position:absolute;right:0;top:calc(100% + 10px);z-index:20;width:230px;padding:10px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 36px #24374622}
+#site-header .account-menu strong,#site-header .account-menu small{display:block;padding:3px 10px;overflow-wrap:anywhere}
+#site-header .account-menu small{color:var(--muted);margin-bottom:8px}
+#site-header .account-menu a,#site-header .account-menu button{display:block;width:100%;text-align:left;padding:9px 10px;border:0;border-radius:6px;font-size:13px;color:var(--text);text-decoration:none;background:transparent}
+#site-header .account-menu a:hover,#site-header .account-menu button:hover{background:var(--soft)}
+.account-login-dialog{width:min(400px,calc(100% - 32px));padding:28px;border:1px solid var(--line);border-radius:16px;color:var(--text);background:var(--surface)}
+.account-login-dialog::backdrop{background:#182b3a66}
+.account-dialog-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+.account-dialog-top h2{margin:0;font-size:23px}.account-dialog-top button{border:0;background:transparent;font-size:24px}
+.account-login-dialog form,.account-login-dialog label{display:flex;flex-direction:column;gap:8px}.account-login-dialog form{gap:16px}
+.account-login-dialog input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:7px;font:inherit}
+.account-login-dialog button{cursor:pointer;padding:10px 12px;border-radius:7px;font:inherit}
+.account-login-dialog .microsoft-login{width:100%;background:#243746;color:white;border:0}
+.account-divider{text-align:center;color:var(--muted);font-size:12px;margin:18px 0}
+#account-login-error,#account-error{color:#ad3845;font-size:13px;overflow-wrap:anywhere}
+#account-login-error:empty,#account-error:empty{display:none}
+[hidden]{display:none!important}
+@media(max-width:760px){#site-header .account-menu{right:auto;left:0}}

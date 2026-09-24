@@ -23,7 +23,7 @@ test('local SSO preview supports choices and logout without enabling administrat
   instance.db.prepare('INSERT INTO exam_batches VALUES(?,?,?,?,?)').run(batch.id,1,JSON.stringify(batch),JSON.stringify(batch),JSON.stringify({rooms:[],seats:[]}));
   const session=await (await call('/school/session')).json();
   assert.equal(session.preview,true);assert.equal(session.user.id,'local-preview-student');
-  assert.equal((await call('/admin/exams')).status,401);
+  assert.equal((await call('/admin/exams')).status,403);
   assert.equal((await call('/exams/preview-batch/seats')).status,200);
   assert.equal((await call('/exams/preview-batch/choices',{method:'PUT',body:JSON.stringify({ids:['math']})})).status,200);
   assert.deepEqual(await (await call('/exams/preview-batch/choices')).json(),['math']);

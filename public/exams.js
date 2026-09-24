@@ -124,3 +124,5 @@ $('#pdf-submit').onclick=async()=>{
 };
 async function start(){try{[school,batches,config]=await Promise.all([api('/school/session'),api('/exams'),api('/config')]);const params=new URLSearchParams(location.search),requested=batches.find(b=>b.id===params.get('batch'));const today=new Intl.DateTimeFormat('en-CA',{timeZone:config.timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());if(Object.hasOwn(divisions,params.get('division')))division=params.get('division');const matching=batches.find(b=>b.start<=params.get('date')&&b.end>=params.get('date'));const nearest=[...batches].filter(b=>b.end>=today).sort((a,b)=>a.start.localeCompare(b.start))[0];render();if(batches.length)await loadBatch((requested||matching||nearest||batches[0]).id);if(params.has('auth'))notice(params.get('auth')==='unconfigured'?T('学校 Microsoft SSO 尚未配置，请联系管理员。','Microsoft SSO is not configured.'):T('登录未完成，请重试。','Sign-in failed. Please retry.'));}catch(e){notice(e.message);}}
 start();
+
+window.addEventListener('account-changed',()=>location.reload());

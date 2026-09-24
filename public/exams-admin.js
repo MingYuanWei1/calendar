@@ -24,11 +24,14 @@ function removeExam(id){
  draft.sessions=draft.sessions.filter(s=>s.id!==id);draft.seats=draft.seats.filter(s=>s.examId!==id);markDirty();edit();
 }
 function payload(){const {id,publishedAt,seatingPublishedAt,updatedAt,...data}=draft;return data;}
-async function start(){try{const session=await api('/session');if(!session.authenticated){login();return;}subjects=await api('/exam-subjects');$('#manage-subjects').hidden=false;$('#logout').hidden=false;$('#new-batch').hidden=false;batches=await api('/admin/exams');list();}catch(e){notice(e.message);}}
+async function start(){try{const session=await api('/session');if(!(session.user?.role>=2)){login();return;}subjects=await api('/exam-subjects');$('#manage-subjects').hidden=false;$('#new-batch').hidden=false;batches=await api('/admin/exams');list();}catch(e){notice(e.message);}}
 function login(){
- $('#admin-content').innerHTML=`<form id="login" class="admin-panel login-box"><h2>管理员登录</h2><p class="muted">使用现有校历管理员账号；学校 Microsoft 登录仅用于学生端。</p>${field('username','账号')}${field('password','密码','','password')}<button class="primary">登录</button></form>`;
- $('#login').onsubmit=async e=>{e.preventDefault();const values=Object.fromEntries(new FormData(e.target));try{await api('/login',{method:'POST',body:JSON.stringify(values)});await start();}catch(error){notice(error.message);}};
+ $('#admin-content').innerHTML='<section class="admin-panel login-box"><h2>需要管理权限</h2><p>请使用 moderator 或 admin 账户登录。</p><button id="open-account-login" class="primary">登录 / 切换账户</button></section>';
+ $('#new-batch').hidden=true;$('#manage-subjects').hidden=true;$('#delete-batch').hidden=true;
+ $('#open-account-login').onclick=()=>window.dispatchEvent(new Event('account-login'));
 }
+window.addEventListener('account-changed',()=>{dirty=false;start();});
+window.addEventListener('account-before-logout',event=>{if(dirty&&!confirm('放弃未保存修改并退出？'))event.preventDefault();});
 function list(){$('#delete-batch').hidden=true;draft=null;dirty=false;$('#admin-content').innerHTML=`<div class="batch-list">${batches.map(b=>`<button class="batch-item" data-batch="${b.id}"><strong>${esc(b.title)}</strong><small>${b.start} — ${b.end}</small><small>${b.sessions.length} 场考试 · ${b.publishedAt?'考试已发布':'草稿'} · ${b.seatingPublishedAt?'座位已发布':'座位未发布'}</small></button>`).join('')||'<p class="admin-panel">暂无批次，点击新建开始。</p>'}</div>`;document.querySelectorAll('[data-batch]').forEach(el=>el.addEventListener('click',()=>{draft=structuredClone(batches.find(b=>b.id===el.getAttribute('data-batch')));edit();}));}
 function edit(){
  $('#delete-batch').hidden=false;
@@ -146,7 +149,7 @@ function preview(seats){
  $('#preview-dialog').showModal();$('#publish').onclick=async()=>{$('#publish').disabled=true;try{draft=await api(`/admin/exams/${draft.id}/${seats?'publish-seats':'publish'}`,{method:'POST',body:JSON.stringify({version:draft.version})});await refreshList();$('#preview-dialog').close();edit();notice('发布成功。',true);}catch(e){$('#publish-error').textContent=e.message;}finally{$('#publish').disabled=false;}};
 }
 $('#new-batch').onclick=()=>{if(dirty&&!confirm('放弃未保存修改？'))return;draft={title:'',titleEn:'',start:'',end:'',sessions:[],rooms:[],seats:[]};dirty=false;edit();};
-$('#logout').onclick=async()=>{if(dirty&&!confirm('放弃未保存修改并退出？'))return;try{await api('/logout',{method:'POST'});dirty=false;location.reload();}catch(e){notice(e.message);}};
+
 $('#close-editor').onclick=()=>$('#editor-dialog').close();$('#close-preview').onclick=()=>$('#preview-dialog').close();start();
 
 $('#manage-subjects').onclick=manageSubjects;
@@ -205,3 +208,6 @@ function extractedPreview(result,target){
   }catch(error){$('#extract-error').textContent=error.message;}finally{button.disabled=false;}
  };
 }
+
+$('#language').hidden=true;
+window.addEventListener('account-before-change',event=>{if(dirty&&!confirm('放弃未保存修改并切换账户？'))event.preventDefault();});

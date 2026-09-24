@@ -25,19 +25,17 @@ async function showPublic() {
 }
 
 function adminNavigation() {
-  return `<nav class="admin-navigation"><button type="button" data-public>${A('← 返回公共校历','← Public calendar')}</button>${admin.signedIn?`<button type="button" class="logout" data-logout>${A('退出登录','Sign out')}</button>`:''}</nav>`;
+  return `<nav class="admin-navigation"><button type="button" data-public>${A('← 返回公共校历','← Public calendar')}</button></nav>`;
 }
 
 function renderAdmin() {
-  $('#admin-entry').textContent=A('管理事件','Manage events');
   if(!admin.open)return;
   if(!admin.signedIn&&!admin.editing){
-    $('#admin-app').innerHTML=`<div class="admin-shell">${adminNavigation()}<section class="admin-panel login-panel"><span class="overline">CAMPUS CALENDAR</span><h1>${A('管理员登录','Administrator sign-in')}</h1><p>${A('统一维护校园里的每一项公共事件。','Manage public events across all school divisions.')}</p>${admin.notice?`<p class="request-error" role="alert">${esc(admin.notice)}</p>`:''}${loginForm()}</section></div>`;
-    bindLogin(false);
+    $('#admin-app').innerHTML=`<div class="admin-shell">${adminNavigation()}<section class="admin-panel login-panel"><span class="overline">CAMPUS CALENDAR</span><h1>${A('需要管理权限','Management access required')}</h1><p>${A('统一维护校园里的每一项公共事件。','Manage public events across all school divisions.')}</p>${admin.notice?`<p class="request-error" role="alert">${esc(admin.notice)}</p>`:''}<button id="open-account-login" class="primary">${A('登录 / 切换账户','Sign in / Switch account')}</button></section></div>`;
+    $('#open-account-login').onclick=openLoginDialog;
   }else if(admin.editing){renderEditor();}
   else{renderAdminList();}
   $$('[data-public]').forEach(b=>b.onclick=showPublic);
-  $$('[data-logout]').forEach(b=>b.onclick=logout);
 }
 
 function eventStatus(event){return event.cancelled?'cancelled':event.status||'published';}
@@ -134,7 +132,9 @@ function openPreview(event){
   $('#preview-dialog').showModal();
 }
 
-$('#admin-entry').onclick=openAdmin;
+window.addEventListener('manage-events',async()=>{const session=await api('/session');admin.signedIn=session.user?.role>=2;await openAdmin();});
+window.addEventListener('account-changed',async event=>{admin.signedIn=/** @type {CustomEvent} */(event).detail.user?.role>=2;if(!admin.signedIn){admin.editing=false;admin.dirty=false;await showPublic();}else if(admin.open&&!admin.editing){await loadEvents(true);renderAdmin();}});
+window.addEventListener('account-before-logout',event=>{if(!mayLeave())event.preventDefault();});
 $('#close-preview').onclick=()=>$('#preview-dialog').close();
 document.addEventListener('calendar-language',()=>{
   const form=$('#event-form');
@@ -201,28 +201,7 @@ function showRequestError(error){
     const button=document.createElement('button');button.type='button';button.textContent=A('重新登录','Sign in again');button.onclick=openLoginDialog;target.append(button);
   }
 }
-function loginForm(){return `<form id="login-form"><label class="field"><span>${A('账号','Username')}</span><input id="username" name="username" autocomplete="username" required maxlength="64"></label><label class="field"><span>${A('密码','Password')}</span><input id="password" name="password" type="password" autocomplete="current-password" required maxlength="256"></label><p id="login-error" role="alert"></p><button class="primary" type="submit">${A('登录','Sign in')}</button></form>`;}
-function bindLogin(modal){
-  $('#login-form').onsubmit=async e=>{
-    e.preventDefault();const button=$('#login-form button');button.disabled=true;$('#login-error').textContent='';
-    try{
-      await api('/login',{method:'POST',body:JSON.stringify({username:$('#username').value,password:$('#password').value})});
-      admin.signedIn=true;
-      if(modal){$('#login-dialog').close();$('#form-status').textContent=A('已重新登录，可以继续保存。','Signed in. You can save your changes now.');}
-      else{await loadEvents(true);renderAdmin();}
-    }catch(error){$('#login-error').textContent=error.message||A('无法连接，请重试。','Unable to connect. Please retry.');}
-    finally{button.disabled=false;}
-  };
-}
-function openLoginDialog(){
-  $('#login-content').innerHTML=`<h2>${A('重新登录','Sign in again')}</h2>${loginForm()}`;
-  bindLogin(true);$('#login-dialog').showModal();
-}
-async function logout(){
-  if(!mayLeave())return;
-  try{await api('/logout',{method:'POST'});admin.signedIn=false;admin.editing=false;admin.dirty=false;events.length=0;renderAdmin();renderCalendar();renderDetail();}
-  catch(error){admin.notice=error.message;renderAdmin();}
-}
+function openLoginDialog(){window.dispatchEvent(new Event('account-login'));}
 function mediaField(name,label,value=''){
   return `<div class="field"><label for="upload-${name}">${label}</label><input id="${name}" name="${name}" type="hidden" value="${esc(value)}"><input id="upload-${name}" type="file" accept="image/png,image/jpeg,image/webp"><div id="preview-${name}"></div><button type="button" data-remove-media="${name}" ${value?'':'hidden'}>${A('移除图片','Remove image')}</button><span id="error-${name}" class="field-error" aria-live="polite"></span></div>`;
 }
@@ -248,5 +227,6 @@ function bindMediaInputs(){
   }
 }
 window.addEventListener('beforeunload',e=>{if(admin.dirty){e.preventDefault();e.returnValue='';}});
-$('#close-login').onclick=()=>$('#login-dialog').close();
 startCalendar();
+
+window.addEventListener('account-before-change',event=>{if(!mayLeave())event.preventDefault();});

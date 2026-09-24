@@ -1,3 +1,5 @@
+import {initializeAccounts,installAccounts} from './accounts.mjs';
+import {installSchoolAuth} from './school-auth.mjs';
 import express from 'express';
 import {schedulePdfSchema,vectorSchedulePdf} from './schedule-pdf.mjs';
 import {randomBytes,randomUUID} from 'node:crypto';
@@ -18,8 +20,12 @@ export function createApi({db,media,installStatic=()=>{},origin,schoolName='学�
     next();
   });
   const tokenFrom=req=>(req.headers.cookie||'').split(';').map(s=>s.trim()).find(s=>s.startsWith('calendar_session='))?.slice(17)||'';
-  const session=req=>db.prepare('SELECT username FROM sessions WHERE token=? AND expires>?').get(digest(tokenFrom(req)),Date.now());
-  const requireAdmin=(req,res,next)=>{if(!session(req))return res.status(401).json({error:'登录已失效，请重新登录。',code:'AUTH'});next();};
+  initializeAccounts(db);
+  const localUser=req=>db.prepare("SELECT a.id,a.name,a.role FROM sessions s JOIN accounts a ON a.provider='local' AND a.subject=s.username WHERE s.token=? AND s.expires>? AND a.disabled=0").get(digest(tokenFrom(req)),Date.now());
+  const schoolAuth=installSchoolAuth(app,db,{origin,...sso,localUser});
+  const session=req=>localUser(req)||schoolAuth.user(req);
+  const requireRole=role=>(req,res,next)=>{const user=session(req);if(!user)return res.status(401).json({error:'登录已失效，请重新登录。',code:'AUTH'});if(user.role<role)return res.status(403).json({error:'当前账户没有操作权限。',code:'FORBIDDEN'});next();};
+  const requireAdmin=requireRole(2);
   const clearCookie=res=>res.clearCookie('calendar_session',{path:'/',httpOnly:true,sameSite:'strict',secure:base.protocol==='https:'});
   app.use('/api/admin/exam-extract',express.json({limit:'20mb'}));
   app.use('/api/admin/exams',express.json({limit:'4mb'}));
@@ -31,7 +37,7 @@ export function createApi({db,media,installStatic=()=>{},origin,schoolName='学�
     res.set({'Content-Type':'application/pdf','Content-Disposition':'attachment; filename="exam-schedule.pdf"'}).send(await vectorSchedulePdf(parsed.data.pages));
   });
   app.get('/api/config',(req,res)=>res.json({schoolName,schoolNameEn,timeZone}));
-  app.get('/api/session',(req,res)=>res.json({authenticated:Boolean(session(req))}));
+  app.get('/api/session',(req,res)=>res.json({authenticated:Boolean(session(req)),user:session(req)||null}));
   app.post('/api/login',async(req,res)=>{
     const {username,password}=req.body||{};
     if(typeof username!=='string'||typeof password!=='string'||username.length>64||password.length>256)return res.status(400).json({error:'请输入账号和密码。'});
@@ -42,14 +48,18 @@ export function createApi({db,media,installStatic=()=>{},origin,schoolName='学�
     if(attempt?.count>=10){res.set('Retry-After',String(Math.ceil((attempt.reset-now)/1000)));return res.status(429).json({error:'尝试次数过多，请 15 分钟后重试。'});}
     db.prepare('INSERT INTO login_attempts VALUES(?,1,?) ON CONFLICT(address) DO UPDATE SET count=count+1').run(address,now+15*60*1000);
     if(!await verifyPassword(db,username,password))return res.status(401).json({error:'账号或密码错误。'});
+    let account=db.prepare("SELECT * FROM accounts WHERE provider='local' AND subject=?").get(username);
+    if(!account){initializeAccounts(db);account=db.prepare("SELECT * FROM accounts WHERE provider='local' AND subject=?").get(username);}
+    if(account.disabled)return res.status(403).json({error:'此账户已停用。'});
     db.prepare('DELETE FROM login_attempts WHERE address=?').run(address);
     db.prepare('DELETE FROM sessions WHERE token=?').run(digest(tokenFrom(req)));
     const token=randomBytes(32).toString('hex'),duration=8*60*60*1000;
     db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(digest(token),username,now+duration);
     res.cookie('calendar_session',token,{httpOnly:true,sameSite:'strict',secure:base.protocol==='https:',path:'/',maxAge:duration});
-    res.json({authenticated:true});
+    schoolAuth.clearSession(req,res);
+    res.json({authenticated:true,user:{id:account.id,name:account.name,role:account.role}});
   });
-  app.post('/api/logout',(req,res)=>{db.prepare('DELETE FROM sessions WHERE token=?').run(digest(tokenFrom(req)));clearCookie(res);res.status(204).end();});
+  app.post('/api/logout',(req,res)=>{db.prepare('DELETE FROM sessions WHERE token=?').run(digest(tokenFrom(req)));clearCookie(res);schoolAuth.logout(req,res);});
   const rowsToEvents=rows=>rows.map(row=>JSON.parse(row.body));
   app.get('/api/events',(req,res)=>res.json(rowsToEvents(db.prepare("SELECT body FROM events WHERE status IN ('published','cancelled') ORDER BY json_extract(body,'$.start'),id").all())));
   app.get('/api/admin/events',requireAdmin,(req,res)=>res.json(rowsToEvents(db.prepare('SELECT body FROM events ORDER BY json_extract(body,\'$.start\'),id').all())));
@@ -110,12 +120,13 @@ export function createApi({db,media,installStatic=()=>{},origin,schoolName='学�
     if(!/^[a-f0-9-]{36}$/.test(req.params.id)||!db.prepare('SELECT id FROM media WHERE id=?').get(req.params.id))return res.sendStatus(404);
     const path='/api/media/'+req.params.id;
     const published=db.prepare("SELECT id FROM events WHERE status IN ('published','cancelled') AND (json_extract(body,'$.poster')=? OR json_extract(body,'$.qr')=?) LIMIT 1").get(path,path);
-    if(!published&&!session(req))return res.sendStatus(404);
+    if(!published&&!(session(req)?.role>=2))return res.sendStatus(404);
     const bytes=await media.read(req.params.id);
     if(!bytes)return res.sendStatus(404);
     res.type('image/webp').send(bytes);
   });
-  installExams(app,db,{requireAdmin,isAdmin:req=>Boolean(session(req)),origin,schoolName,timeZone,sso,llm});
+  installAccounts(app,db,{requireRole,currentUser:session});
+  installExams(app,db,{requireAdmin,isAdmin:req=>session(req)?.role>=2,user:session,origin,schoolName,timeZone,llm});
   app.use('/api',(req,res)=>res.status(404).json({error:'接口不存在。'}));
   installStatic(app);
   app.use((error,req,res,next)=>{

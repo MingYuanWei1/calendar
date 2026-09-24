@@ -1,0 +1,7 @@
+.account-create{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;gap:14px;align-items:end;margin-top:18px}
+.account-create label{display:flex;flex-direction:column;gap:6px}
+#accounts-content>.admin-panel{margin-bottom:24px}
+#account-rows td{vertical-align:middle}#account-rows small{display:block;max-width:280px;overflow-wrap:anywhere;color:var(--muted)}
+#accounts-notice{color:#ac3845;margin:12px 0}#accounts-notice.success{color:#23734c}
+@media(max-width:900px){.account-create{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.account-create{grid-template-columns:1fr}}
