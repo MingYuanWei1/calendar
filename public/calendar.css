@@ -14,7 +14,8 @@ body.detail-closed .workspace{grid-template-columns:180px minmax(0,1fr)}body.edi
 .airy .mini-title,.airy .mini-calendar{display:none}
 @media(min-width:761px){
   .airy .school-tabs,.airy .inline-filters{display:none}
-  .airy .workspace{grid-template-columns:174px minmax(0,1fr) 280px;gap:18px;padding:8px 24px 24px}
+  body.airy{--rail:174px;--rail-gap:18px;--rail-pad:24px}
+  .airy .workspace{grid-template-columns:var(--rail) minmax(0,1fr) 280px;gap:var(--rail-gap);padding:8px var(--rail-pad) 24px}
   .airy .sidebar{display:flex;border:0;padding:20px 12px 18px 2px;background:transparent}
   .airy .mini-title{padding-left:9px}
   .airy .mini-calendar{margin:18px 3px 18px}
@@ -30,16 +31,16 @@ body.detail-closed .workspace{grid-template-columns:180px minmax(0,1fr)}body.edi
   .airy .calendar-actions{gap:9px}
   .airy .month-heading h1{font-size:25px}
   .airy .details{padding:25px 22px}
-  body.airy.detail-closed .workspace{grid-template-columns:174px minmax(0,1fr)}
+  body.airy.detail-closed .workspace{grid-template-columns:var(--rail) minmax(0,1fr)}
 }
 @media(min-width:1500px){
-  .airy .workspace{grid-template-columns:196px minmax(0,1fr) 316px;gap:22px}
-  body.airy.detail-closed .workspace{grid-template-columns:196px minmax(0,1fr)}
+  body.airy{--rail:196px;--rail-gap:22px}
+  .airy .workspace{grid-template-columns:var(--rail) minmax(0,1fr) 316px}
   .airy .sidebar{padding-right:18px}
 }
 @media(min-width:761px) and (max-width:1100px){
-  .airy .workspace{grid-template-columns:145px minmax(0,1fr);gap:12px;padding:8px 14px 20px}
-  body.airy.detail-closed .workspace{grid-template-columns:145px minmax(0,1fr)}
+  body.airy{--rail:145px;--rail-gap:12px;--rail-pad:14px}
+  .airy .workspace,body.airy.detail-closed .workspace{grid-template-columns:var(--rail) minmax(0,1fr);padding-bottom:20px}
   .airy .sidebar{padding-right:4px}
   .airy .calendar-toolbar{padding:18px 14px;gap:12px}
   .airy .calendar-actions{margin-left:0;width:100%;justify-content:space-between}
@@ -196,3 +197,9 @@ body.detail-closed .workspace{grid-template-columns:180px minmax(0,1fr)}body.edi
 .event-media{margin:16px 0}.poster-image{display:block;width:100%;max-height:330px;object-fit:contain}.poster-button{display:block;width:100%;padding:0;border:0;background:var(--subtle)}.qr-image{display:block;width:180px;max-width:100%;height:auto;background:white}.media-fallback{font-size:12px;padding:18px;background:var(--subtle);border-radius:8px;color:var(--muted)}
 #media-dialog{width:min(760px,calc(100% - 24px));max-height:94vh}#media-image{display:block;width:100%;height:auto}.registration-button{text-decoration:none;display:flex;align-items:center;justify-content:space-between}.span-event.cancelled{text-decoration:line-through;opacity:.7}
 .load-status{font-size:13px;padding:0 24px}.request-error{color:#a53646;font-size:13px;line-height:1.8;white-space:pre-line}
+
+/* Header columns track the workspace: logo over the sidebar filters, section nav over the calendar. */
+@media(min-width:761px){
+  #site-header[data-page=calendar]{grid-template-columns:var(--rail) auto minmax(0,1fr) auto;column-gap:var(--rail-gap);padding-left:var(--rail-pad);padding-right:var(--rail-pad)}
+  #site-header[data-page=calendar] .brand{margin-left:2px}
+}
