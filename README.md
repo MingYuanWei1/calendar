@@ -45,11 +45,9 @@ npm start
 
 `/console.html` 集中管理事件、放假与调休、考试、账户（仅 admin 可见）和设置，界面采用 Industry 蓝图风格（Barlow 字体随项目部署于 `public/fonts/`）。地址栏 hash 对应页面，例如 `#events/new`、`#exams/<批次 id>`，刷新后保持所在页面。旧的 `/?manage=events` 会跳转到管理后台；`/exams-admin.html` 与 `/accounts.html` 已移除。
 
-## 学校 Logo
+## 品牌
 
-校历与考试安排页面的页头统一读取固定地址 `/logo.png`，对应项目文件 `public/logo.png`。将学校 Logo 的 PNG 图片放到该位置即可，无需修改代码；建议使用透明背景的正方形图片，显示时会保持比例。
-
-当前未附带学校 Logo 图片；文件不存在或加载失败时，继续显示 `LOGO` 文字占位符。替换图片后刷新页面；线上站点需将文件随项目重新部署，若仍显示旧图可强制刷新浏览器。
+页头与管理后台固定显示 Keydion Logo 与名称，Logo 文件为 `public/logo.png`（与 keydion 项目的 `static/K.png` 相同）。替换图片后需重新构建并部署；若仍显示旧图可强制刷新浏览器。
 
 ## 文档
 

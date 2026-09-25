@@ -27,7 +27,7 @@ function renderNav(){
 function setLanguage(lang){
  app.lang=lang;localStorage.setItem('exam-language',String(lang));
  document.documentElement.lang=lang?'en':'zh-CN';
- document.title=T('管理后台 · 学校校历','Admin console · School calendar');
+ document.title=T('管理后台 · Keydion','Admin console · Keydion');
  renderNav();app.rerender();
 }
 async function signOut(){

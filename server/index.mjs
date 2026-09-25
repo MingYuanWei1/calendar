@@ -5,6 +5,6 @@ const origin=process.env.APP_ORIGIN||`http://localhost:${port}`;
 if(process.env.NODE_ENV==='production'&&!origin.startsWith('https://'))throw new Error('Production requires an HTTPS APP_ORIGIN and TLS reverse proxy.');
 if(process.env.SSO_PREVIEW==='true'&&!['127.0.0.1','::1','localhost'].includes(host))throw new Error('SSO preview must listen on loopback.');
 const application=createApplication({dataDir:resolve(process.env.DATA_DIR||'.data'),origin,timeZone:process.env.SCHOOL_TIMEZONE||'Asia/Shanghai',trustProxy:process.env.TRUST_PROXY||'',llm:{url:process.env.LLM_WORKER_URL||'',token:process.env.LLM_WORKER_TOKEN||''},sso:{preview:process.env.SSO_PREVIEW==='true',tenantId:process.env.MICROSOFT_TENANT_ID||'',clientId:process.env.MICROSOFT_CLIENT_ID||'',clientSecret:process.env.MICROSOFT_CLIENT_SECRET||'',loginUrl:process.env.MICROSOFT_LOGIN_URL||''}});
-const server=application.app.listen(port,host,()=>console.log(`School calendar listening at ${origin}`));
+const server=application.app.listen(port,host,()=>console.log(`Keydion listening at ${origin}`));
 server.on('error',error=>{console.error(error.message);process.exitCode=1;application.close();});
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>server.close(()=>{application.close();process.exit(0);}));
