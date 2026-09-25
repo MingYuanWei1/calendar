@@ -25,9 +25,10 @@
 .exam-page .exam-shell{max-width:none;width:100%;margin:0;padding:8px 16px 12px}
 @media(min-width:761px){
  .exam-page{height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+ .exam-shell,.exam-page .exam-shell{padding-left:var(--rail-pad);padding-right:var(--rail-pad)}
  .exam-page .exam-shell{flex:1;min-height:0;display:flex;flex-direction:column}
- .exam-page .exam-layout{flex:1;min-height:0;gap:16px}
- .exam-page .filters{min-height:0;overflow:auto}
+ .exam-page .exam-layout{flex:1;min-height:0;grid-template-columns:var(--rail) minmax(0,1fr);gap:var(--rail-gap)}
+ .exam-page .filters{min-height:0;overflow:auto;padding-left:2px}
  .exam-page .schedule-panel{min-height:0;display:flex;flex-direction:column}
  .exam-page .selection-toolbar,.exam-page #conflicts,.exam-page .schedule-panel footer{flex-shrink:0}
  .exam-page .schedule{flex:1;min-height:0;max-height:none}
