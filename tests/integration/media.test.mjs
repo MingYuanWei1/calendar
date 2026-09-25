@@ -24,7 +24,7 @@ test('media is validated, private before publication, and inaccessible after del
     assert.equal(upload.status,201);const {url}=await upload.json();
     assert.equal((await fetch(base+url)).status,404);
     assert.equal((await fetch(base+url,{headers:{Cookie:cookie}})).status,200);
-    const draft={title:['媒体测试','Media test'],type:'holiday',timeMode:'allDay',scope:['schoolwide'],start:'2026-10-01',status:'draft',poster:url};
+    const draft={title:['媒体测试','Media test'],type:'activity',timeMode:'allDay',scope:['schoolwide'],start:'2026-10-01',status:'draft',poster:url};
     let event=await (await fetch(base+'/api/admin/events',{method:'POST',headers:{...headers,Cookie:cookie},body:JSON.stringify(draft)})).json();
     assert.equal((await fetch(base+url)).status,404);
     event=await (await fetch(base+'/api/admin/events/'+event.id,{method:'PUT',headers:{...headers,Cookie:cookie},body:JSON.stringify({...event,status:'published'})})).json();

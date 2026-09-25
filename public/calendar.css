@@ -194,3 +194,11 @@ body.detail-closed .workspace{grid-template-columns:180px minmax(0,1fr)}body.edi
 .event-media{margin:16px 0}.poster-image{display:block;width:100%;max-height:330px;object-fit:contain}.poster-button{display:block;width:100%;padding:0;border:0;background:var(--subtle)}.qr-image{display:block;width:180px;max-width:100%;height:auto;background:white}.media-fallback{font-size:12px;padding:18px;background:var(--subtle);border-radius:8px;color:var(--muted)}
 #media-dialog{width:min(760px,calc(100% - 24px));max-height:94vh}#media-image{display:block;width:100%;height:auto}.registration-button{text-decoration:none;display:flex;align-items:center;justify-content:space-between}.span-event.cancelled{text-decoration:line-through;opacity:.7}
 .load-status{font-size:13px;padding:0 24px}.request-error{color:#a53646;font-size:13px;line-height:1.8;white-space:pre-line}
+
+/* Half school days use amber across calendar views, separate from green holidays. */
+.airy .day.day-half,.airy .day.day-half.today,.week-date.day-half,.week-card-column.day-half,.agenda-day.day-half,#day-dialog.day-half{background:#fff0d6}
+.day-badge.half{background:#865518;color:white}
+.day-half .day-plan-name,.day-half .agenda-plan{color:#794b12}
+.agenda-day.day-half{border-radius:8px;padding-left:8px;padding-right:8px}
+.legend-half:before{content:'';width:10px;height:10px;border:1px solid #d7ad68;border-radius:2px;background:#fff0d6}
+#day-dialog.day-off{background:#e3f2e7}

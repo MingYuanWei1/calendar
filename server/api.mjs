@@ -10,6 +10,8 @@ import {eventSchema,dayPlanSchema} from './validation.mjs';
 export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/Shanghai',trustProxy='',sso={},llm={}}){
   new Intl.DateTimeFormat('en',{timeZone}).format();
   const base=new URL(origin);if(!['http:','https:'].includes(base.protocol)||base.origin!==origin)throw new Error('APP_ORIGIN must contain only scheme and host/port');
+  // Retire the test-only holiday event category; day_plans remains authoritative.
+  db.prepare("DELETE FROM events WHERE json_extract(body,'$.type')='holiday'").run();
   const app=express();
   app.disable('x-powered-by');
   if(trustProxy)app.set('trust proxy',trustProxy.split(',').map(value=>value.trim()));

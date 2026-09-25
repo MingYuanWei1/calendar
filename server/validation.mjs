@@ -12,7 +12,7 @@ const optionalLink=z.string().trim().max(2048).default('').refine(value=>{
 const media=z.string().regex(/^\/api\/media\/[a-f0-9-]{36}$/).or(z.literal('')).default('');
 export const eventSchema=z.object({
   title:bilingual(250).refine(value=>value.some(Boolean),'A title in at least one language is required'),
-  type:z.enum(['exam','holiday','competition','activity','deadline']),
+  type:z.enum(['exam','competition','activity','deadline']),
   timeMode:z.enum(['timed','allDay','multi','deadline']),start:day,end:day.optional(),time:time.optional(),endTime:time.optional(),
   scope:z.array(z.enum(['schoolwide','primary','middle','high'])).min(1).max(3).refine(value=>new Set(value).size===value.length&&(!value.includes('schoolwide')||value.length===1),'Choose school-wide or specific divisions'),
   status:z.enum(['draft','published','cancelled']),
@@ -28,4 +28,6 @@ export const eventSchema=z.object({
   if(event.timeMode==='multi'&&(!event.end||event.end<event.start))invalid('end','End date must not precede start date');
 }).transform(event=>({...event,end:event.timeMode==='multi'?event.end:undefined,time:['timed','deadline'].includes(event.timeMode)?event.time:undefined,endTime:event.timeMode==='timed'?event.endTime:undefined}));
 
-export const dayPlanSchema=z.object({start:day,end:day,kind:z.enum(['off','school','default']),title:bilingual(60).default(['',''])}).refine(value=>value.end>=value.start&&(Date.parse(value.end)-Date.parse(value.start))/86400000<366,'Choose a date range of at most 366 days');
+export const dayPlanSchema=z.object({start:day,end:day.or(z.literal('')).optional(),kind:z.enum(['off','school','half','default']),title:bilingual(60).default(['',''])})
+  .transform(value=>({...value,end:value.end||value.start}))
+  .refine(value=>value.end>=value.start&&(Date.parse(value.end)-Date.parse(value.start))/86400000<366,'Choose a date range of at most 366 days');

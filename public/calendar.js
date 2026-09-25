@@ -9,7 +9,7 @@ const copy = {
   publicCalendar:['属于每一位同学的校园日程','A calendar for every student'], searchLabel:['搜索','Search'], september:['2026 年 9 月','September 2026'], autumn:['秋季学期','Autumn term'], scope:['适用学部','School division'], reset:['重置','Reset'], types:['事件类型','Event types'], scopeNote:['选择学部时，同时显示全校事件。','School-wide events are included in every division.'], publicNote:['公开校历 · 无需登录','Public calendar · No sign-in'], schoolLife:['校园生活 / SCHOOL LIFE','SCHOOL LIFE'], term:['2026—2027 学年 · 秋季学期','2026–2027 · Autumn term'], today:['今天','Today'], monthView:['月历','Month'], weekView:['周历','Week'], listView:['日程','Agenda'], emptyTitle:['没有符合条件的事件','No matching events'], emptyHelp:['试试其他关键词，或重置筛选。','Try another search or reset your filters.'], dayEvents:['当天事件','EVENTS ON THIS DAY'], registrationPreview:['报名入口示意','Registration preview'], registrationNotice:['正式发布时，此处打开管理员填写的外部报名表。当前设计稿未连接真实表单。','In the published calendar, this opens the external form provided by an administrator. This design is not connected to a real form.'], understood:['知道了','Got it'], detail:['事件详情','EVENT DETAILS'], close:['关闭详情','Close details'], when:['时间','When'], where:['地点','Where'], for:['适用','For'], host:['主办','Host'], about:['事件说明','About this event'], allDay:['全天','All day'], till:['截止','Due'], cancelled:['已取消','Cancelled'], changed:['已改期','Rescheduled'], registration:['查看报名表','Open registration form'], external:['通过外部表单报名，本平台仅展示信息。','Registration is handled by an external form.'], updated:['更新于 9 月 18 日 16:30','Updated 18 Sep, 16:30'], chooseEvent:['选择一项事件查看详情','Select an event to see the details'], missingLocation:['未设置地点','No location specified'], allSchools:['全部学部','All divisions'], schoolwide:['全校','School-wide'], primary:['小学部','Primary'], middle:['初中部','Middle'], high:['高中部','High'], noDayEvents:['当天没有符合条件的事件','No matching events on this day'], searchPlaceholder:['搜索事件','Search events'], previous:['上个月','Previous month'], next:['下个月','Next month'], closeDay:['关闭当天事件','Close day events']
 };
 const types = {
-  exam:{label:['考试','Exams'],color:'var(--exam)'}, holiday:{label:['假期','Holidays'],color:'var(--holiday)'}, competition:{label:['比赛','Competitions'],color:'var(--competition)'}, activity:{label:['活动','Activities'],color:'var(--activity)'}, deadline:{label:['截止日','Deadlines'],color:'var(--deadline)'}
+  exam:{label:['考试','Exams'],color:'var(--exam)'}, competition:{label:['比赛','Competitions'],color:'var(--competition)'}, activity:{label:['活动','Activities'],color:'var(--activity)'}, deadline:{label:['截止日','Deadlines'],color:'var(--deadline)'}
 };
 const schools = ['allSchools','primary','middle','high'];
 const state = {lang:Number(localStorage.getItem('exam-language')||0),year:new Date().getFullYear(),month:new Date().getMonth(),school:'allSchools',types:new Set(Object.keys(types)),query:'',view:'month',anchor:'',selected:null};
@@ -19,10 +19,10 @@ const events = [];
 let detailReturnDay=null;
 let detailScrollY=0;
 let calendarSlots=4;
-let dayPlans={};
-function dayPlan(iso){return dayPlans[iso];}
-function dayBadge(plan){return plan?`<span class="day-badge ${plan.kind}">${plan.kind==='off'?(state.lang?'Off':'休'):(state.lang?'Class':'上课')}</span>`:'';}
-function dayPlanName(plan){return plan?(text(plan.title)||(plan.kind==='off'?(state.lang?'School holiday':'学校放假'):(state.lang?'School day':'上课日'))):'';}
+let resolveDayPlan=iso=>null;
+function dayPlan(iso){return resolveDayPlan(iso);}
+function dayBadge(plan){return plan?`<span class="day-badge ${plan.kind}">${plan.kind==='off'?(state.lang?'Off':'休'):plan.kind==='half'?(state.lang?'Half day':'上半天'):(state.lang?'Full day':'全天')}</span>`:'';}
+function dayPlanName(plan){return plan?(text(plan.title)||(plan.kind==='off'?(state.lang?'School holiday':'学校放假'):plan.kind==='half'?(state.lang?'Half day':'上半天'):(state.lang?'Full school day':'全天上课'))):'';}
 
 function t(key){return copy[key]?.[state.lang] ?? key;}
 function text(pair){return pair?.[state.lang] || pair?.find(value=>value?.trim()) || '';}
@@ -117,9 +117,9 @@ function renderCalendar(){
     agenda+=`<section class="agenda-day${plan?' day-'+plan.kind:''}"><div class="agenda-date"><strong>${day}</strong><small>${new Intl.DateTimeFormat(state.lang?'en-GB':'zh-CN',{weekday:'short'}).format(dateValue(iso))}</small>${dayBadge(plan)}</div><div>${plan?`<p class="agenda-plan">${esc(dayPlanName(plan))}</p>`:''}${items.map(agendaButton).join('')}</div></section>`;
   }
   $('#agenda').innerHTML=agenda;
-  $('#agenda').classList.toggle('is-empty',!monthEvents.length);
+  $('#agenda').classList.toggle('is-empty',!agenda);
   $('#agenda').hidden=state.view==='month';$('#month-grid').hidden=state.view!=='month';$('#weekdays').hidden=state.view!=='month';
-  $('#empty').hidden=!!monthEvents.length||Object.keys(dayPlans).some(date=>date>=isoDate(first)&&date<=isoDate(last));
+  $('#empty').hidden=!!agenda;
   $('#result-count').textContent=state.lang?`${monthEvents.length} events this month`:`本月 ${monthEvents.length} 项事件`;
   $('#month-view').setAttribute('aria-pressed',String(state.view==='month'));$('#list-view').setAttribute('aria-pressed',String(state.view==='list'));
   bindEvents($('#main-calendar'));$$('[data-day]').forEach(b=>b.onclick=()=>openDay(b.dataset.day));
@@ -132,13 +132,13 @@ function renderDetail(){
 }
 
 function bindClose(){$('#close-detail').onclick=()=>{document.body.classList.remove('mobile-detail');document.body.classList.add('detail-closed');syncDetailMode();const selectedId=state.selected;state.selected=null;renderCalendar();const target=$$(`[data-event="${selectedId}"]`).find(el=>el.getClientRects().length);const fallback=detailReturnDay?$$(`[data-day="${detailReturnDay}"]`).find(el=>el.getClientRects().length):null;(target||fallback)?.focus({preventScroll:true});window.scrollTo(0,detailScrollY);};}
-function openDay(iso){$('#day-dialog').dataset.date=iso;$('#day-title').textContent=formatDate(iso,true)+(dayPlan(iso)?' · '+dayPlanName(dayPlan(iso)):'');const items=events.filter(matches).filter(e=>onDate(e,iso)).sort(sortEvents);$('#day-events').innerHTML=items.length?items.map(agendaButton).join(''):`<p>${esc(t('noDayEvents'))}</p>`;bindEvents($('#day-events'));$('#day-dialog').showModal();}
+function openDay(iso){$('#day-dialog').className=dayPlan(iso)?'day-'+dayPlan(iso).kind:'';$('#day-dialog').dataset.date=iso;$('#day-title').textContent=formatDate(iso,true)+(dayPlan(iso)?' · '+dayPlanName(dayPlan(iso)):'');const items=events.filter(matches).filter(e=>onDate(e,iso)).sort(sortEvents);$('#day-events').innerHTML=dayBadge(dayPlan(iso))+(items.length?items.map(agendaButton).join(''):`<p>${esc(t('noDayEvents'))}</p>`);bindEvents($('#day-events'));$('#day-dialog').showModal();}
 function render(){
   document.documentElement.lang=state.lang?'en':'zh-CN';document.title=state.lang?'Keydion Calendar - School calendar':'Keydion日历 - 校历';$$('[data-i18n]').forEach(el=>el.textContent=t(el.dataset.i18n));
   $('#language').textContent=state.lang?'中文':'EN';$('#language').setAttribute('aria-label',state.lang?'切换为中文':'Switch to English');
   $('#search').placeholder=t('searchPlaceholder');$('#search').setAttribute('aria-label',t('searchPlaceholder'));
   $('#previous').setAttribute('aria-label',t('previous'));$('#next').setAttribute('aria-label',t('next'));$('#school-select').setAttribute('aria-label',t('scope'));$('#details').setAttribute('aria-label',t('detail'));$('#close-day').setAttribute('aria-label',t('closeDay'));$('#close-registration').setAttribute('aria-label',state.lang?'Close':'关闭');
-  $('#day-legend').innerHTML=`<span class="legend-weekday">${state.lang?'Weekday':'工作日'}</span><span class="legend-weekend">${state.lang?'Weekend':'周末'}</span><span class="legend-off">${state.lang?'Holiday':'放假'}</span><span>${dayBadge({kind:'school'})} ${state.lang?'Adjusted school day':'调休上课'}</span>`;
+  $('#day-legend').innerHTML=`<span class="legend-weekday">${state.lang?'Weekday':'工作日'}</span><span class="legend-weekend">${state.lang?'Weekend':'周末'}</span><span class="legend-half">${state.lang?'Half day':'上半天'}</span><span class="legend-off">${state.lang?'Holiday':'放假'}</span><span>${dayBadge({kind:'school'})} ${state.lang?'Full school day':'全天上课'}</span>`;
   renderFilters();renderCalendar();renderDetail();
   document.dispatchEvent(new CustomEvent('calendar-language'));
 }

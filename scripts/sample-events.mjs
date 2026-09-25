@@ -26,7 +26,6 @@ const samples=[
   ['team-due','校队报名截止','School team registration deadline','deadline',23,['middle','high'],'17:00',null,'','','请核对适用项目与报名要求，截止后统一安排选拔。',{registrationUrl:'https://example.org/?sample=school-team'}],
   ['choir','校园合唱交流会','Campus choir gathering','activity',24,schoolwide,'16:00','17:00','音乐教室','Music room','原计划的合唱交流活动。',{status:'cancelled',cancelled:true,cancelReason:'示例：音乐教室临时维护，本次活动取消。'}],
   ['volunteer','校园志愿服务日','Campus volunteering day','activity',25,['middle','high'],'14:00','16:00','学生服务中心','Student service centre','参与图书整理、校园导览和公共区域维护。'],
-  ['break','秋季休息日','Autumn school break','holiday',26,schoolwide,null,null,'','','虚构的校内休息日，用于展示假期样式，不代表法定节假日。',{timeMode:'multi',end:date(27)}],
   ['primary-exam','小学学习成果展示与测评','Primary learning assessment','exam',28,primary,'09:00','11:00','小学部教学楼','Primary school building','按年级安排学习成果展示与阶段测评。'],
   ['middle-exam','初中阶段检测','Middle school assessment','exam',29,middle,null,null,'初中部教学楼','Middle school building','涵盖阶段学习内容，各科时段以学部通知为准。',{timeMode:'multi',end:date(30)}],
   ['electives','下阶段选课截止','Elective selection deadline','deadline',30,high,'18:00',null,'','','请确认课程选择；本平台仅提供截止提醒，不办理选课。'],

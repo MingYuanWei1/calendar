@@ -208,7 +208,7 @@ button.grid-row{cursor:pointer;padding-block:12px}
 .day.blank{background:transparent;cursor:default}
 .day.weekend{background:var(--color-neutral-200)}
 .day.off{background:var(--color-accent-200)}
-.day.school{outline:1px dashed var(--color-accent)}
+.day.school{background:var(--color-bg);outline:1px dashed var(--color-accent)}
 .day.selected{outline:2px solid var(--color-accent)}
 .day .top{display:flex;align-items:center;justify-content:space-between;gap:4px}
 .day .n{font-size:13px;font-variant-numeric:tabular-nums}
@@ -352,3 +352,7 @@ dialog.dialog::backdrop{background:color-mix(in srgb,var(--color-neutral-900) 50
  .legend .hint{margin-left:0;width:100%}
  .day{height:56px;padding:4px}.day .name{display:none}
 }
+
+.day.half{background:#fff0d6}
+.day.half .badge{background:#865518;color:white;white-space:nowrap}
+.day.half .name{color:#794b12}

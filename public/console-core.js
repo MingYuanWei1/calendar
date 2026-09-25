@@ -32,7 +32,7 @@ export const refreshNav=()=>window.dispatchEvent(new Event('console-counts'));
 export const T=(zh,en)=>app.lang?en:zh;
 /** Pick the current language from a [zh, en] pair, falling back to the other. */
 export const tx=pair=>(pair&&(pair[app.lang]||pair[1-app.lang]))||'';
-export const TYPES={exam:['考试','Exam'],holiday:['假期','Holiday'],competition:['比赛','Competition'],activity:['活动','Activity'],deadline:['截止日','Deadline']};
+export const TYPES={exam:['考试','Exam'],competition:['比赛','Competition'],activity:['活动','Activity'],deadline:['截止日','Deadline']};
 export const SCOPES={schoolwide:['全校','School-wide'],primary:['小学部','Primary'],middle:['初中部','Middle school'],high:['高中部','High school']};
 const WK=[['周一','Mon'],['周二','Tue'],['周三','Wed'],['周四','Thu'],['周五','Fri'],['周六','Sat'],['周日','Sun']];
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];

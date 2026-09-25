@@ -26,6 +26,7 @@ test('real HTTP: authentication, draft isolation, validation, persistence, trans
     const login=await request('/api/login','POST',{username:'admin',password:'test-password-very-long'});
     assert.equal(login.status,200);assert.match(login.headers.get('set-cookie'),/HttpOnly/);
     cookie=login.headers.get('set-cookie').split(';')[0];
+    assert.equal((await request('/api/admin/events','POST',{...event,type:'holiday'})).status,422);
     assert.equal((await request('/api/admin/events','POST',{...event,type:'deadline',timeMode:'allDay'})).status,422);
     assert.equal((await request('/api/admin/events','POST',{...event,start:'2026-02-30'})).status,422);
     assert.equal((await request('/api/admin/events','POST',{...event,registrationUrl:'javascript:alert(1)'})).status,422);

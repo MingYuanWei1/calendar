@@ -1,4 +1,4 @@
-export {};
+import {createDayPlanResolver} from './day-plans.mjs';
 /** @returns {any} */
 const $=selector=>document.querySelector(selector);
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -7,16 +7,17 @@ const date=iso=>new Date(iso+'T12:00:00');
 const iso=value=>`${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}-${String(value.getDate()).padStart(2,'0')}`;
 const addDays=(value,days)=>{const next=date(value);next.setDate(next.getDate()+days);return iso(next);};
 const monday=value=>addDays(value,-((date(value).getDay()+6)%7));
-const names={activity:'活动',competition:'比赛',exam:'考试',holiday:'假期',deadline:'截止日'};
+const names={activity:'活动',competition:'比赛',exam:'考试',deadline:'截止日'};
 const divisions={all:'全部学部',primary:'小学部',middle:'初中部',high:'高中部',schoolwide:'全校'};
 const descriptions={timeline:'A · 时间轴：纵向位置对应开始时间，高度对应持续时长；重叠事件并排。全天与跨日事件单独置顶，截止时间用短条标记。',cards:'B · 七列卡片：全天与跨日事件置顶，其余按开始时间排列。卡片高度由信息量决定，适合快速浏览学校公共事项。',periods:'C · 时段分组：全天与跨日事件置顶，其余按开始时间归入上午、下午或晚间。跨时段事件只显示一次，完整时间保留在卡片中。'};
+let resolvePlan=createDayPlanResolver({});
 let events=[],plans={},today='',sampleWeek='',week='',variant='timeline',school='all',enabled=new Set(Object.keys(names));
 function matches(event){return enabled.has(event.type)&&(school==='all'||event.scope.includes('schoolwide')||event.scope.includes(school));}
 function occurs(event,day){return event.start<=day&&(event.end||event.start)>=day;}
 function timed(event){return !!event.time&&(!event.end||event.end===event.start);}
 function timeText(event){return event.time?(event.type==='deadline'?'截止 ':'')+event.time+(event.endTime?'–'+event.endTime:''):'全天';}
 function minutes(value){const [hour,minute]=value.split(':').map(Number);return hour*60+minute;}
-function dayClass(day){return plans[day]?.kind||(date(day).getDay()===0||date(day).getDay()===6?'weekend':'');}
+function dayClass(day){return resolvePlan(day)?.kind||(date(day).getDay()===0||date(day).getDay()===6?'weekend':'');}
 function card(event,style=''){
   return `<button class="event-card ${event.type}${event.cancelled?' cancelled':''}" data-event="${escape(event.id)}" ${style?`style="${style}"`:''} title="${escape(title(event.title)+' · '+timeText(event))}"><time>${escape(timeText(event))}</time><strong>${event.cancelled?'已取消 · ':event.oldDate?'已改期 · ':''}${escape(title(event.title))}</strong>${title(event.location)?`<small>${escape(title(event.location))}</small>`:''}</button>`;
 }
@@ -67,7 +68,7 @@ function render(){
   document.querySelectorAll('[data-variant]').forEach(button=>button.setAttribute('aria-pressed',String(button.getAttribute('data-variant')===variant)));
   $('#schools').innerHTML=Object.entries(divisions).filter(([key])=>key!=='schoolwide').map(([key,label])=>`<button data-school="${key}" aria-pressed="${school===key}">${label}</button>`).join('');
   $('#types').innerHTML=Object.entries(names).map(([key,label])=>`<label class="${key}"><input type="checkbox" data-type="${key}" ${enabled.has(key)?'checked':''}>${label}</label>`).join('');
-  const headings=`<div class="date-head">${days.map((day,i)=>`<div class="date-cell ${dayClass(day)}"><span class="dow">${['周一','周二','周三','周四','周五','周六','周日'][i]}</span><strong>${date(day).getDate()}</strong>${plans[day]?`<span class="badge ${plans[day].kind}">${plans[day].kind==='off'?'休':'上课'}</span>`:''}<span class="day-name">${escape(title(plans[day]?.title))}</span></div>`).join('')}</div>`;
+  const headings=`<div class="date-head">${days.map((day,i)=>`<div class="date-cell ${dayClass(day)}"><span class="dow">${['周一','周二','周三','周四','周五','周六','周日'][i]}</span><strong>${date(day).getDate()}</strong>${resolvePlan(day)?`<span class="badge ${resolvePlan(day).kind}">${resolvePlan(day).kind==='off'?'休':resolvePlan(day).kind==='half'?'上半天':'全天'}</span>`:''}<span class="day-name">${escape(title(resolvePlan(day)?.title))}</span></div>`).join('')}</div>`;
   $('#board').innerHTML=`<div class="week-content ${variant}">${headings}${allDayBars(list,days)}${variant==='timeline'?timeline(list,days):variant==='cards'?cardColumns(list,days):periodRows(list,days)}</div>`;
   $('#board').scrollTop=0;
   $('#event-count').textContent=`本周 ${list.length} 项事件 · 同一组数据对比三种布局`;
@@ -90,7 +91,7 @@ async function start(){
     const responses=await Promise.all(['/api/events','/api/day-plans','/api/config'].map(path=>fetch(path)));
     if(responses.some(response=>!response.ok))throw new Error('加载失败');
     const [data,dayPlans,settings]=await Promise.all(responses.map(response=>response.json()));
-    events=data;plans=Object.fromEntries(dayPlans.map(plan=>[plan.date,plan]));
+    events=data;plans=Object.fromEntries(dayPlans.map(plan=>[plan.date,plan]));resolvePlan=createDayPlanResolver(plans);
     today=new Intl.DateTimeFormat('en-CA',{timeZone:settings.timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
     const sample=events.find(event=>event.id.startsWith('sample-')&&event.id.endsWith('-arts'));
     sampleWeek=monday(sample?.start||today);week=sampleWeek;
