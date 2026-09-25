@@ -12,7 +12,7 @@ test('real HTTP: authentication, draft isolation, validation, persistence, trans
   const directory=await mkdtemp(join(tmpdir(),'school-calendar-test-'));
   let instance, server;
   const origin='http://calendar.test';
-  async function start(){instance=createApplication({dataDir:directory,origin,schoolName:'Test school',timeZone:'Asia/Shanghai'});server=instance.app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));}
+  async function start(){instance=createApplication({dataDir:directory,origin,timeZone:'Asia/Shanghai'});server=instance.app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));}
   async function stop(){await new Promise(resolve=>server.close(resolve));instance.close();}
   let cookie='';
   async function request(path,method='GET',body,extra={}){

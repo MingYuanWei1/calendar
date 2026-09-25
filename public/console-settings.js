@@ -5,7 +5,6 @@ export function showSettings(main){
  main.innerHTML=`<div class="page narrow">
  <header class="page-head"><div><div class="kicker">${T('管理后台','Admin console')}</div><h1>${T('设置','Settings')}</h1></div></header>
  <section class="panel blueprint">${corners}<h4>${T('学校信息','School profile')}</h4><div class="kv">
-  <span>${T('学校名称','School name')}</span><span>${esc(app.config.schoolName)} · ${esc(app.config.schoolNameEn)}</span>
   <span>${T('时区','Time zone')}</span><span class="mono">${esc(app.config.timeZone)}</span>
   <span>${T('站点地址','Site address')}</span><span class="mono">${esc(location.origin)}</span></div>
   <p class="hint" style="margin-top:14px;font-size:12px;color:var(--color-neutral-700)">${T('以上由服务器 .env 配置，修改后需重启服务。','Set in the server .env; restart the service after changes.')}</p></section>

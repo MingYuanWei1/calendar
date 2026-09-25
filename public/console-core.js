@@ -14,7 +14,7 @@ export const icon={
 
 export const app={
  lang:Number(localStorage.getItem('exam-language')||0),
- config:{schoolName:'学校校历',schoolNameEn:'School calendar',timeZone:'Asia/Shanghai'},
+ config:{timeZone:'Asia/Shanghai'},
  user:null,today:'',
  /** Set by a page that holds unsaved input; the router asks before leaving. */
  dirty:false,

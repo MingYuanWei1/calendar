@@ -7,7 +7,7 @@ import express from 'express';
 import {randomUUID} from 'node:crypto';
 import {batchSchema,seatErrors,schedule,scheduleKey} from './exam-model.mjs';
 import {seatTemplate,parseSeats,makeSchedulePdf} from './exam-files.mjs';
-export function installExams(app,db,{requireAdmin,isAdmin,user,origin,schoolName,timeZone,sso={},llm={}}){
+export function installExams(app,db,{requireAdmin,isAdmin,user,origin,timeZone,sso={},llm={}}){
  db.exec(`CREATE TABLE IF NOT EXISTS exam_batches(id TEXT PRIMARY KEY,version INTEGER NOT NULL,draft TEXT NOT NULL,published TEXT,seating TEXT);
  CREATE TABLE IF NOT EXISTS exam_choices(user_id TEXT NOT NULL,batch_id TEXT NOT NULL,exam_id TEXT NOT NULL,PRIMARY KEY(user_id,batch_id,exam_id));`);
  const students=installStudents(app,db,requireAdmin);
@@ -40,7 +40,7 @@ export function installExams(app,db,{requireAdmin,isAdmin,user,origin,schoolName
   if(req.query.mine==='1'){if(!user(req))return res.status(401).json({error:'请先登录。'});const ids=choices(req,b.id);sessions=sessions.filter(s=>ids.includes(s.id));scope='我的考试 / My exams';}
   else{if(!['primary','middle','high'].includes(req.query.division))return fail(res,'请选择学部。');sessions=sessions.filter(s=>s.division===req.query.division&&(!req.query.grade||s.grades.includes(req.query.grade)));scope=`${{primary:'小学部',middle:'初中部',high:'高中部'}[req.query.division]}${req.query.grade?' · '+req.query.grade:''}`;}
   sessions.sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start));
-  const pdf=await makeSchedulePdf(b,sessions,{schoolName,timeZone,scope,english:req.query.lang==='en'});
+  const pdf=await makeSchedulePdf(b,sessions,{timeZone,scope,english:req.query.lang==='en'});
   res.set({'Content-Type':'application/pdf','Content-Disposition':'attachment; filename="exam-schedule.pdf"'}).send(pdf);
  });
  app.get('/api/admin/exams',requireAdmin,(req,res)=>res.json(db.prepare('SELECT * FROM exam_batches').all().map(info)));

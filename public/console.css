@@ -91,9 +91,8 @@ select.input{width:auto;min-width:130px}
 .console-shell{height:100dvh;display:flex;overflow:hidden}
 .console-nav{width:220px;flex:none;border-right:1px solid var(--color-divider);display:flex;flex-direction:column;gap:22px;padding:20px 12px 16px;overflow:auto}
 .brand{display:flex;align-items:center;gap:10px;padding:0 8px;color:inherit;text-decoration:none}
-.brand .logo{width:34px;height:34px;flex:none;border:1px dashed var(--color-neutral-500);display:grid;place-items:center;font-size:9px;letter-spacing:1px;color:var(--color-neutral-700);overflow:hidden}
-.brand .logo.has-image{border:0}.brand .logo img{width:100%;height:100%;object-fit:contain}
-.brand strong{display:block;font-family:var(--font-heading);font-weight:600;font-size:19px;line-height:1.1}
+.brand img{width:34px;height:34px;flex:none;border-radius:8px;box-shadow:0 8px 22px rgba(20,33,61,.18)}
+.brand strong{display:block;font-family:Georgia,"Times New Roman","Noto Serif SC",serif;font-weight:700;font-size:19px;line-height:1.1}
 .overline{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-700)}
 .nav-links{display:flex;flex-direction:column;gap:2px}
 .nav-links a{display:flex;align-items:center;gap:10px;padding:8px 10px;color:var(--color-text);text-decoration:none;font-size:14px}

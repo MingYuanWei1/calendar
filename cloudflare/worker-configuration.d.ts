@@ -5,8 +5,6 @@ interface __BaseEnv_Env {
 	MICROSOFT_LOGIN_URL: "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize";
 	APP_ORIGIN: "https://calendar.keydion.com";
 	SCHOOL_ID: "calendar";
-	SCHOOL_NAME: "学校校历";
-	SCHOOL_NAME_EN: "School calendar";
 	SCHOOL_TIMEZONE: "Asia/Shanghai";
 	ADMIN_BOOTSTRAP: string;
 	SCHOOLS: DurableObjectNamespace<import("../dist/backend/worker").SchoolCalendar>;
@@ -23,5 +21,5 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "MICROSOFT_LOGIN_URL" | "APP_ORIGIN" | "SCHOOL_ID" | "SCHOOL_NAME" | "SCHOOL_NAME_EN" | "SCHOOL_TIMEZONE" | "ADMIN_BOOTSTRAP">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "MICROSOFT_LOGIN_URL" | "APP_ORIGIN" | "SCHOOL_ID" | "SCHOOL_TIMEZONE" | "ADMIN_BOOTSTRAP">> {}
 }

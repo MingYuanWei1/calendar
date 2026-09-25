@@ -18,11 +18,9 @@ function renderNav(){
  const {events,plans,batches}=app.data;
  const counts={events:events?.length,days:plans&&planRanges(plans).length,exams:batches?.length,accounts:accountCount()};
  const labels={events:T('事件','Events'),days:T('放假与调休','School days'),exams:T('考试','Exams'),...(app.user?.role===3?{accounts:T('账户','Accounts')}:{}),settings:T('设置','Settings')};
- $('#console-nav').innerHTML=`<a class="brand" href="/"><span class="logo">LOGO</span><span><strong>${esc(T(app.config.schoolName,app.config.schoolNameEn))}</strong><span class="overline">${T('管理后台','Admin console')}</span></span></a>
+ $('#console-nav').innerHTML=`<a class="brand" href="/"><img src="/logo.png" alt=""><span><strong>Keydion</strong><span class="overline">${T('管理后台','Admin console')}</span></span></a>
  <nav class="nav-links">${Object.keys(labels).map(key=>`<a href="#${key}"${route[0]===key?' aria-current="page"':''}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${navIcons[key]}</svg><span>${labels[key]}</span>${counts[key]!==undefined?`<span class="count">${counts[key]}</span>`:''}</a>`).join('')}</nav>
  <div class="nav-foot"><div class="seg" role="group" aria-label="${T('界面语言','Language')}"><button type="button" data-lang="0" aria-pressed="${!app.lang}">中文</button><button type="button" data-lang="1" aria-pressed="${!!app.lang}">EN</button></div><a href="/">← ${T('公共校历','Public calendar')}</a><div class="nav-user"><span title="${esc(app.user?.name)}">${esc(app.user?.name)}</span><button type="button" class="btn btn-ghost" data-sign-out style="font-size:13px">${T('退出登录','Sign out')}</button></div></div>`;
- const logo=$('#console-nav .logo'),image=new Image();
- image.alt=T('学校 Logo','School logo');image.onload=()=>{logo.replaceChildren(image);logo.classList.add('has-image');};image.src='/logo.png';
  $$('[data-lang]').forEach(button=>button.onclick=()=>setLanguage(Number(button.dataset.lang)));
  $('[data-sign-out]').onclick=signOut;
 }

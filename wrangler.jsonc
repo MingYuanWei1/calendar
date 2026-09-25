@@ -34,8 +34,6 @@
     "MICROSOFT_LOGIN_URL": "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize",
     "APP_ORIGIN": "https://calendar.keydion.com",
     "SCHOOL_ID": "calendar",
-    "SCHOOL_NAME": "汇佳校历",
-    "SCHOOL_NAME_EN": "Keydion - Huijia Calendar",
     "SCHOOL_TIMEZONE": "Asia/Shanghai"
   }
 }

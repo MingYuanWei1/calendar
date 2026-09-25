@@ -1,6 +1,6 @@
 'use strict';
-/** @type {{schoolName:string,schoolNameEn:string,timeZone:string}} */
-let settings={schoolName:'学校校历',schoolNameEn:'School calendar',timeZone:'Asia/Shanghai'};
+/** @type {{timeZone:string}} */
+let settings={timeZone:'Asia/Shanghai'};
 async function api(path,options={}){
   let response;
   try{response=await fetch('/api'+path,{credentials:'same-origin',...options,headers:{...(options.body instanceof File?{}:{'Content-Type':'application/json'}),...options.headers}});}
@@ -28,7 +28,6 @@ async function startCalendar(){
   try{
     setLoadMessage('正在加载校历…');
     settings=await api('/config');
-    copy.school=[settings.schoolName,settings.schoolNameEn];
     const current=schoolToday().split('-').map(Number);state.year=current[0];state.month=current[1]-1;
     await loadEvents();render();setLoadMessage('');
   }catch(error){setLoadMessage('校历暂时无法加载，请点击重试。',true);$('#retry-load').hidden=false;}

@@ -6,14 +6,14 @@ import {downloadExamView,prepareExamPdf} from './exam-export.js';
 import {examSlotRows,groupExamLevels} from './exam-times.mjs';
 import {$,esc,api,date,monday,divisions,sorted,seatingMarkup} from './exam-common.js';
 let detailExamId=null;
-let lang=Number(localStorage.getItem('exam-language')||0),batch=null,batches=[],week='',division='high',grade='',mine=false,chosen=new Set(),school={configured:false,user:null},config={timeZone:'Asia/Shanghai',schoolName:'学校校历',schoolNameEn:'School calendar'},saving=false,loadNumber=0,detailLoadNumber=0;
+let lang=Number(localStorage.getItem('exam-language')||0),batch=null,batches=[],week='',division='high',grade='',mine=false,chosen=new Set(),school={configured:false,user:null},config={timeZone:'Asia/Shanghai'},saving=false,loadNumber=0,detailLoadNumber=0;
 const T=(zh,en)=>lang?en:zh;
 const title=s=>{const name=lang?(s.titleEn||s.title):s.title.replaceAll('商务管理','商管');return name+[s.level].filter(value=>value&&!name.includes(value)).map(value=>' · '+value).join('');};
 const notice=(message,error=true)=>{$('#notice').textContent=message;$('#notice').classList.toggle('success',!error);};
 const scopeSessions=()=>batch?batch.sessions.filter(s=>mine?chosen.has(s.id):s.division===division&&(!grade||s.grades.includes(grade))):[];
 function render(){
  document.documentElement.lang=lang?'en':'zh-CN';document.querySelectorAll('[data-zh]').forEach(el=>el.textContent=el.getAttribute(lang?'data-en':'data-zh'));
- $('#language').textContent=lang?'中文':'EN';$('#language').setAttribute('aria-label',lang?'切换为中文':'Switch to English');$('[data-school-name]').textContent=lang?(config.schoolNameEn||'School calendar'):(config.schoolName||'学校校历');
+ $('#language').textContent=lang?'中文':'EN';$('#language').setAttribute('aria-label',lang?'切换为中文':'Switch to English');
  $('#all-mode').textContent=T('全部考试','All exams');$('#mine-mode').textContent=T('我的考试','My exams');$('#all-mode').setAttribute('aria-pressed',String(!mine));$('#mine-mode').setAttribute('aria-pressed',String(mine));$('#division-filters').hidden=mine;
  $('#download').textContent=T('下载 PDF','Download PDF');$('#download').disabled=!batch;
  $('#batch').innerHTML=batches.map(b=>`<option value="${esc(b.id)}" ${b.id===batch?.id?'selected':''}>${esc(title(b))}</option>`).join('');

@@ -7,7 +7,7 @@ import {randomBytes,randomUUID} from 'node:crypto';
 import {installExams} from './exams.mjs';
 import {digest,verifyPassword} from './passwords.mjs';
 import {eventSchema,dayPlanSchema} from './validation.mjs';
-export function createApi({db,media,installStatic=()=>{},origin,schoolName='学校校历',schoolNameEn='School calendar',timeZone='Asia/Shanghai',trustProxy='',sso={},llm={}}){
+export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/Shanghai',trustProxy='',sso={},llm={}}){
   new Intl.DateTimeFormat('en',{timeZone}).format();
   const base=new URL(origin);if(!['http:','https:'].includes(base.protocol)||base.origin!==origin)throw new Error('APP_ORIGIN must contain only scheme and host/port');
   const app=express();
@@ -42,7 +42,7 @@ export function createApi({db,media,installStatic=()=>{},origin,schoolName='学�
     const user=required?session(req):null;
     res.status(!required||user?.role>=required?204:user?403:401).end();
   });
-  app.get('/api/config',(req,res)=>res.json({schoolName,schoolNameEn,timeZone}));
+  app.get('/api/config',(req,res)=>res.json({timeZone}));
   app.get('/api/session',(req,res)=>res.json({authenticated:Boolean(session(req)),user:session(req)||null}));
   app.post('/api/login',schoolAuth.requireSignedOut,async(req,res)=>{
     const {username,password}=req.body||{};
@@ -132,7 +132,7 @@ export function createApi({db,media,installStatic=()=>{},origin,schoolName='学�
     res.type('image/webp').send(bytes);
   });
   installAccounts(app,db,{requireRole,currentUser:session});
-  installExams(app,db,{requireAdmin,isAdmin:req=>session(req)?.role>=2,user:session,origin,schoolName,timeZone,llm});
+  installExams(app,db,{requireAdmin,isAdmin:req=>session(req)?.role>=2,user:session,origin,timeZone,llm});
   app.use('/api',(req,res)=>res.status(404).json({error:'接口不存在。'}));
   app.use((req,res,next)=>{
     const required=pageRole(new URL(origin+req.originalUrl));
