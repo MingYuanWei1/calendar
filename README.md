@@ -47,7 +47,7 @@ npm start
 
 ## 品牌
 
-页头与管理后台固定显示 Keydion Logo 与名称，Logo 文件为 `public/logo.png`（与 keydion 项目的 `static/K.png` 相同）。替换图片后需重新构建并部署；若仍显示旧图可强制刷新浏览器。
+页头与管理后台固定显示 Logo 与名称（中文“日历”，英文“Calendar”），Logo 文件为 `public/logo.png`（与 keydion 项目的 `static/K.png` 相同）。替换图片后需重新构建并部署；若仍显示旧图可强制刷新浏览器。
 
 ## 文档
 

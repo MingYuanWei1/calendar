@@ -35,12 +35,12 @@ export async function parseSeats(buffer,batch){
  return {seats,errors:[...errors,...seatErrors(batch,seats)].slice(0,100)};
 }
 export async function makeSchedulePdf(batch,sessions,{timeZone,scope,english=false}){
- const doc=new PDFDocument({size:'A4',margin:40,info:{Title:batch.title,Author:'Keydion'}}),buffers=[];
+ const doc=new PDFDocument({size:'A4',margin:40,info:{Title:batch.title,Author:english?'Calendar':'日历'}}),buffers=[];
  const result=new Promise((resolve,reject)=>{doc.on('data',b=>buffers.push(b));doc.on('end',()=>resolve(Buffer.concat(buffers)));doc.on('error',reject);});
  doc.font((await getFontData()).regular);
  const widths=[76,76,185,83,95],labels=english?['Date','Time','Exam','Division / Grade','Rooms']:['日期','时间','考试','学部 / 年级','教室'];
  const tableHeader=()=>{const top=doc.y;doc.rect(40,top,515,25).fill('#e4eff4');let x=40;doc.fontSize(9).fillColor('#243746');labels.forEach((label,i)=>{doc.text(label,x+5,top+6,{width:widths[i]-10,lineBreak:false});x+=widths[i];});doc.y=top+25;};
- const header=()=>{doc.fontSize(18).fillColor('#243746').text(english?(batch.titleEn||batch.title):batch.title);doc.fontSize(9).fillColor('#607581').text(`Keydion · ${batch.start} — ${batch.end}`).text(scope).text(`${english?'Generated':'生成于'} ${new Intl.DateTimeFormat(english?'en-GB':'zh-CN',{timeZone,dateStyle:'medium',timeStyle:'short'}).format(new Date())} · ${timeZone}`).moveDown();tableHeader();};
+ const header=()=>{doc.fontSize(18).fillColor('#243746').text(english?(batch.titleEn||batch.title):batch.title);doc.fontSize(9).fillColor('#607581').text(`${english?'Calendar':'日历'} · ${batch.start} — ${batch.end}`).text(scope).text(`${english?'Generated':'生成于'} ${new Intl.DateTimeFormat(english?'en-GB':'zh-CN',{timeZone,dateStyle:'medium',timeStyle:'short'}).format(new Date())} · ${timeZone}`).moveDown();tableHeader();};
  header();
  if(!sessions.length)doc.fontSize(12).text(english?'No exams selected.':'当前范围没有考试。',40,doc.y+15);
  for(const s of sessions){

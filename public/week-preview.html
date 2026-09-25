@@ -1,12 +1,12 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Keydion · 周历方案对比</title><link rel="icon" type="image/png" href="logo.png"><link rel="stylesheet" href="week-preview.css?v=keydion"><script type="module" src="week-preview.js"></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>日历 · 周历方案对比</title><link rel="icon" type="image/png" href="logo.png"><link rel="stylesheet" href="week-preview.css?v=brand2"><script type="module" src="week-preview.js"></script></head>
 <body>
 <header class="review-header"><div><span class="eyebrow">WEEK VIEW / DESIGN STUDY</span><h1>周历，三种打开方式</h1></div><a href="/">返回正式校历 ↗</a></header>
 <nav class="variants" aria-label="周历设计方案"><button data-variant="timeline" aria-pressed="true"><b>A <span>时间轴周历</span></b><small>看时刻、时长与重叠</small></button><button data-variant="cards" aria-pressed="false"><b>B <span>七列事件卡片</span></b><small>按天扫读，紧凑展示</small></button><button data-variant="periods" aria-pressed="false"><b>C <span>全天区＋时段分组</span></b><small>上午、下午、晚间有序分区</small></button></nav>
 <p id="variant-description" class="variant-description"></p>
 <section class="app-shell" aria-label="周历交互预览">
-<header class="app-header"><a class="brand" href="/" aria-label="Keydion"><img src="logo.png" alt=""><span>Keydion</span></a><h2 id="week-title"></h2><div class="date-nav"><button id="previous" aria-label="上一周">‹</button><button id="current">本周</button><button id="sample">示例周</button><button id="next" aria-label="下一周">›</button></div><span class="preview-tag">周视图预览</span></header>
+<header class="app-header"><a class="brand" href="/"><img src="logo.png" alt=""><span>日历</span></a><h2 id="week-title"></h2><div class="date-nav"><button id="previous" aria-label="上一周">‹</button><button id="current">本周</button><button id="sample">示例周</button><button id="next" aria-label="下一周">›</button></div><span class="preview-tag">周视图预览</span></header>
 <div class="workspace"><aside><div class="filter-title"><h3>适用学部</h3><button id="reset">重置</button></div><div id="schools"></div><h3>事件类型</h3><div id="types"></div><p class="aside-note">选择学部时，同时显示全校事件。</p><div class="legend"><span>□ 工作日</span><span>▧ 普通周末</span><span class="off-label">休 放假</span><span>上课 调休</span></div></aside>
 <main><div id="load-status" role="status">正在加载事件…</div><div id="board" class="board"></div><footer><span id="event-count"></span><span id="timezone"></span></footer></main></div>
 </section>
