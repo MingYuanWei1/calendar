@@ -27,7 +27,7 @@ function renderNav(){
 function setLanguage(lang){
  app.lang=lang;localStorage.setItem('exam-language',String(lang));
  document.documentElement.lang=lang?'en':'zh-CN';
- document.title=T('管理后台 · 日历','Admin console · Calendar');
+ document.title=T('Keydion日历 - 管理后台','Keydion Calendar - Admin console');
  renderNav();app.rerender();
 }
 async function signOut(){
