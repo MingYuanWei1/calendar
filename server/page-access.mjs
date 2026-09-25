@@ -8,8 +8,6 @@ export function pageRole(url){
   }
   path=segments.length?'/'+segments.join('/').toLowerCase():'';
  }catch{return 3;}
- if(['/accounts','/accounts.html'].includes(path))return 3;
- if(['/exams-admin','/exams-admin.html','/students','/students.html'].includes(path))return 2;
- if(['','/index','/index.html'].includes(path)&&url.searchParams.get('manage')==='events')return 2;
+  if(['/console','/console.html','/students','/students.html'].includes(path))return 2;
  return 0;
 }

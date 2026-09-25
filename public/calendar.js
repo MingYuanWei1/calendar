@@ -16,7 +16,6 @@ const state = {lang:Number(localStorage.getItem('exam-language')||0),year:new Da
 const mobileQuery = matchMedia('(max-width:760px)');
 /** @type {SchoolEvent[]} */
 const events = [];
-let previewEvent = null;
 let detailReturnDay=null;
 let detailScrollY=0;
 let calendarSlots=4;
@@ -174,3 +173,4 @@ function fitMonthDensity(){
 }
 const monthSizeObserver=new ResizeObserver(fitMonthDensity);
 monthSizeObserver.observe($('#month-grid'));
+startCalendar();

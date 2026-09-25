@@ -11,7 +11,7 @@
  const pageActions=exams
   ? '<button id="download" class="primary" disabled>下载 PDF</button>'
   : '<div class="view-switch" aria-label="日历视图"><button id="month-view" aria-pressed="true" data-i18n="monthView">月历</button><button id="week-view" aria-pressed="false" data-i18n="weekView">周历</button><button id="list-view" aria-pressed="false" data-i18n="listView">日程</button></div>';
- header.innerHTML=`<a class="brand" href="/"><span class="logo" aria-label="学校 Logo 占位符">LOGO</span><span><strong data-i18n="school" data-school-name>学校校历</strong><span class="brand-sub">CAMPUS CALENDAR</span></span></a><nav class="section-nav" aria-label="主要导航">${link('/','calendarNav','校历','Calendar',!exams)}${link('exams.html','examsNav','考试安排','Exams',exams)}</nav><div class="calendar-toolbar"><div class="date-controls">${management?'':dateControls}</div><div class="calendar-actions">${management?'':pageActions}</div></div><div class="header-actions"><button id="language" class="language" aria-label="Switch to English">EN</button><div class="user-menu"><button id="school-account" type="button" disabled aria-expanded="false" aria-controls="account-menu">登录</button><div id="account-menu" class="account-menu" hidden><strong id="account-name"></strong><small id="account-role"></small><a id="account-events" href="/?manage=events" hidden>管理事件</a><a id="account-exams" href="/exams-admin.html" hidden>考试管理</a><a id="account-users" href="/accounts.html" hidden>账户管理</a><button id="account-logout" type="button">退出登录</button><p id="account-error" role="alert"></p></div></div></div>`;
+ header.innerHTML=`<a class="brand" href="/"><span class="logo" aria-label="学校 Logo 占位符">LOGO</span><span><strong data-i18n="school" data-school-name>学校校历</strong><span class="brand-sub">CAMPUS CALENDAR</span></span></a><nav class="section-nav" aria-label="主要导航">${link('/','calendarNav','校历','Calendar',!exams)}${link('exams.html','examsNav','考试安排','Exams',exams)}</nav><div class="calendar-toolbar"><div class="date-controls">${management?'':dateControls}</div><div class="calendar-actions">${management?'':pageActions}</div></div><div class="header-actions"><button id="language" class="language" aria-label="Switch to English">EN</button><div class="user-menu"><button id="school-account" type="button" disabled aria-expanded="false" aria-controls="account-menu">登录</button><div id="account-menu" class="account-menu" hidden><strong id="account-name"></strong><small id="account-role"></small><a id="account-console" href="/console.html" hidden>管理后台</a><a id="account-users" href="/console.html#accounts" hidden>账户管理</a><button id="account-logout" type="button">退出登录</button><p id="account-error" role="alert"></p></div></div></div>`;
  const logo=header.querySelector('.logo');
  const logoImage=new Image();
  logoImage.alt='学校 Logo';
@@ -41,10 +41,9 @@
   accountButton.setAttribute('aria-label',user?label('账户菜单：','Account menu: ')+user.name:label('登录','Sign in'));
   document.getElementById('account-name').textContent=user?.name||'';
   document.getElementById('account-role').textContent=({1:'reader',2:'moderator',3:'admin'})[user?.role]||'';
-  document.getElementById('account-events').hidden=!(user?.role>=2);
-  document.getElementById('account-exams').hidden=!(user?.role>=2);
+  document.getElementById('account-console').hidden=!(user?.role>=2);
   document.getElementById('account-users').hidden=user?.role!==3;
-  set('account-events','管理事件','Manage events');set('account-exams','考试管理','Manage exams');set('account-users','账户管理','Manage accounts');
+  set('account-console','管理后台','Admin console');set('account-users','账户管理','Manage accounts');
   set('account-logout','退出登录','Sign out');
   set('account-login-title','登录','Sign in');set('account-microsoft','使用 Microsoft 登录','Sign in with Microsoft');
   set('account-divider','或使用账号密码','or use your username and password');set('account-username-label','账号','Username');set('account-password-label','密码','Password');set('account-submit','登录','Sign in');

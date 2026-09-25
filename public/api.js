@@ -15,23 +15,21 @@ async function api(path,options={}){
 }
 function schoolToday(){return new Intl.DateTimeFormat('en-CA',{timeZone:settings.timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}
 function setLoadMessage(message,error=false){const el=$('#load-status');el.textContent=message;el.classList.toggle('request-error',error);}
-async function loadEvents(management=false){
-  const [list,plans]=await Promise.all([api(management?'/admin/events':'/events'),api('/day-plans')]);
+async function loadEvents(){
+  const [list,plans]=await Promise.all([api('/events'),api('/day-plans')]);
   dayPlans=Object.fromEntries(plans.map(plan=>[plan.date,plan]));
   events.splice(0,events.length,...list);
   if(!events.some(e=>e.id===state.selected&&matches(e)))state.selected=null;
   renderCalendar();renderDetail();
 }
 async function startCalendar(){
+  // Old management bookmarks now live in the admin console.
+  if(new URLSearchParams(location.search).get('manage')==='events'){location.replace('/console.html#events');return;}
   try{
     setLoadMessage('正在加载校历…');
     settings=await api('/config');
     copy.school=[settings.schoolName,settings.schoolNameEn];
     const current=schoolToday().split('-').map(Number);state.year=current[0];state.month=current[1]-1;
     await loadEvents();render();setLoadMessage('');
-    const session=await api('/session');admin.signedIn=session.user?.role>=2;
-    if(admin.open&&admin.signedIn)await loadEvents(true);
-    renderAdmin();
-    if(new URLSearchParams(location.search).get('manage')==='events')await openAdmin();
   }catch(error){setLoadMessage('校历暂时无法加载，请点击重试。',true);$('#retry-load').hidden=false;}
 }

@@ -5,7 +5,7 @@ import {extractSeats} from './seat-extract.mjs';
 import {installSubjects} from './exam-subjects.mjs';
 import express from 'express';
 import {randomUUID} from 'node:crypto';
-import {batchSchema,seatErrors,schedule} from './exam-model.mjs';
+import {batchSchema,seatErrors,schedule,scheduleKey} from './exam-model.mjs';
 import {seatTemplate,parseSeats,makeSchedulePdf} from './exam-files.mjs';
 export function installExams(app,db,{requireAdmin,isAdmin,user,origin,schoolName,timeZone,sso={},llm={}}){
  db.exec(`CREATE TABLE IF NOT EXISTS exam_batches(id TEXT PRIMARY KEY,version INTEGER NOT NULL,draft TEXT NOT NULL,published TEXT,seating TEXT);
@@ -21,7 +21,7 @@ export function installExams(app,db,{requireAdmin,isAdmin,user,origin,schoolName
  const choices=(req,id)=>{const u=user(req);return u?db.prepare('SELECT exam_id FROM exam_choices WHERE user_id=? AND batch_id=?').all(u.id,id).map(r=>r.exam_id):[];};
  const fail=(res,error)=>res.status(422).json({error});
  const conflict=(req,res,r)=>{if(!r){res.status(404).json({error:'考试批次不存在。'});return true;}if(req.body.version!==r.version){res.status(409).json({error:'其他窗口已修改本批次，请刷新后再试。'});return true;}return false;};
- const info=r=>({id:r.id,...JSON.parse(r.draft),version:r.version,publishedAt:publicBatch(r)?.publishedAt||null,seatingPublishedAt:r.seating?JSON.parse(r.seating).publishedAt:null});
+ const info=r=>{const draft=JSON.parse(r.draft),published=publicBatch(r);return {id:r.id,...draft,version:r.version,publishedAt:published?.publishedAt||null,scheduleChanged:Boolean(published&&scheduleKey(draft)!==scheduleKey(published)),seatingPublishedAt:r.seating?JSON.parse(r.seating).publishedAt:null};};
  app.get('/api/exams',(req,res)=>res.json(db.prepare('SELECT * FROM exam_batches WHERE published IS NOT NULL').all().map(r=>{const b=publicBatch(r);return {id:b.id,title:b.title,titleEn:b.titleEn,start:b.start,end:b.end};}).sort((a,b)=>b.start.localeCompare(a.start))));
  app.get('/api/exams/:id',(req,res)=>{const r=row(req.params.id),b=publicBatch(r);if(!b)return res.status(404).json({error:'考试安排尚未发布。'});res.json({...b,subjects:subjects.list(),seatingPublished:Boolean(r.seating),seatingPublishedAt:r.seating?JSON.parse(r.seating).publishedAt:null});});
  app.get('/api/exams/:id/seats',signedIn,(req,res)=>{const r=row(req.params.id);if(!r?.published||!r.seating)return res.status(404).json({error:'座位表尚未发布。'});const seating=JSON.parse(r.seating);res.json({...seating,seats:seating.seats.map(({matchEmail,...seat})=>seat),personal:matching.personal(user(req),r.id)});});

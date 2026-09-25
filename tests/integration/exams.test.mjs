@@ -20,7 +20,14 @@ test('exam publication, private seating, per-account choices, import validation 
   assert.equal((await call(path,'PUT',{...batch,timeSlots:[{start:'08:00',end:'10:00'},{start:'09:00',end:'11:00'}]},admin)).status,422);
   res=await call(path,'PUT',{...batch,timeSlots:[{start:'08:00',end:'10:00'},{start:'11:00',end:'12:30'}]},admin);assert.equal(res.status,200);batch=await res.json();
   assert.deepEqual(await (await call('/exams')).json(),[]);assert.equal((await call('/exams/'+batch.id)).status,404);
+  assert.equal(batch.scheduleChanged,false);
   res=await call(path+'/publish','POST',{version:batch.version},admin);assert.equal(res.status,200);batch=await res.json();
+  assert.equal(batch.scheduleChanged,false);
+  res=await call(path,'PUT',{...batch,division:'high',sessions:batch.sessions.map(s=>s.id==='math'?{...s,end:'09:50'}:s)},admin);assert.equal(res.status,200);batch=await res.json();
+  assert.equal(batch.division,'high');assert.equal(batch.scheduleChanged,true);
+  assert.equal((await call(path,'PUT',{...batch,division:'college'},admin)).status,422);
+  res=await call(path,'PUT',{...batch,sessions:batch.sessions.map(s=>s.id==='math'?{...s,end:'09:45'}:s)},admin);assert.equal(res.status,200);batch=await res.json();
+  assert.equal(batch.scheduleChanged,false);
   const pub=await (await call('/exams/'+batch.id)).json();assert.equal(pub.sessions.length,2);assert.deepEqual(pub.timeSlots,[{start:'08:00',end:'10:00'},{start:'11:00',end:'12:30'}]);assert.equal(pub.seats,undefined);assert.equal(JSON.stringify(pub).includes('示例甲'),false);
   assert.equal((await call('/exams/'+batch.id+'/seats')).status,401);
   instance.db.prepare('INSERT INTO school_sessions VALUES(?,?,?,?)').run(digest('student-a'),'tenant:student-a','Student A',Date.now()+60000);

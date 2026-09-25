@@ -3,7 +3,7 @@
 ## 入口
 
 - 学生端：`/exams.html`。不登录可按批次、学部、年级浏览并下载整个批次的考试 PDF。
-- 后台：`/exams-admin.html`，使用 role 为 moderator（2）或 admin（3）的账户。Microsoft 新账户默认 reader（1），由 admin 在 `/accounts.html` 授权后可管理考试。
+- 后台：`/console.html#exams`，使用 role 为 moderator（2）或 admin（3）的账户。Microsoft 新账户默认 reader（1），由 admin 在管理后台「账户」页（`/console.html#accounts`）授权后可管理考试。
 - 原校历顶部增加「考试安排」，考试类型事件详情也有入口。
 
 ## Microsoft Entra ID 单组织登录

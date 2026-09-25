@@ -4,13 +4,10 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>学校校历</title>
   <link rel="stylesheet" href="calendar.css?v=week">
-  <link rel="stylesheet" href="admin.css">
   <script defer src="api.js"></script>
   <script defer src="event-details.js"></script>
   <script defer src="week.js?v=week"></script>
   <script defer src="calendar.js?v=week"></script>
-  <script defer src="admin.js"></script>
-  <script defer src="day-plans.js"></script>
 <link rel="stylesheet" href="site-header.css"></head>
 <body class="airy">
   <header id="site-header" class="app-header" data-page="calendar"></header><script src="site-header.js"></script>
@@ -30,11 +27,7 @@
     </main>
     <aside class="details" id="details" aria-label="事件详情"></aside>
   </div>
-  <main id="admin-app" hidden></main>
-  <dialog id="day-plan-dialog" aria-labelledby="day-plan-heading"><div id="day-plan-content"></div></dialog>
   <dialog id="media-dialog" aria-labelledby="media-heading"><div class="dialog-top"><h2 id="media-heading">事件海报</h2><button id="close-media" class="close-button" aria-label="关闭图片">×</button></div><img id="media-image" alt="完整事件海报"></dialog>
-  <dialog id="preview-dialog" aria-labelledby="preview-heading"><div class="dialog-top"><h2 id="preview-heading">事件预览</h2><button id="close-preview" class="close-button" aria-label="关闭预览">×</button></div><div id="preview-detail"></div></dialog>
-  <dialog id="confirm-dialog" aria-labelledby="confirm-heading"><form method="dialog"><h2 id="confirm-heading"></h2><p id="confirm-description"></p><label id="cancel-reason-label" hidden><span id="cancel-reason-text"></span><textarea id="cancel-reason" maxlength="2000"></textarea></label><p id="confirm-error" class="request-error" role="alert"></p><div class="dialog-actions"><button id="confirm-back" value="back">返回</button><button id="confirm-action" value="confirm" class="primary">确认</button></div></form></dialog>
   <dialog id="day-dialog" aria-labelledby="day-title"><div class="dialog-top"><div><span class="overline" data-i18n="dayEvents">当天事件</span><h2 id="day-title"></h2></div><button id="close-day" class="close-button" aria-label="关闭当天事件">×</button></div><div id="day-events"></div></dialog>
   <dialog id="registration-dialog" aria-labelledby="registration-title"><div class="dialog-top"><h2 id="registration-title" data-i18n="registrationPreview">报名入口示意</h2><button id="close-registration" class="close-button" aria-label="关闭">×</button></div><p data-i18n="registrationNotice">正式发布时，此处打开管理员填写的外部报名表。当前设计稿未连接真实表单。</p><button id="registration-ok" class="primary" data-i18n="understood">知道了</button></dialog>
 </body>
