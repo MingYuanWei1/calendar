@@ -21,7 +21,7 @@ npm start
 - `npm test`：真实 HTTP 集成验收，包括认证、持久化、草稿隔离、媒体权限和事件状态。
 - `npm run backup`：数据库一致性快照与图片备份。
 
-学校名称、时区、数据目录和站点地址通过 `.env` 配置。默认 `Asia/Shanghai` 为可调整初始值。公网部署需 HTTPS、正确 `APP_ORIGIN` 和持久化磁盘；详见 [运行与部署](docs/deployment.md)。
+时区、数据目录和站点地址通过 `.env` 配置。默认 `Asia/Shanghai` 为可调整初始值。公网部署需 HTTPS、正确 `APP_ORIGIN` 和持久化磁盘；详见 [运行与部署](docs/deployment.md)。
 
 ## 登录与账户权限
 
