@@ -2,11 +2,11 @@
 
 Production: https://calendar.keydion.com
 
-Pages project: `school-calendar` (`school-calendar-e9t.pages.dev`). Pages serves `dist/pages` and forwards `/api/*` through its private `CALENDAR_API` service binding to `school-calendar-api`.
+A single Worker, `school-calendar-api`, serves both the static assets in `dist/pages` (Workers static assets, `run_worker_first: true`) and `/api/*`. `cloudflare/pages.mjs` is the router: it checks protected pages via `/api/page-access` before serving them, and the Worker adds the security headers to non-API responses. The old Pages project `school-calendar` is retired once the custom domain has moved to the Worker.
 
 The backend keeps one `SchoolCalendar` SQLite Durable Object per configured school. Its synchronous SQL adapter preserves event versions, publication transactions, login sessions, and private seating. Images are validated and converted to WebP using Cloudflare Images, then stored in 512 KiB SQLite chunks. R2 is not required. Published-image authorization remains in the API; storage is not publicly accessible.
 
-The Node server and Cloudflare backend share `server/api.mjs` and the exam routes. Local Node development still uses the filesystem and `node:sqlite`. Cloudflare uses the browser distributions of PDFKit and ExcelJS, and loads the same Chinese fonts served by Pages.
+The Node server and Cloudflare backend share `server/api.mjs` and the exam routes. Local Node development still uses the filesystem and `node:sqlite`. Cloudflare uses the browser distributions of PDFKit and ExcelJS, and loads the same Chinese fonts served as static assets.
 
 ## Build and verify
 
@@ -18,28 +18,25 @@ npm run build:cloudflare
 npx wrangler deploy --dry-run
 ```
 
-`wrangler.jsonc` describes the backend. A Pages upload must include `_worker.js`, `_routes.json`, `_headers`, and the asset manifest. Only upload `dist/pages`; never upload the repository root, `.env`, or `.data`.
+`wrangler.jsonc` describes the Worker and its assets. `npx wrangler deploy` uploads `dist/pages` together with the Worker; never point the assets directory at the repository root, `.env`, or `.data`.
 
-The initial deployment used Cloudflare MCP to create the Pages project, upload the backend, configure bindings, create the Pages deployment, and attach the custom domain/DNS. Static asset bytes were uploaded with the short-lived upload token issued through MCP because the MCP execution proxy rejected JWT-authenticated asset uploads. `scripts/upload-pages-assets.mjs` consumes prepared batches and this token in the ignored `.scratch/cf-upload` directory. The token was deleted afterward.
-
-For future MCP deployments, use the existing resources. Preserve backend bindings/secrets; do not repeat the `v1` Durable Object migration. Upload the backend with the Workers multipart API, issue a Pages upload token, upload changed assets, and create the Pages deployment with the resulting manifest. The Pages production configuration must retain `CALENDAR_API` -> `school-calendar-api` and `fail_open: false`.
+Deploy with `npx wrangler deploy --keep-vars`. Preserve the Worker name, bindings and secrets; do not repeat the `v1` Durable Object migration. The custom domain `calendar.keydion.com` is attached to the Worker as a Custom Domain.
 
 ## Automatic deployment from GitHub
 
 Cloudflare's native Git integration deploys `MingYuanWei1/calendar` on pushes to `main`. GitHub Actions (`.github/workflows/deploy.yml`) only validates changes; it does not publish and needs no Cloudflare API token.
 
-Both Cloudflare projects use Node.js `24.17.0` (also pinned in `.node-version`) and the repository root:
+The Worker build uses Node.js `24.17.0` (also pinned in `.node-version`) and the repository root:
 
 | Project | Build command | Publish configuration |
 | --- | --- | --- |
 | Worker `school-calendar-api` | `npm test && npm run typecheck && npm run build:cloudflare` | `npx wrangler deploy --keep-vars` |
-| Pages `school-calendar` | `npm test && npm run typecheck && npm run build:cloudflare` | Output directory `dist/pages` |
 
 Use the existing Cloudflare GitHub authorization and select `main` as the production branch. Disable preview builds because preview frontends must not use the production backend. Worker build credentials are managed in Cloudflare, not in GitHub repository secrets.
 
-The frontend's `CALENDAR_API` service binding points to `school-calendar-api`; its `fail_open` setting remains `false`. The backend uses the root `wrangler.jsonc`. `--keep-vars` preserves additional dashboard variables; values explicitly defined in the repository remain managed by Git. Worker secrets remain in Cloudflare.
+The Worker uses the root `wrangler.jsonc`. `--keep-vars` preserves additional dashboard variables; values explicitly defined in the repository remain managed by Git. Worker secrets remain in Cloudflare.
 
-The two native builds run independently. Backend changes should remain compatible with the previous frontend during rollout. Inspect and retry failed builds in each project's Cloudflare deployment history.
+Frontend and API deploy together as one Worker version. Inspect and retry failed builds in the Worker's Cloudflare deployment history.
 
 ## Administration and external services
 

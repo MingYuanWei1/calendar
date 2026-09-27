@@ -4,6 +4,7 @@ import {createServer} from 'node:http';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {createApi} from '../server/api.mjs';
 import {database} from './database.mjs';
+import pages from './pages.mjs';
 
 // Each incoming request retains its school application through async operations.
 const applications=new AsyncLocalStorage();
@@ -55,11 +56,20 @@ export class SchoolCalendar extends DurableObject {
     return applications.run({app:this.application.app,address:request.headers.get('CF-Connecting-IP')||'unknown'},()=>handleAsNodeRequest(8080,request));
   }
 }
+const securityHeaders={
+  'X-Content-Type-Options':'nosniff',
+  'Referrer-Policy':'strict-origin-when-cross-origin',
+  'X-Frame-Options':'DENY',
+  'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+};
 export default {
   async fetch(request,env){
-    const url=new URL(request.url);
-    if(!url.pathname.startsWith('/api/'))return env.ASSETS?env.ASSETS.fetch(request):new Response('Not found',{status:404});
     // One coordination boundary per school: publication, versions, choices, and seats.
-    return env.SCHOOLS.getByName(env.SCHOOL_ID||'calendar').handle(request);
+    const api={fetch:request=>env.SCHOOLS.getByName(env.SCHOOL_ID||'calendar').handle(request)};
+    const response=await pages.fetch(request,{ASSETS:env.ASSETS,CALENDAR_API:api});
+    if(new URL(request.url).pathname.startsWith('/api/'))return response;
+    const secured=new Response(response.body,response);
+    for(const [name,value] of Object.entries(securityHeaders))secured.headers.set(name,value);
+    return secured;
   }
 };

@@ -35,7 +35,7 @@ npm start
 | 2 | moderator | reader 功能，以及事件、考试、学科、海报、放假与调休管理 |
 | 3 | admin | moderator 功能，以及账户管理 |
 
-管理页面在返回 HTML 前校验权限：未登录返回空响应 401，权限不足返回空响应 403，不展示管理页面或登录／权限提示；受限页面禁止缓存。本地与 Cloudflare Pages 使用相同规则。`/console.html`、`/students.html` 需要 role ≥ 2；控制台内的「账户」页及其接口需要 role = 3。
+管理页面在返回 HTML 前校验权限：未登录返回空响应 401，权限不足返回空响应 403，不展示管理页面或登录／权限提示；受限页面禁止缓存。本地与 Cloudflare Worker 使用相同规则。`/console.html`、`/students.html` 需要 role ≥ 2；控制台内的「账户」页及其接口需要 role = 3。
 
 账户管理位于管理后台的「账户」页（`/console.html#accounts`），仅 admin 可访问账户数据、创建本地账户、调整角色、启用／停用及删除账户。删除会清除本地登录凭据、所有会话和个人考试选择，不能删除当前登录账户。Microsoft 账户删除后再次登录会按 reader 重新创建；需要阻止其登录时应停用账户。Microsoft 账户首次登录后自动加入，默认 `role=1`；由 admin 按需调整。当前登录的管理员不能降级或停用自己，系统至少保留一个可用管理员。
 
