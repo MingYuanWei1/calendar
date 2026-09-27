@@ -8,6 +8,13 @@ import pages from './pages.mjs';
 
 // Each incoming request retains its school application through async operations.
 const applications=new AsyncLocalStorage();
+// A relay server in front of Cloudflare reports the visitor address only when it presents the shared secret.
+const encoder=new TextEncoder();
+const clientAddress=(request,env)=>{
+  const secret=encoder.encode(env.RELAY_SECRET||''),given=encoder.encode(request.headers.get('X-Relay-Secret')||'');
+  const relayed=secret.length&&given.length===secret.length&&crypto.subtle.timingSafeEqual(given,secret);
+  return (relayed&&request.headers.get('X-Relay-Client-IP'))||request.headers.get('CF-Connecting-IP')||'unknown';
+};
 const server=createServer((req,res)=>{
   const {app,address}=applications.getStore();
   req.calendarClientAddress=address;
@@ -53,7 +60,7 @@ export class SchoolCalendar extends DurableObject {
       llm:{url:env.LLM_WORKER_URL||'',token:env.LLM_WORKER_TOKEN||''}});
   }
   async handle(request){
-    return applications.run({app:this.application.app,address:request.headers.get('CF-Connecting-IP')||'unknown'},()=>handleAsNodeRequest(8080,request));
+    return applications.run({app:this.application.app,address:clientAddress(request,this.env)},()=>handleAsNodeRequest(8080,request));
   }
 }
 const securityHeaders={
