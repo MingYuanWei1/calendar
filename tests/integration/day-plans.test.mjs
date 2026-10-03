@@ -39,6 +39,12 @@ test('school date overrides require login, validate ranges, persist and restore 
         assert.deepEqual(stored,[{date:'2026-10-02',kind,title:['','']}]);
       }
     }
+    // A school day can follow another weekday's timetable; holidays cannot.
+    assert.equal((await save({start:'2026-10-02',kind:'school',follows:3})).status,204);
+    assert.deepEqual(await (await fetch(base+'/api/day-plans')).json(),[{date:'2026-10-02',kind:'school',title:['',''],follows:3}]);
+    assert.equal((await save({start:'2026-10-02',kind:'school',follows:6})).status,422);
+    assert.equal((await save({start:'2026-10-02',kind:'off',follows:3})).status,204);
+    assert.deepEqual(await (await fetch(base+'/api/day-plans')).json(),[{date:'2026-10-02',kind:'off',title:['','']}]);
     assert.equal((await save({start:'2026-10-02',kind:'default'})).status,204);
     assert.deepEqual(await (await fetch(base+'/api/day-plans')).json(),[]);
 
@@ -50,7 +56,7 @@ test('retired holiday test events are removed on startup without changing day pl
   const directory=await mkdtemp(join(tmpdir(),'calendar-retire-holidays-'));
   const db=openStore(directory);
   for(const type of ['holiday','activity'])db.prepare('INSERT INTO events VALUES(?,?,?,?)').run(type,'published',1,JSON.stringify({id:type,type,status:'published',start:'2026-09-25'}));
-  db.prepare('INSERT INTO day_plans VALUES(?,?,?)').run('2026-09-25','off','["假期","Holiday"]');
+  db.prepare('INSERT INTO day_plans(date,kind,title) VALUES(?,?,?)').run('2026-09-25','off','["假期","Holiday"]');
   db.close();
   let instance;
   try{

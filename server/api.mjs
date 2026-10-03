@@ -12,6 +12,8 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   const base=new URL(origin);if(!['http:','https:'].includes(base.protocol)||base.origin!==origin)throw new Error('APP_ORIGIN must contain only scheme and host/port');
   // Retire the test-only holiday event category; day_plans remains authoritative.
   db.prepare("DELETE FROM events WHERE json_extract(body,'$.type')='holiday'").run();
+  // A school day may follow another weekday's timetable (1 = Monday … 5 = Friday).
+  if(!db.prepare('PRAGMA table_info(day_plans)').all().some(column=>column.name==='follows'))db.exec('ALTER TABLE day_plans ADD COLUMN follows INTEGER');
   const app=express();
   app.disable('x-powered-by');
   if(trustProxy)app.set('trust proxy',trustProxy.split(',').map(value=>value.trim()));
@@ -71,17 +73,17 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   const rowsToEvents=rows=>rows.map(row=>JSON.parse(row.body));
   app.get('/api/events',(req,res)=>res.json(rowsToEvents(db.prepare("SELECT body FROM events WHERE status IN ('published','cancelled') ORDER BY json_extract(body,'$.start'),id").all())));
   app.get('/api/admin/events',requireAdmin,(req,res)=>res.json(rowsToEvents(db.prepare('SELECT body FROM events ORDER BY json_extract(body,\'$.start\'),id').all())));
-  app.get('/api/day-plans',(req,res)=>res.json(db.prepare('SELECT * FROM day_plans ORDER BY date').all().map(row=>({...row,title:JSON.parse(row.title)}))));
+  app.get('/api/day-plans',(req,res)=>res.json(db.prepare('SELECT date,kind,title,follows FROM day_plans ORDER BY date').all().map(({follows,...row})=>({...row,title:JSON.parse(row.title),...(follows?{follows}:{})}))));
   app.put('/api/admin/day-plans',requireAdmin,(req,res)=>{
     const parsed=dayPlanSchema.safeParse(req.body);
     if(!parsed.success)return res.status(422).json({error:'请选择有效日期范围（不超过 366 天），名称不超过 60 字。'});
-    const {start,end,kind,title}=parsed.data;
-    const put=db.prepare('INSERT INTO day_plans VALUES(?,?,?) ON CONFLICT(date) DO UPDATE SET kind=excluded.kind,title=excluded.title');
+    const {start,end,kind,title,follows}=parsed.data;
+    const put=db.prepare('INSERT INTO day_plans(date,kind,title,follows) VALUES(?,?,?,?) ON CONFLICT(date) DO UPDATE SET kind=excluded.kind,title=excluded.title,follows=excluded.follows');
     const remove=db.prepare('DELETE FROM day_plans WHERE date=?');
     db.transactionSync(()=>{
       for(let day=new Date(start+'T12:00:00Z');day.toISOString().slice(0,10)<=end;day.setUTCDate(day.getUTCDate()+1)){
         const iso=day.toISOString().slice(0,10);
-        if(kind==='default')remove.run(iso);else put.run(iso,kind,JSON.stringify(title));
+        if(kind==='default')remove.run(iso);else put.run(iso,kind,JSON.stringify(title),follows);
       }
       });res.status(204).end();
   });

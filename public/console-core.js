@@ -123,8 +123,8 @@ export function planRanges(plans){
  const ranges=[];
  for(const date of Object.keys(plans).sort()){
   const plan=plans[date],last=ranges.at(-1);
-  if(last&&last.kind===plan.kind&&JSON.stringify(last.title)===JSON.stringify(plan.title)&&addDays(last.end,1)===date)last.end=date;
-  else ranges.push({start:date,end:date,kind:plan.kind,title:plan.title});
+  if(last&&last.kind===plan.kind&&last.follows===(plan.follows||0)&&JSON.stringify(last.title)===JSON.stringify(plan.title)&&addDays(last.end,1)===date)last.end=date;
+  else ranges.push({start:date,end:date,kind:plan.kind,title:plan.title,follows:plan.follows||0});
  }
  return ranges;
 }

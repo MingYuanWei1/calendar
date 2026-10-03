@@ -10,7 +10,7 @@ function renderWeek(){
   $('#month-view').setAttribute('aria-pressed','false');$('#list-view').setAttribute('aria-pressed','false');
   $('#month-grid').hidden=true;$('#weekdays').hidden=true;$('#agenda').hidden=true;
   const dayClass=(day,i)=>`${i>4?' weekend':''}${dayPlan(day)?' day-'+dayPlan(day).kind:''}${day===schoolToday()?' today':''}`;
-  const headings=days.map((day,i)=>`<div class="week-date${dayClass(day,i)}"><span>${new Intl.DateTimeFormat(state.lang?'en-GB':'zh-CN',{weekday:'short'}).format(dateValue(day))}</span><div class="day-date"><button class="day-number" data-day="${day}" aria-label="${esc(formatDate(day,true))}" ${day===schoolToday()?'aria-current="date"':''}>${dateValue(day).getDate()}</button>${dayBadge(dayPlan(day))}</div><div class="day-plan-name" title="${esc(dayPlanName(dayPlan(day)))}">${esc(dayPlanName(dayPlan(day)))}</div></div>`).join('');
+  const headings=days.map((day,i)=>`<div class="week-date${dayClass(day,i)}"><span>${new Intl.DateTimeFormat(state.lang?'en-GB':'zh-CN',{weekday:'short'}).format(dateValue(day))}</span><div class="day-date"><button class="day-number" data-day="${day}" aria-label="${esc(formatDate(day,true))}" ${day===schoolToday()?'aria-current="date"':''}>${dateValue(day).getDate()}</button>${dayBadge(dayPlan(day))}</div><div class="day-plan-name" title="${esc(dayPlanName(dayPlan(day)))}">${dayPlanMarkup(dayPlan(day))}</div></div>`).join('');
   const lanes=[];
   const bars=list.filter(e=>!e.time||isMulti(e)).sort((a,b)=>a.start.localeCompare(b.start)||(b.end||b.start).localeCompare(a.end||a.start)||a.id.localeCompare(b.id)).map(e=>{
     const from=Math.max(0,days.findIndex(day=>day>=e.start));

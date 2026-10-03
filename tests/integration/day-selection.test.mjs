@@ -28,10 +28,15 @@ test('one click saves one date, ranges save both dates, and the next selection s
   const click=async(dataset,save=false)=>page.onclick({target:{closest:()=>({dataset,hasAttribute:name=>save&&name==='data-save'})}});
   const save=()=>click({},true);
   await click({day:'2026-09-23'});await click({kind:'half'});await save();
-  assert.deepEqual(requests.at(-1),{start:'2026-09-23',end:'2026-09-23',kind:'half',title:['','']});
+  assert.deepEqual(requests.at(-1),{start:'2026-09-23',end:'2026-09-23',kind:'half',title:['',''],follows:null});
   await click({day:'2026-09-26'});await click({day:'2026-09-28'});await save();
   assert.equal(requests.at(-1).start,'2026-09-26');assert.equal(requests.at(-1).end,'2026-09-28');
   await click({day:'2026-09-24'});await save();
   assert.equal(requests.at(-1).start,'2026-09-24');assert.equal(requests.at(-1).end,'2026-09-24');
   assert.equal(element.hidden,true);
+  // A Friday can run Wednesday's timetable; switching to a holiday drops the timetable.
+  await click({day:'2026-10-02'});await click({kind:'school'});await click({follows:'3'});await save();
+  assert.deepEqual(requests.at(-1),{start:'2026-10-02',end:'2026-10-02',kind:'school',title:['',''],follows:3});
+  await click({kind:'off'});await save();
+  assert.equal(requests.at(-1).follows,null);
 });

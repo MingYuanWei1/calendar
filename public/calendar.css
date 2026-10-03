@@ -199,6 +199,9 @@ body.detail-closed .workspace{grid-template-columns:180px minmax(0,1fr)}body.edi
 .airy .day.day-half,.airy .day.day-half.today,.week-date.day-half,.week-card-column.day-half,.agenda-day.day-half,#day-dialog.day-half{background:#fff0d6}
 .day-badge.half{background:#865518;color:white}
 .day-half .day-plan-name,.day-half .agenda-plan{color:#794b12}
+.day-follows{display:inline-block;border-radius:4px;padding:0 5px;line-height:16px;font-weight:600;background:#3f4fa3;color:white;vertical-align:1px}
+.day-plan-name .day-follows{display:block;margin:0 -6px;border-radius:0;line-height:19px;text-align:center;overflow:hidden;text-overflow:ellipsis}
+.week-date .day-plan-name .day-follows{margin:0 -12px}
 .agenda-day.day-half{border-radius:8px;padding-left:8px;padding-right:8px}
 .legend-half:before{content:'';width:10px;height:10px;border:1px solid #d7ad68;border-radius:2px;background:#fff0d6}
 #day-dialog.day-off{background:#e3f2e7}

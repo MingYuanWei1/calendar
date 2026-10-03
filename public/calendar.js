@@ -22,7 +22,15 @@ let calendarSlots=4;
 let resolveDayPlan=iso=>null;
 function dayPlan(iso){return resolveDayPlan(iso);}
 function dayBadge(plan){return plan?`<span class="day-badge ${plan.kind}">${plan.kind==='off'?(state.lang?'Off':'休'):plan.kind==='half'?(state.lang?'Half day':'上半天'):(state.lang?'Full day':'全天')}</span>`:'';}
-function dayPlanName(plan){return plan?(text(plan.title)||(plan.kind==='off'?(state.lang?'School holiday':'学校放假'):plan.kind==='half'?(state.lang?'Half day':'上半天'):(state.lang?'Full school day':'全天上课'))):'';}
+function followsName(plan){const day=plan?.follows&&[['周一','Monday'],['周二','Tuesday'],['周三','Wednesday'],['周四','Thursday'],['周五','Friday']][plan.follows-1];return day?(state.lang?`${day[1]} schedule`:`按${day[0]}课表`):'';}
+function dayPlanTitle(plan){
+  const title=text(plan.title);
+  if(title||plan.follows)return title;
+  return plan.kind==='off'?(state.lang?'School holiday':'学校放假'):plan.kind==='half'?(state.lang?'Half day':'上半天'):(state.lang?'Full school day':'全天上课');
+}
+function dayPlanName(plan){return plan?[dayPlanTitle(plan),followsName(plan)].filter(Boolean).join(' · '):'';}
+/** A borrowed timetable sets the whole name on a highlighted band so students notice it. */
+function dayPlanMarkup(plan){return plan?.follows?`<span class="day-follows">${esc(dayPlanName(plan))}</span>`:esc(dayPlanName(plan));}
 
 function t(key){return copy[key]?.[state.lang] ?? key;}
 function text(pair){return pair?.[state.lang] || pair?.find(value=>value?.trim()) || '';}
@@ -104,7 +112,7 @@ function renderCalendar(){
       const visibleItems=items.slice(0,eventRows.length);
       const hiddenCount=items.length-visibleItems.length+hiddenSpans;
       const itemMarkup=visibleItems.map((event,index)=>`<div class="day-event-slot" style="grid-row:${eventRows[index]+1}">${eventButton(event)}</div>`).join('');
-      html+=`<div class="day${d.getMonth()!==state.month?' outside':''}${i>4?' weekend':''}${plan?' day-'+plan.kind:''}${iso===schoolToday()?' today':''}"><div class="day-date"><button class="day-number" data-day="${iso}" aria-label="${esc(formatDate(iso,true))}" ${iso===schoolToday()?'aria-current="date"':''}>${d.getDate()}</button>${dayBadge(plan)}</div><div class="day-plan-name" title="${esc(dayPlanName(plan))}">${esc(dayPlanName(plan))}</div><div class="day-items">${itemMarkup}${hiddenCount>0?`<button class="more" data-day="${iso}" style="grid-row:${Math.max(1,calendarSlots)}">${state.lang?`+${hiddenCount} more`:`还有 ${hiddenCount} 项`}</button>`:''}</div></div>`;
+      html+=`<div class="day${d.getMonth()!==state.month?' outside':''}${i>4?' weekend':''}${plan?' day-'+plan.kind:''}${iso===schoolToday()?' today':''}"><div class="day-date"><button class="day-number" data-day="${iso}" aria-label="${esc(formatDate(iso,true))}" ${iso===schoolToday()?'aria-current="date"':''}>${d.getDate()}</button>${dayBadge(plan)}</div><div class="day-plan-name" title="${esc(dayPlanName(plan))}">${dayPlanMarkup(plan)}</div><div class="day-items">${itemMarkup}${hiddenCount>0?`<button class="more" data-day="${iso}" style="grid-row:${Math.max(1,calendarSlots)}">${state.lang?`+${hiddenCount} more`:`还有 ${hiddenCount} 项`}</button>`:''}</div></div>`;
     }
     html+=`<div class="spans">${bars}</div></div>`;
   }
@@ -114,7 +122,7 @@ function renderCalendar(){
     const iso=isoDate(new Date(state.year,state.month,day,12));const items=monthEvents.filter(e=>onDate(e,iso)).sort(sortEvents);
     const plan=dayPlan(iso);
     if(!items.length&&!plan)continue;
-    agenda+=`<section class="agenda-day${plan?' day-'+plan.kind:''}"><div class="agenda-date"><strong>${day}</strong><small>${new Intl.DateTimeFormat(state.lang?'en-GB':'zh-CN',{weekday:'short'}).format(dateValue(iso))}</small>${dayBadge(plan)}</div><div>${plan?`<p class="agenda-plan">${esc(dayPlanName(plan))}</p>`:''}${items.map(agendaButton).join('')}</div></section>`;
+    agenda+=`<section class="agenda-day${plan?' day-'+plan.kind:''}"><div class="agenda-date"><strong>${day}</strong><small>${new Intl.DateTimeFormat(state.lang?'en-GB':'zh-CN',{weekday:'short'}).format(dateValue(iso))}</small>${dayBadge(plan)}</div><div>${plan?`<p class="agenda-plan">${dayPlanMarkup(plan)}</p>`:''}${items.map(agendaButton).join('')}</div></section>`;
   }
   $('#agenda').innerHTML=agenda;
   $('#agenda').classList.toggle('is-empty',!agenda);

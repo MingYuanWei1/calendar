@@ -28,6 +28,6 @@ export const eventSchema=z.object({
   if(event.timeMode==='multi'&&(!event.end||event.end<event.start))invalid('end','End date must not precede start date');
 }).transform(event=>({...event,end:event.timeMode==='multi'?event.end:undefined,time:['timed','deadline'].includes(event.timeMode)?event.time:undefined,endTime:event.timeMode==='timed'?event.endTime:undefined}));
 
-export const dayPlanSchema=z.object({start:day,end:day.or(z.literal('')).optional(),kind:z.enum(['off','school','half','default']),title:bilingual(60).default(['',''])})
-  .transform(value=>({...value,end:value.end||value.start}))
+export const dayPlanSchema=z.object({start:day,end:day.or(z.literal('')).optional(),kind:z.enum(['off','school','half','default']),title:bilingual(60).default(['','']),follows:z.number().int().min(1).max(5).nullable().default(null)})
+  .transform(value=>({...value,end:value.end||value.start,follows:['school','half'].includes(value.kind)?value.follows:null}))
   .refine(value=>value.end>=value.start&&(Date.parse(value.end)-Date.parse(value.start))/86400000<366,'Choose a date range of at most 366 days');
