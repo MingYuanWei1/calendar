@@ -205,3 +205,24 @@ body.detail-closed .workspace{grid-template-columns:180px minmax(0,1fr)}body.edi
 .agenda-day.day-half{border-radius:8px;padding-left:8px;padding-right:8px}
 .legend-half:before{content:'';width:10px;height:10px;border:1px solid #d7ad68;border-radius:2px;background:#fff0d6}
 #day-dialog.day-off{background:#e3f2e7}
+
+/* Phones: the month view is a compact grid — a dot per single-day event and a thin bar per multi-day
+   event — and tapping a date lists that day's events in the day dialog. */
+@media(max-width:760px){
+  .airy .weekdays:not([hidden]),.airy .month-grid:not([hidden]){display:grid!important}
+  .airy .weekdays{padding:8px 0;font-size:10px}
+  .airy .month-grid{grid-template-rows:none}
+  .airy .week{min-height:60px;overflow:visible}
+  .airy .day{position:relative;padding:4px 0 14px}
+  .airy .day-date{justify-content:center;height:24px;padding:0}
+  .airy .day-date .day-number::after{content:"";position:absolute;inset:0;z-index:2}
+  .airy .day-plan-name,.airy .day-date .day-badge{display:none}
+  .airy .day .more{width:6px;height:6px;padding:0;border-radius:50%;background:var(--muted);font-size:0;flex:none;opacity:.6}
+  .airy .day-items{display:flex;flex-wrap:wrap;justify-content:center;gap:3px;padding:3px 4px 0;pointer-events:none}
+  .airy .day-event-slot{display:contents}
+  .airy .day .event{width:6px;height:6px;padding:0;border-radius:50%;background:var(--event-color);font-size:0;flex:none}
+  .airy .day .event>*{display:none}
+  .airy .day .event.cancelled{opacity:.35}
+  .airy .spans{top:auto;bottom:4px;gap:2px 0;pointer-events:none}
+  .airy .span-event{height:4px;padding:0;margin:0 2px;font-size:0;border-radius:2px;background:var(--event-color);pointer-events:none}
+}
