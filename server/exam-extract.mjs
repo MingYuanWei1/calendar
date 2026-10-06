@@ -10,8 +10,9 @@ function connection(config){
  if(!config.token||(!local&&url.protocol!=='https:')||url.username||url.password||url.search||url.hash||url.pathname!=='/')throw new Error('请配置 LLM_WORKER_URL（Worker 域名）和 LLM_WORKER_TOKEN。');
  return url.origin+'/v1';
 }
+// Redirects are never followed: Workers only accept "follow" or "manual", and a 3xx fails the !ok check.
 export async function worker(config,path,body,timeout){
- const response=await fetch(connection(config)+path,{method:body?'POST':'GET',headers:{Authorization:`Bearer ${config.token}`,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),redirect:'error',signal:AbortSignal.timeout(timeout)});
+ const response=await fetch(connection(config)+path,{method:body?'POST':'GET',headers:{Authorization:`Bearer ${config.token}`,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),redirect:'manual',signal:AbortSignal.timeout(timeout)});
  if(!response.ok)throw new Error(`LLM Worker 请求失败（${response.status}），请检查配置或稍后重试。`);
  const reader=response.body.getReader();let bytes=0;const chunks=[];
  while(true){const {done,value}=await reader.read();if(done)break;bytes+=value.length;if(bytes>1024*1024){await reader.cancel();throw new Error('模型返回内容过大，请缩小提取范围。');}chunks.push(value);}
