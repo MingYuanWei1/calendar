@@ -2,6 +2,7 @@ import {installExamMatching} from './exam-matching.mjs';
 import {installStudents} from './students.mjs';
 import {installExamExtract} from './exam-extract.mjs';
 import {extractSeats} from './seat-extract.mjs';
+import {respond} from './llm-stream.mjs';
 import {installSubjects} from './exam-subjects.mjs';
 import express from 'express';
 import {randomUUID} from 'node:crypto';
@@ -93,7 +94,7 @@ export function installExams(app,db,{requireAdmin,isAdmin,user,origin,timeZone,s
   const r=row(req.params.id);if(!r)return res.sendStatus(404);
   if(Number(req.headers['x-draft-version'])!==r.version)return res.status(409).json({error:'草稿已修改，请刷新后重新提取。'});
   if(!Buffer.isBuffer(req.body)||!String(req.headers['x-file-name']||'').toLowerCase().endsWith('.xlsx'))return fail(res,'仅支持 .xlsx 文件。');
-  try{const result=await extractSeats(req.body,JSON.parse(r.draft),llm);res.json({...result,seats:students.organize({...JSON.parse(r.draft),seats:result.seats},false).seats});}catch(error){const message=error.message||'';return fail(res,/^(请|仅|Excel|最多|表格|工作簿|LLM Worker|模型)/.test(message)?message:'无法提取座位表，请检查文件及 LLM Worker 配置后重试。');}
+  await respond(req,res,async progress=>{const result=await extractSeats(req.body,JSON.parse(r.draft),llm,progress);return {...result,seats:students.organize({...JSON.parse(r.draft),seats:result.seats},false).seats};},error=>{const message=error.message||'';return /^(请|仅|Excel|最多|表格|工作簿|LLM Worker|模型)/.test(message)?message:'无法提取座位表，请检查文件及 LLM Worker 配置后重试。';},422);
  });
  app.post('/api/admin/exams/:id/student-preview',requireAdmin,(req,res)=>{
   const r=row(req.params.id);if(conflict(req,res,r))return;

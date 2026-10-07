@@ -11,7 +11,7 @@ import {seatingWorkbook} from '../../server/seat-extract.mjs';
 test('XLSX seat extraction preserves grid context, validates matches and only previews',async()=>{
  const book=new ExcelJS.Workbook(),sheet=book.addWorksheet('101');sheet.mergeCells('A1:C1');sheet.getCell('A1').value='数学 HL / SL 2026-09-21 08:10';sheet.getCell('B3').value='G12A 示例学生';
  const buffer=Buffer.from(await book.xlsx.writeBuffer());
- const layout=JSON.parse(await seatingWorkbook(buffer));assert.deepEqual(layout[0].merges,['A1:C1']);assert.deepEqual(layout[0].cells.map(c=>c.address),['A1','B3']);
+ const layout=(await seatingWorkbook(buffer)).sheets;assert.deepEqual(layout[0].merges,['A1:C1']);assert.deepEqual(layout[0].cells.map(c=>c.address),['A1','B3']);
  await assert.rejects(()=>seatingWorkbook(Buffer.from('not xlsx')),/xlsx/);
  const seat={examId:'hl',room:'101',row:1,column:1,className:'G12A',name:'示例学生',englishName:''};let seats=[seat],enabled=true;const calls=[];
  const gateway=http.createServer(async(req,res)=>{assert.equal(req.headers.authorization,'Bearer test-token');res.setHeader('Content-Type','application/json');if(req.url==='/v1/capabilities')return res.end(JSON.stringify({purposes:{flash:{enabled}}}));let body='';for await(const part of req)body+=part;calls.push(JSON.parse(body));res.end(JSON.stringify({choices:[{message:{content:JSON.stringify({seats,warnings:['请核对学生姓名']})}}]}));});

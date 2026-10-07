@@ -4,6 +4,7 @@ import {subjectName} from './exam-subjects.mjs';
 import {defaultExamSlots} from './exam-times.mjs';
 import {importPreview} from './exam-import-preview.js';
 import {readExamPdf} from './exam-pdf-input.js';
+import {streamApi,reviewView,pagePane,sheetPane} from './ai-review.js';
 
 const view={id:'',tab:'sessions',room:0,exam:'',time:''};
 const divisions=['primary','middle','high'];
@@ -357,54 +358,102 @@ function extractDialog(b){
  api('/admin/exam-extract').then(status=>{if(!status.configured){const el=body.querySelector('[data-error]');el.textContent=T('尚未配置 LLM_WORKER_URL 和 LLM_WORKER_TOKEN，请配置后重启服务。','LLM_WORKER_URL and LLM_WORKER_TOKEN are not configured. Configure them and restart the service.');el.hidden=false;}}).catch(()=>{});
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
   if(!file)fail(T('请选择 PDF 文件。','Choose a PDF file.'));
-  try{
-   const pages=await readExamPdf(file,progress);
-   progress(T('正在提取考试场次…','Extracting sessions…'));
-   const result=await api('/admin/exam-extract',{method:'POST',body:JSON.stringify({...pages,start:b.start,end:b.end})});
-   if(!body.isConnected||!body.closest('dialog').open)return;
-   reviewExtracted(b,result);
-  }finally{progress('');}
+  const pages=await readExamPdf(file,progress).finally(()=>progress(''));
+  closeModal();
+  await extractSessions(b,pages,file.name);
  });
 }
-function reviewExtracted(b,result){
+
+const sessionCard=(s,i)=>`<div class="ai-card" data-pick="${i}" tabindex="0"><span class="ai-card-title">${esc(s.title||s.subject||'—')}${s.level&&!String(s.title||'').includes(s.level)?' · '+esc(s.level):''}</span><span class="muted num">${esc(s.date||'?')} · ${esc(s.start||'?')}–${esc(s.end||'?')} · ${esc((s.grades||[]).join(' / '))} · ${esc((s.rooms||[]).join(' / '))}</span></div>`;
+const closeOnly=review=>{review.actions(`<button type="button" class="btn btn-secondary" data-dismiss>${T('关闭','Close')}</button>`).querySelector('[data-dismiss]').onclick=review.close;};
+/** Streams the PDF to the LLM, showing each session as soon as the model finishes it. */
+async function extractSessions(b,pages,name){
+ const streamed=[];let final=null;
+ const review=reviewView({title:T(`从 PDF 提取考试场次 · ${name}`,`Extract sessions from PDF · ${name}`),sourceOf:i=>(final||{sessions:streamed}).sessions[i]?.source});
+ review.source(pagePane(pages.pages));
+ closeOnly(review);
+ try{
+  const done=await streamApi('/admin/exam-extract',{body:JSON.stringify({images:pages.images,text:pages.text,start:b.start,end:b.end}),signal:review.signal},message=>{
+   review.message(message);
+   if(message.type==='reset')streamed.length=0;
+   if(message.type==='item'&&message.key==='sessions'){streamed.push(message.item);review.append(sessionCard(message.item,streamed.length-1));}
+  });
+  final=done.result;
+  reviewExtracted(b,final,review,{elapsed:done.elapsed});
+ }catch(error){if(error.name!=='AbortError')review.error(error.message);}
+}
+function reviewExtracted(b,result,review,{preset=false,elapsed=null}={}){
  const rows=result.sessions;
  const cell=(i,name,value,attrs='')=>`<input class="input" name="${name}" data-i="${i}" value="${esc(value??'')}" aria-label="${name} ${i+1}" ${attrs}>`;
- const body=modal(T('核对提取结果','Review extracted sessions'),`<p style="font-size:14px">${T(`提取到 ${rows.length} 场考试。请核对日期、时间、学部、年级及教室；取消勾选可跳过某行。`,`Found ${rows.length} sessions. Check dates, times, divisions, grades and rooms; untick a row to skip it.`)}</p>
- ${result.warnings?.length?`<p class="callout">${result.warnings.map(esc).join('<br>')}</p>`:''}
- <div style="overflow:auto;max-height:55vh"><table class="review-table"><thead><tr><th>${T('加入','Add')}</th><th>${T('考试名称','Exam')}</th><th>${T('学科 / Level','Subject / Level')}</th><th>${T('学部 / 年级','Division / grades')}</th><th>${T('日期','Date')}</th><th>${T('开始 / 结束','Start / end')}</th><th>${T('教室（逗号分隔）','Rooms (comma-separated)')}</th></tr></thead><tbody>
- ${rows.map((s,i)=>`<tr data-row="${i}"><td><input type="checkbox" name="include" checked aria-label="${T(`加入第 ${i+1} 场`,`Add row ${i+1}`)}"></td><td>${cell(i,'title',s.title)}</td><td>${cell(i,'subject',s.subject)}${cell(i,'level',s.level)}</td><td><select class="input" name="division" aria-label="division ${i+1}"><option value="">${T('请选择','Choose')}</option>${divisions.map(k=>`<option value="${k}"${s.division===k?' selected':''}>${tx(SCOPES[k])}</option>`).join('')}</select>${cell(i,'grades',s.grades.join(','))}</td><td>${cell(i,'date',s.date,'type="date"')}</td><td>${cell(i,'start',s.start,'type="time"')}${cell(i,'end',s.end,'type="time"')}</td><td>${cell(i,'rooms',s.rooms.join(','))}</td></tr>`).join('')}</tbody></table></div>
- <p class="muted" style="font-size:12px">${T('仅追加选中场次。新教室会以 5 排 × 5 列加入草稿，可在教室设置中调整；不会生成学生座位数据。','Only ticked rows are added. New rooms are added as 5 × 5 and can be adjusted later; no seats are created.')}</p>
- ${actions({saveLabel:T('确认加入草稿','Add to draft')})}`,{size:'wide'});
- body.querySelector('[data-save]').disabled=!rows.length;
- body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
-  const picked=$$('tr[data-row]',body).filter(tr=>tr.querySelector('[name=include]').checked).map(tr=>{
-   const item={...rows[Number(tr.dataset.row)]},get=name=>tr.querySelector(`[name=${name}]`).value.trim();
-   for(const name of ['title','subject','level','division','date','start','end'])item[name]=get(name);
-   for(const name of ['grades','rooms'])item[name]=[...new Set(get(name).split(/[,，]/).map(x=>x.trim()).filter(Boolean))];
-   return item;
-  });
-  if(!picked.length)fail(T('请至少选择一场考试。','Select at least one session.'));
-  const current=batch(),rooms=[...current.rooms];
-  for(const name of new Set(picked.flatMap(s=>s.rooms)))if(!rooms.some(r=>r.name===name))rooms.push({name,rows:5,columns:5});
-  const next={...structuredClone(current),rooms,sessions:[...current.sessions,...picked]};
-  await api('/admin/exam-extract/validate',{method:'POST',body:JSON.stringify(payload(next))});
-  await commit(next,T(`已加入 ${picked.length} 场考试。`,`Added ${picked.length} sessions.`));closeModal();
- });
+ review.results(`<p style="font-size:14px">${T(`提取到 ${rows.length} 场考试。请核对日期、时间、学部、年级及教室；取消勾选可跳过某行。`,`Found ${rows.length} sessions. Check dates, times, divisions, grades and rooms; untick a row to skip it.`)}</p>
+ <div style="overflow:auto"><table class="review-table"><thead><tr><th>${T('加入','Add')}</th><th>${T('考试名称','Exam')}</th><th>${T('学科 / Level','Subject / Level')}</th><th>${T('学部 / 年级','Division / grades')}</th><th>${T('日期','Date')}</th><th>${T('开始 / 结束','Start / end')}</th><th>${T('教室（逗号分隔）','Rooms (comma-separated)')}</th></tr></thead><tbody>
+ ${rows.map((s,i)=>`<tr data-row="${i}" data-pick="${i}"><td><input type="checkbox" name="include" checked aria-label="${T(`加入第 ${i+1} 场`,`Add row ${i+1}`)}"></td><td>${cell(i,'title',s.title)}</td><td>${cell(i,'subject',s.subject)}${cell(i,'level',s.level)}</td><td><select class="input" name="division" aria-label="division ${i+1}"><option value="">${T('请选择','Choose')}</option>${divisions.map(k=>`<option value="${k}"${s.division===k?' selected':''}>${tx(SCOPES[k])}</option>`).join('')}</select>${cell(i,'grades',s.grades.join(','))}</td><td>${cell(i,'date',s.date,'type="date"')}</td><td>${cell(i,'start',s.start,'type="time"')}${cell(i,'end',s.end,'type="time"')}</td><td>${cell(i,'rooms',s.rooms.join(','))}</td></tr>`).join('')}</tbody></table></div>
+ <p class="muted" style="font-size:12px">${T('仅追加选中场次。新教室会以 5 排 × 5 列加入草稿，可在教室设置中调整；不会生成学生座位数据。','Only ticked rows are added. New rooms are added as 5 × 5 and can be adjusted later; no seats are created.')}</p>`,{notes:result.warnings||[],elapsed,preset,total:rows.length});
+ const bar=review.actions(`<button type="button" class="btn btn-secondary" data-dismiss>${T('返回','Go back')}</button><button type="button" class="btn btn-primary" data-save${rows.length?'':' disabled'}>${T('确认加入草稿','Add to draft')}</button>`);
+ bar.querySelector('[data-dismiss]').onclick=review.close;
+ const save=bar.querySelector('[data-save]');
+ save.onclick=async()=>{
+  save.disabled=true;review.alert('');
+  try{
+   const picked=$$('tr[data-row]',review.body).filter(tr=>tr.querySelector('[name=include]').checked).map(tr=>{
+    const {source,...item}=rows[Number(tr.dataset.row)],get=name=>tr.querySelector(`[name=${name}]`).value.trim();
+    for(const name of ['title','subject','level','division','date','start','end'])item[name]=get(name);
+    for(const name of ['grades','rooms'])item[name]=[...new Set(get(name).split(/[,，]/).map(x=>x.trim()).filter(Boolean))];
+    return item;
+   });
+   if(!picked.length)fail(T('请至少选择一场考试。','Select at least one session.'));
+   const current=batch(),rooms=[...current.rooms];
+   for(const name of new Set(picked.flatMap(s=>s.rooms)))if(!rooms.some(r=>r.name===name))rooms.push({name,rows:5,columns:5});
+   const next={...structuredClone(current),rooms,sessions:[...current.sessions,...picked]};
+   await api('/admin/exam-extract/validate',{method:'POST',body:JSON.stringify(payload(next))});
+   await commit(next,T(`已加入 ${picked.length} 场考试。`,`Added ${picked.length} sessions.`));review.close();
+  }catch(error){review.alert(error.message);save.disabled=false;}
+ };
 }
 
 async function importSeats(file,llm){
  const b=batch();if(!file)return;
  if(!/\.xlsx$/i.test(file.name))return toast(T('仅支持 .xlsx 文件。','Only .xlsx files are supported.'),{bad:true});
  if(file.size>2*1024*1024)return toast(T('Excel 文件最大 2 MB。','Excel files must be at most 2 MB.'),{bad:true});
- if(llm)toast(T('正在提取座位表…','Extracting seats…'));
+ if(llm)return extractSeats(b,file);
  try{
-  const result=await api(`/admin/exams/${encodeURIComponent(b.id)}/${llm?'seat-extract':'import-preview'}`,{method:'POST',body:file,headers:{'Content-Type':'application/octet-stream','X-File-Name':encodeURIComponent(file.name),'X-Draft-Version':String(b.version)}});
+  const result=await api(`/admin/exams/${encodeURIComponent(b.id)}/import-preview`,{method:'POST',body:file,headers:{'Content-Type':'application/octet-stream','X-File-Name':encodeURIComponent(file.name),'X-Draft-Version':String(b.version)}});
   $('#toast').hidden=true;
-  $('#close-preview').setAttribute('aria-label',T('关闭','Close'));
-  importPreview(result,{title:llm?T('LLM 座位表提取预览','LLM seat extraction preview'):T('Excel 导入预览','Excel import preview'),batch:b,accept:seats=>{
-   if(batch().version!==b.version)throw new Error(T('草稿已修改，请重新导入。','The draft changed; import again.'));
-   $('#preview-dialog').close();
-   update(next=>next.seats=seats,T(`已导入 ${seats.length} 个座位到草稿。`,`Imported ${seats.length} seats into the draft.`)).catch(error=>toast(error.message,{bad:true}));
-  }});
+  seatPreview(b,result,T('Excel 导入预览','Excel import preview'));
  }catch(error){toast(error.message,{bad:true});}
+}
+const examName=(b,id)=>{const exam=b.sessions.find(s=>s.id===id);return exam?sName(exam):id;};
+const seatLine=(b,s,i)=>`<div class="seat-line" data-pick="${i}" tabindex="0"><span class="num">${esc(s.room)} · ${T(`第 ${s.row} 排 ${s.column} 列`,`Row ${s.row} · Col ${s.column}`)}</span><span>${esc([s.className,s.name,s.englishName].filter(Boolean).join(' '))}</span><span class="muted">${esc(examName(b,s.examId))}</span></div>`;
+/** Streams the workbook to the LLM; the grid appears on the left and seats fill in on the right. */
+async function extractSeats(b,file){
+ const streamed=[];let final=null;
+ const review=reviewView({title:T(`LLM 提取座位表 · ${file.name}`,`Extract seating with LLM · ${file.name}`),sourceOf:i=>(final||{seats:streamed}).seats[i]?.source});
+ closeOnly(review);
+ try{
+  const done=await streamApi(`/admin/exams/${encodeURIComponent(b.id)}/seat-extract`,{body:file,signal:review.signal,headers:{'Content-Type':'application/octet-stream','X-File-Name':encodeURIComponent(file.name),'X-Draft-Version':String(b.version)}},message=>{
+   review.message(message);
+   if(message.type==='source')review.source(sheetPane(message.sheets));
+   if(message.type==='reset')streamed.length=0;
+   if(message.type==='item'&&message.key==='seats'){streamed.push(message.item);review.append(seatLine(b,message.item,streamed.length-1));}
+  });
+  final=done.result;
+  seatResults(b,final,review,{elapsed:done.elapsed});
+ }catch(error){if(error.name!=='AbortError')review.error(error.message);}
+}
+function seatResults(b,result,review,{elapsed=null,preset=false}={}){
+ const groups=new Map();
+ result.seats.forEach((seat,i)=>{const key=`${seat.examId}\u0000${seat.room}`;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(i);});
+ review.results([...groups.values()].map(indexes=>{const first=result.seats[indexes[0]];return `<div class="seat-group"><h4>${esc(examName(b,first.examId))} · ${esc(first.room)} <span class="muted num" style="font-size:13px">${T(`${indexes.length} 座`,`${indexes.length} seats`)}</span></h4>${indexes.map(i=>seatLine(b,result.seats[i],i)).join('')}</div>`;}).join('')||`<p class="muted">${T('未识别到座位。','No seats found.')}</p>`,
+  {notes:[...(result.warnings||[]),...(result.errors||[])],elapsed,preset,total:result.seats.length});
+ const bar=review.actions(`<button type="button" class="btn btn-secondary" data-dismiss>${T('返回','Go back')}</button><button type="button" class="btn btn-primary" data-next${result.seats.length?'':' disabled'}>${T('下一步：核对身份并导入','Next: check identities and import')}</button>`);
+ bar.querySelector('[data-dismiss]').onclick=review.close;
+ bar.querySelector('[data-next]').onclick=()=>{review.close();seatPreview(batch(),result,T('LLM 座位表提取预览','LLM seat extraction preview'));};
+}
+function seatPreview(b,result,title){
+ $('#close-preview').setAttribute('aria-label',T('关闭','Close'));
+ importPreview(result,{title,batch:b,accept:seats=>{
+  if(batch().version!==b.version)throw new Error(T('草稿已修改，请重新导入。','The draft changed; import again.'));
+  $('#preview-dialog').close();
+  update(next=>next.seats=seats,T(`已导入 ${seats.length} 个座位到草稿。`,`Imported ${seats.length} seats into the draft.`)).catch(error=>toast(error.message,{bad:true}));
+ }});
 }
