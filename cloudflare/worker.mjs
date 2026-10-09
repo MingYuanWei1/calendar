@@ -57,7 +57,7 @@ export class SchoolCalendar extends DurableObject {
     };
     this.application=createApi({db,media,origin:env.APP_ORIGIN,timeZone:env.SCHOOL_TIMEZONE||'Asia/Shanghai',
       sso:{tenantId:env.MICROSOFT_TENANT_ID||'',clientId:env.MICROSOFT_CLIENT_ID||'',clientSecret:env.MICROSOFT_CLIENT_SECRET||'',loginUrl:env.MICROSOFT_LOGIN_URL||''},
-      llm:{url:env.LLM_WORKER_URL||'',token:env.LLM_WORKER_TOKEN||''}});
+      llm:{url:env.LLM_WORKER_URL||'',token:env.LLM_WORKER_TOKEN||'',dailyLimit:Number(env.LLM_DAILY_LIMIT||1500)}});
   }
   async handle(request){
     return applications.run({app:this.application.app,address:clientAddress(request,this.env)},()=>handleAsNodeRequest(8080,request));

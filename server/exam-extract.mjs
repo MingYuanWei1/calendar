@@ -18,7 +18,7 @@ export const extractionInstruction=(start,end,catalog)=>`Extract exam sessions f
 - For other courses explicitly marked non-dp (case-insensitive, including non dp/non-DP), use the parent subject and number by grade: G10 => Course 1, G11 => Course 2, G12 => Course 3 (e.g. Physics non-dp G11 => subject 物理, subjectEn Physics, title and level Physics 2). Do not retain non-dp as its own subject or level. Missing/ambiguous grade requires warning, never guess. This rule applies to every other subject and takes priority over DP track naming.
 Preserve grade, date, times and rooms independently of naming. Never change a grade to make a course fit a naming rule. Preserve each course's original grade, date, time and rooms. Batch date range ${start} to ${end}; dates must be supported by source and context. Subject catalog: ${JSON.stringify(catalog)}. Extract only exams, never student seating or personal names. Each session also has source {page (1-based PDF page it came from), quote (the shortest verbatim text copied exactly from that page that identifies this session, at most 80 characters, e.g. the course cell text)}. Output sessions in the order they appear in the source.`;
 const extractionFailure=error=>error.name==='TimeoutError'?'提取超时，请缩小材料范围后重试。':error instanceof z.ZodError||error instanceof SyntaxError?'模型返回格式不正确，请重试。':/^(LLM Worker|请配置|模型)/.test(error.message||'')?error.message:'无法连接 LLM Worker，请检查环境配置或稍后重试。';
-export function installExamExtract(app,requireAdmin,config,subjects){
+export function installExamExtract(app,requireAdmin,config,subjects,quota){
  app.get('/api/admin/exam-extract',requireAdmin,(req,res)=>{try{connection(config);res.json({configured:true});}catch{res.json({configured:false});}});
  app.post('/api/admin/exam-extract/validate',requireAdmin,(req,res)=>{
   const parsed=batchSchema.safeParse(req.body);
@@ -30,6 +30,7 @@ export function installExamExtract(app,requireAdmin,config,subjects){
   if(!input.success)return res.status(422).json({error:'请上传有效的考试 PDF（最多 10 页）并填写批次日期。'});
   const {text,images,start,end}=input.data;
   if(images.reduce((n,s)=>n+s.length,0)>14000000)return res.status(422).json({error:'PDF 页面内容过大，请拆分后上传。'});
+  const refused=quota.take(req,'extract');if(refused)return res.status(429).json(refused);
   await respond(req,res,async progress=>{
    connection(config);
    progress.stage('connecting');

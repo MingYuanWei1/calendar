@@ -8,13 +8,13 @@ import express from 'express';
 import {randomUUID} from 'node:crypto';
 import {batchSchema,seatErrors,schedule,scheduleKey} from './exam-model.mjs';
 import {seatTemplate,parseSeats,makeSchedulePdf} from './exam-files.mjs';
-export function installExams(app,db,{requireAdmin,isAdmin,user,origin,timeZone,sso={},llm={}}){
+export function installExams(app,db,{requireAdmin,isAdmin,user,origin,timeZone,quota,sso={},llm={}}){
  db.exec(`CREATE TABLE IF NOT EXISTS exam_batches(id TEXT PRIMARY KEY,version INTEGER NOT NULL,draft TEXT NOT NULL,published TEXT,seating TEXT);
  CREATE TABLE IF NOT EXISTS exam_choices(user_id TEXT NOT NULL,batch_id TEXT NOT NULL,exam_id TEXT NOT NULL,PRIMARY KEY(user_id,batch_id,exam_id));`);
  const students=installStudents(app,db,requireAdmin);
  const matching=installExamMatching(app,db,{user,students});
  const subjects=installSubjects(app,db,requireAdmin);
- installExamExtract(app,requireAdmin,llm,subjects.list);
+ installExamExtract(app,requireAdmin,llm,subjects.list,quota);
  for(const r of db.prepare('SELECT draft FROM exam_batches').all())subjects.register(JSON.parse(r.draft).sessions);
  const signedIn=(req,res,next)=>{if(!user(req)&&!isAdmin(req))return res.status(401).json({error:'请使用学校 Microsoft 账号登录后查看。'});next();};
  const row=id=>db.prepare('SELECT * FROM exam_batches WHERE id=?').get(id);
@@ -94,6 +94,7 @@ export function installExams(app,db,{requireAdmin,isAdmin,user,origin,timeZone,s
   const r=row(req.params.id);if(!r)return res.sendStatus(404);
   if(Number(req.headers['x-draft-version'])!==r.version)return res.status(409).json({error:'草稿已修改，请刷新后重新提取。'});
   if(!Buffer.isBuffer(req.body)||!String(req.headers['x-file-name']||'').toLowerCase().endsWith('.xlsx'))return fail(res,'仅支持 .xlsx 文件。');
+  const refused=quota.take(req,'extract');if(refused)return res.status(429).json(refused);
   await respond(req,res,async progress=>{const result=await extractSeats(req.body,JSON.parse(r.draft),llm,progress);return {...result,seats:students.organize({...JSON.parse(r.draft),seats:result.seats},false).seats};},error=>{const message=error.message||'';return /^(请|仅|Excel|最多|表格|工作簿|LLM Worker|模型)/.test(message)?message:'无法提取座位表，请检查文件及 LLM Worker 配置后重试。';},422);
  });
  app.post('/api/admin/exams/:id/student-preview',requireAdmin,(req,res)=>{
