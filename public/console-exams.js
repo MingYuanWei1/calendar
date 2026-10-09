@@ -349,11 +349,18 @@ function extractDialog(b){
  let file=null;
  const body=modal(T('LLM 提取考试场次','Extract sessions with LLM'),`<label class="dropzone tall" data-drop><span data-file>${T('拖入考试日程表 PDF，或点击选择','Drop the exam timetable PDF, or click to choose')}</span><input type="file" accept=".pdf,application/pdf" aria-label="PDF"></label>
  <p class="muted" style="font-size:13px;line-height:1.7">${T('支持普通及扫描版 PDF（最多 20 MB、10 页）。页面内容将发送到配置的 LLM Worker，提取后可核对修改，不会自动保存或发布。','Text or scanned PDFs (up to 20 MB, 10 pages). Pages go to the configured LLM Worker; you review results before adding. Nothing is saved or published automatically.')}</p>
+ <p class="muted" data-rules style="font-size:12px" hidden></p>
  <p class="alert" data-progress hidden></p>${actions({saveLabel:T('开始提取','Extract')})}`,{size:'medium'});
  const zone=body.querySelector('[data-drop]'),choose=f=>{file=f||null;body.querySelector('[data-file]').textContent=file?file.name:T('拖入考试日程表 PDF，或点击选择','Drop the exam timetable PDF, or click to choose');};
  zone.querySelector('input').onchange=e=>choose(e.target.files[0]);
  zone.ondragover=e=>{e.preventDefault();zone.classList.add('over');};zone.ondragleave=()=>zone.classList.remove('over');
  zone.ondrop=e=>{e.preventDefault();zone.classList.remove('over');choose(e.dataTransfer.files[0]);};
+ // Course naming follows the school rules chosen in Settings.
+ api('/admin/school-rules').then(rules=>{
+  const el=body.querySelector('[data-rules]');
+  el.innerHTML=`${T('课程命名按学校规则：','Course names follow the school rules: ')}<strong>${esc(tx(rules.templates[rules.template].name))}</strong> <button type="button" class="btn btn-ghost" style="font-size:12px;padding:2px 4px" data-rules-edit>${T('修改','Change')}</button>`;
+  el.hidden=false;el.querySelector('[data-rules-edit]').onclick=()=>{closeModal();go('settings');};
+ }).catch(()=>{});
  const progress=message=>{const el=body.querySelector('[data-progress]');el.textContent=message;el.hidden=!message;};
  api('/admin/exam-extract').then(status=>{if(!status.configured){const el=body.querySelector('[data-error]');el.textContent=T('尚未配置 LLM_WORKER_URL 和 LLM_WORKER_TOKEN，请配置后重启服务。','LLM_WORKER_URL and LLM_WORKER_TOKEN are not configured. Configure them and restart the service.');el.hidden=false;}}).catch(()=>{});
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{

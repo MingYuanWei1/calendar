@@ -4,6 +4,7 @@ import {installExamExtract} from './exam-extract.mjs';
 import {extractSeats} from './seat-extract.mjs';
 import {respond} from './llm-stream.mjs';
 import {installSubjects} from './exam-subjects.mjs';
+import {installSchoolRules} from './school-rules.mjs';
 import express from 'express';
 import {randomUUID} from 'node:crypto';
 import {batchSchema,seatErrors,schedule,scheduleKey} from './exam-model.mjs';
@@ -14,7 +15,8 @@ export function installExams(app,db,{requireAdmin,isAdmin,user,origin,timeZone,q
  const students=installStudents(app,db,requireAdmin);
  const matching=installExamMatching(app,db,{user,students});
  const subjects=installSubjects(app,db,requireAdmin);
- installExamExtract(app,requireAdmin,llm,subjects.list,quota);
+ const schoolRules=installSchoolRules(app,db,{requireAdmin,subjects});
+ installExamExtract(app,requireAdmin,llm,subjects.list,quota,schoolRules);
  for(const r of db.prepare('SELECT draft FROM exam_batches').all())subjects.register(JSON.parse(r.draft).sessions);
  const signedIn=(req,res,next)=>{if(!user(req)&&!isAdmin(req))return res.status(401).json({error:'请使用学校 Microsoft 账号登录后查看。'});next();};
  const row=id=>db.prepare('SELECT * FROM exam_batches WHERE id=?').get(id);

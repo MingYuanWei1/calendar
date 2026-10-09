@@ -24,48 +24,51 @@ export function subjectColors(sessions,subjects){
  return exam=>{const hue=colors.get(subjectName(exam,subjects));return `--exam-bg:hsl(${hue} 55% 95%);--exam-border:hsl(${hue} 27% 50%);--exam-line:hsl(${hue} 30% 82%);--exam-selected:hsl(${hue} 48% 88%);--exam-ink:hsl(${hue} 36% 32%)`;};
 }
 
-// Course numbers belong to a subject, never to the subject catalog itself.
-export function normalizeCourse(exam,subjects=presetSubjects){
+// Course numbers belong to a subject, never to the subject catalog itself. The IB curriculum (the
+// "ib" school rules template) also fixes its own course names; other schools keep only the generic rule.
+export function normalizeCourse(exam,subjects=presetSubjects,curriculum='ib'){
  const clean=value=>(value||'').trim().replace(/^\[[^\]]*\]\s*/,'');
  const raw=[exam.title,exam.titleEn,exam.subject,exam.subjectEn,exam.level].filter(Boolean).join(' ').replace(/[_–—]/g,'-');
  const grade=(exam.grades||[]).length===1?exam.grades[0]:'';
  const named=(name,english,level,title)=>({...exam,subject:name,subjectEn:english,level,title,titleEn:title});
- const chineseNonDPLevel={G11:'Advanced',G12:'Extended'}[grade];
- if(chineseNonDPLevel&&(/(?:语文|中文)\s*Non[ -]?DP|\bChinese\s+Non[ -]?DP\b/i.test(raw)||(/\bChinese\s+Language\s*(?:and|&)\s*Literature\b/i.test(raw)&&new RegExp(`\\b${chineseNonDPLevel}\\b`,'i').test(raw)))){
-  return {...named('中文 Non-DP','Chinese Non-DP',chineseNonDPLevel,'中文 Non-DP'),titleEn:'Chinese Non-DP'};
- }
- if(/\bnon[ -]?dp\b/i.test(raw)){
-  const number={G10:1,G11:2,G12:3}[grade];
-  const parent=subjects.find(s=>[s.english,s.name].filter(Boolean).some(label=>raw.toLowerCase().includes(label.toLowerCase())));
-  if(number&&parent)return named(parent.name,parent.english,`${parent.english||parent.name} ${number}`,`${parent.english||parent.name} ${number}`);
-  return exam;
- }
- if(grade==='G10'){
-  if(/\bChinese\s+B\b/i.test(raw)||/中文\s*B\b/i.test(raw))return named('中文','Chinese','Chinese B','Chinese B');
-  const comprehensive=raw.match(/\b(Advanced|Intermediate|Standard)\s+Comprehensive\s+English\b/i);
-  const abbreviation=raw.match(/\b(ACE|ICE|SCE)\b/i);
-  if(comprehensive||abbreviation){const level=comprehensive?({advanced:'ACE',intermediate:'ICE',standard:'SCE'}[comprehensive[1].toLowerCase()]):abbreviation[1].toUpperCase();return named('英语','English',level,level);}
-  if(/\bChinese\s+Language\s*(?:and|&)\s*Literature\b/i.test(raw)){
-   const level=/\bBasic\b/i.test(raw)?'Basic':'Honor';return named('中文','Chinese',level,`Chinese Language and Literature ${level}`);
+ if(curriculum==='ib'){
+  const chineseNonDPLevel={G11:'Advanced',G12:'Extended'}[grade];
+  if(chineseNonDPLevel&&(/(?:语文|中文)\s*Non[ -]?DP|\bChinese\s+Non[ -]?DP\b/i.test(raw)||(/\bChinese\s+Language\s*(?:and|&)\s*Literature\b/i.test(raw)&&new RegExp(`\\b${chineseNonDPLevel}\\b`,'i').test(raw)))){
+   return {...named('中文 Non-DP','Chinese Non-DP',chineseNonDPLevel,'中文 Non-DP'),titleEn:'Chinese Non-DP'};
   }
-  if(/\bPre[ -]?Calculus\b/i.test(raw)){
-   const level=raw.match(/\b(Basic|Core|Advanced)\b/i)?.[1];
-   if(level){const canonical=level[0].toUpperCase()+level.slice(1).toLowerCase();return named('数学','Mathematics',canonical,`Mathematics ${canonical}`);}
-   return {...exam,subject:'数学',subjectEn:'Mathematics'};
+  if(/\bnon[ -]?dp\b/i.test(raw)){
+   const number={G10:1,G11:2,G12:3}[grade];
+   const parent=subjects.find(s=>[s.english,s.name].filter(Boolean).some(label=>raw.toLowerCase().includes(label.toLowerCase())));
+   if(number&&parent)return named(parent.name,parent.english,`${parent.english||parent.name} ${number}`,`${parent.english||parent.name} ${number}`);
+   return exam;
   }
- }
- if(['G11','G12'].includes(grade)&&(/数学|\b(?:Maths?|Mathematics)\b/i.test(raw)||/^(?:AA|AI)(?:\s*经管)?(?:\s+(?:HL|SL))?$/i.test(clean(exam.title)))){
-  const track=/\bAI\s*经管/i.test(raw)?'AI经管':raw.match(/\b(AA|AI)\b/i)?.[1].toUpperCase();
-  if(track){const hlSl=raw.match(/\b(HL|SL)\b/i)?.[1].toUpperCase();const level=[track,hlSl].filter(Boolean).join(' ');return named('数学','Mathematics',level,`Mathematics ${level}`);}
- }
- const language=raw.match(/\b(Chinese|English)\s+(ab\s+initio|A|B)\b/i);
- if(language){
-  const chinese=language[1].toLowerCase()==='chinese',track=/ab/i.test(language[2])?'ab initio':language[2].toUpperCase();
-  if(!chinese&&track==='ab initio')return exam;
-  const english=`${chinese?'Chinese':'English'} ${track}`,name=`${chinese?'中文':'英语'} ${track}`;
-  const hlSl=raw.match(/\b(HL|SL)\b/i)?.[1].toUpperCase()||'';
-  const direction=chinese&&track==='A'?(/Language\s*(?:and|&)\s*Literature/i.test(raw)?'Language & Literature':/\bLiterature\b/i.test(raw)?'Literature':''):'';
-  return named(name,english,[direction,hlSl].filter(Boolean).join(' '),[english,direction,hlSl].filter(Boolean).join(' '));
+  if(grade==='G10'){
+   if(/\bChinese\s+B\b/i.test(raw)||/中文\s*B\b/i.test(raw))return named('中文','Chinese','Chinese B','Chinese B');
+   const comprehensive=raw.match(/\b(Advanced|Intermediate|Standard)\s+Comprehensive\s+English\b/i);
+   const abbreviation=raw.match(/\b(ACE|ICE|SCE)\b/i);
+   if(comprehensive||abbreviation){const level=comprehensive?({advanced:'ACE',intermediate:'ICE',standard:'SCE'}[comprehensive[1].toLowerCase()]):abbreviation[1].toUpperCase();return named('英语','English',level,level);}
+   if(/\bChinese\s+Language\s*(?:and|&)\s*Literature\b/i.test(raw)){
+    const level=/\bBasic\b/i.test(raw)?'Basic':'Honor';return named('中文','Chinese',level,`Chinese Language and Literature ${level}`);
+   }
+   if(/\bPre[ -]?Calculus\b/i.test(raw)){
+    const level=raw.match(/\b(Basic|Core|Advanced)\b/i)?.[1];
+    if(level){const canonical=level[0].toUpperCase()+level.slice(1).toLowerCase();return named('数学','Mathematics',canonical,`Mathematics ${canonical}`);}
+    return {...exam,subject:'数学',subjectEn:'Mathematics'};
+   }
+  }
+  if(['G11','G12'].includes(grade)&&(/数学|\b(?:Maths?|Mathematics)\b/i.test(raw)||/^(?:AA|AI)(?:\s*经管)?(?:\s+(?:HL|SL))?$/i.test(clean(exam.title)))){
+   const track=/\bAI\s*经管/i.test(raw)?'AI经管':raw.match(/\b(AA|AI)\b/i)?.[1].toUpperCase();
+   if(track){const hlSl=raw.match(/\b(HL|SL)\b/i)?.[1].toUpperCase();const level=[track,hlSl].filter(Boolean).join(' ');return named('数学','Mathematics',level,`Mathematics ${level}`);}
+  }
+  const language=raw.match(/\b(Chinese|English)\s+(ab\s+initio|A|B)\b/i);
+  if(language){
+   const chinese=language[1].toLowerCase()==='chinese',track=/ab/i.test(language[2])?'ab initio':language[2].toUpperCase();
+   if(!chinese&&track==='ab initio')return exam;
+   const english=`${chinese?'Chinese':'English'} ${track}`,name=`${chinese?'中文':'英语'} ${track}`;
+   const hlSl=raw.match(/\b(HL|SL)\b/i)?.[1].toUpperCase()||'';
+   const direction=chinese&&track==='A'?(/Language\s*(?:and|&)\s*Literature/i.test(raw)?'Language & Literature':/\bLiterature\b/i.test(raw)?'Literature':''):'';
+   return named(name,english,[direction,hlSl].filter(Boolean).join(' '),[english,direction,hlSl].filter(Boolean).join(' '));
+  }
  }
  const candidates=[clean(exam.title),clean(exam.titleEn),clean(exam.subject)];
  let match,number;
