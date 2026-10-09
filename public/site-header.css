@@ -3,7 +3,7 @@
 /* Brand mark, matching the keydion site header style. */
 #site-header .brand{display:inline-flex;align-items:center;gap:11px;font-family:Georgia,"Times New Roman","Noto Serif SC",serif;font-weight:700;color:#1a1a1a;text-decoration:none;flex-shrink:0}
 #site-header .brand img{display:block;width:38px;height:38px;border-radius:8px;box-shadow:0 8px 22px rgba(20,33,61,.18)}
-#site-header .brand span{font-size:20px;line-height:1}
+#site-header .brand span{font-size:20px;line-height:1;white-space:nowrap}
 #site-header .header-actions{grid-column:4;grid-row:1;display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:0;margin:0;width:auto}
 #site-header .calendar-toolbar{grid-column:3;grid-row:1;display:flex;align-items:center;gap:12px;min-width:0;min-height:0;padding:0;margin:0;flex-wrap:nowrap}
 #site-header .section-nav{grid-column:2;grid-row:1;display:flex;align-items:center;gap:18px;flex-shrink:0;white-space:nowrap}
@@ -77,3 +77,30 @@ body.admin-mode #site-header .search,body.admin-mode #site-header #admin-entry{d
 }
 @media(min-width:1500px){:root{--rail:196px;--rail-gap:22px}}
 @media(min-width:761px) and (max-width:1100px){:root{--rail:145px;--rail-gap:12px;--rail-pad:14px}}
+
+/* 日历订阅: header buttons, the exams menu and the subscribe dialog. */
+#site-header .subscribe{position:relative;display:flex;gap:6px}
+#site-header .subscribe-button{display:inline-flex;align-items:center;gap:5px;background:transparent;color:var(--text);cursor:pointer}
+#site-header .subscribe-button:hover{background:var(--soft)}
+#site-header .subscribe-button svg{flex:none;color:var(--accent)}
+#site-header .subscribe-menu{width:250px}
+#site-header .subscribe-menu small{margin:2px 0 0;padding:0;font-size:12px}
+#site-header .subscribe-menu strong{padding:0;font-weight:600}
+@media(max-width:760px){#site-header .subscribe-menu{right:auto;left:0}}
+#subscribe-dialog{width:min(520px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;padding:20px 22px;border:1px solid var(--line);border-radius:14px;background:var(--surface,#fff);color:var(--text);box-shadow:0 18px 48px #24374633;font-family:"Avenir Next","PingFang SC",Arial,sans-serif;font-size:14px;line-height:1.6}
+#subscribe-dialog::backdrop{background:#1a222b66}
+#subscribe-dialog .subscribe-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0}
+#subscribe-dialog h2{margin:0;font-size:18px}
+#subscribe-dialog .subscribe-head button{border:0;background:transparent;font-size:24px;line-height:1;cursor:pointer;color:var(--muted)}
+#subscribe-dialog p{margin:10px 0}
+#subscribe-dialog .subscribe-url{display:flex;gap:8px;margin:14px 0 10px}
+#subscribe-dialog .subscribe-url input{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:12px ui-monospace,Menlo,monospace;background:var(--soft);color:var(--text)}
+#subscribe-dialog button,#subscribe-dialog .subscribe-actions a{padding:8px 14px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--text);font:inherit;font-size:13px;text-decoration:none;cursor:pointer;white-space:nowrap}
+#subscribe-dialog .subscribe-actions{display:flex;gap:8px;flex-wrap:wrap}
+#subscribe-dialog .subscribe-actions a.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+#subscribe-dialog .subscribe-warning{padding:10px 12px;border-radius:8px;background:#fff6e6;color:#7a4b00;font-size:13px}
+#subscribe-dialog .subscribe-warning button{padding:0;border:0;color:inherit;text-decoration:underline;font-size:inherit}
+#subscribe-dialog details{margin-top:14px;font-size:13px;color:var(--muted)}
+#subscribe-dialog summary{cursor:pointer;color:var(--accent)}
+#subscribe-dialog ul{margin:8px 0;padding-left:18px}
+@media(min-width:761px) and (max-width:860px){#site-header .subscribe-button span:not([aria-hidden]){display:none}#site-header .subscribe-button{padding:6px}}

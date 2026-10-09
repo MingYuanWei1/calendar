@@ -67,5 +67,6 @@ export function installExamMatching(app,db,{user,students}){
   if(ctx?.valid)for(const id of ids)if(!previous.includes(id)){state.observed[id]=ctx.seating?(ctx.personal[id]||null):{unavailable:true};if(ctx.personal[id])state.known[id]=ctx.personal[id];}
   save(u.id,bid,state);
  }
- return {selected,personal:(u,bid)=>u?context(u,bid)?.personal||{}:{}};
+ // prepare: brings the student's state up to date (and first fills "my exams") without a page visit, e.g. for a calendar feed.
+ return {selected,personal:(u,bid)=>u?context(u,bid)?.personal||{}:{},prepare:(u,bid)=>db.transactionSync(()=>synchronize(u,bid))};
 }

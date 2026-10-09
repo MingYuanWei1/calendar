@@ -95,5 +95,7 @@ export function installSchoolAuth(app,db,{origin,tenantId='',clientId='',clientS
  const clearSession=(req,res)=>{if(localPreview(req))res.cookie('school_preview_out','1',cookie);db.prepare('DELETE FROM school_sessions WHERE token=?').run(digest(readCookie(req,'school_session')));res.clearCookie('school_session',cookie);};
  const logout=(req,res)=>{clearSession(req,res);res.status(204).end();};
  app.post('/api/school/logout',logout);
- return {user,logout,clearSession,requireSignedOut};
+ /** The signed-in shape of an enabled account, for requests that carry no session such as calendar feeds. */
+ const account=id=>{const row=db.prepare('SELECT a.id,a.subject,a.name,a.role,a.disabled,e.email FROM accounts a LEFT JOIN school_identity_emails e ON e.user_id=a.id WHERE a.id=?').get(id);if(!row||row.disabled)return null;return {id:row.id,name:row.name,role:row.role,email:row.email||(preview&&row.subject==='local-preview-student'?previewEmail:'')};};
+ return {user,account,logout,clearSession,requireSignedOut};
 }

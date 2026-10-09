@@ -106,4 +106,5 @@ export function installExams(app,db,{requireAdmin,isAdmin,user,origin,timeZone,q
   const r=row(req.params.id);if(!r)return res.sendStatus(404);if(!Buffer.isBuffer(req.body))return fail(res,'请上传 Excel 文件。');
   try{const result=await parseSeats(req.body,JSON.parse(r.draft));res.json({...result,seats:students.organize({...JSON.parse(r.draft),seats:result.seats},false).seats});}catch(error){return fail(res,error.message||'无法读取 Excel 文件。');}
  });
+ return {matching};
 }

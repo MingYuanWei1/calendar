@@ -62,6 +62,13 @@ function renderFilters(){
 function bindEvents(root){root.querySelectorAll('[data-event]').forEach(b=>b.onclick=()=>selectEvent(b.dataset.event));}
 function syncDetailMode(){const modal=mobileQuery.matches&&document.body.classList.contains('mobile-detail');$$('.app-header,.school-tabs,.sidebar,.main-calendar').forEach(el=>el.inert=modal);if(modal){$('#details').setAttribute('role','dialog');$('#details').setAttribute('aria-modal','true');}else{$('#details').removeAttribute('role');$('#details').removeAttribute('aria-modal');}}
 function selectEvent(id){detailReturnDay=$('#day-dialog').open?$('#day-dialog').dataset.date:null;detailScrollY=window.scrollY;state.selected=id;document.body.classList.remove('detail-closed');document.body.classList.add('mobile-detail');$('#day-dialog').close();renderCalendar();renderDetail();syncDetailMode();if(mobileQuery.matches)$('#close-detail')?.focus();}
+// Shows an event's month and opens its details; used by ?event= links from calendar subscriptions.
+function calendarFocus(id){
+  const event=events.find(e=>e.id===id);if(!event)return false;
+  resetFilters();const [year,month]=event.start.split('-').map(Number);state.year=year;state.month=month-1;
+  render();selectEvent(id);return true;
+}
+window.calendarFocus=calendarFocus;
 function renderCalendar(){
   $('#agenda-search').hidden=state.view!=='list';
   document.body.classList.toggle('week-mode',state.view==='week');

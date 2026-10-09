@@ -30,5 +30,8 @@ async function startCalendar(){
     settings=await api('/config');
     const current=schoolToday().split('-').map(Number);state.year=current[0];state.month=current[1]-1;
     await loadEvents();render();setLoadMessage('');
+    // Links from subscribed calendars open the event: /?event=<id>.
+    const focus=new URLSearchParams(location.search).get('event');
+    if(focus&&calendarFocus(focus))history.replaceState(null,'',location.pathname);
   }catch(error){setLoadMessage('校历暂时无法加载，请点击重试。',true);$('#retry-load').hidden=false;}
 }
