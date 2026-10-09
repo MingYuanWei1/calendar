@@ -152,3 +152,10 @@
 .pdf-vector-export .exam-card label{display:block}
 
 .seat.my-seat{outline:3px solid #236346;outline-offset:-3px;background:#e1f4e7;color:#153d2b}.seat.my-seat>small:first-child{font-weight:700}.student-changes{padding-left:1.3rem}.student-changes li{margin:1rem 0}.sync-options{display:flex;gap:.6rem;flex-wrap:wrap}.import-exams-list{display:grid;gap:.8rem;margin:1rem 0}.import-exams-list label{display:flex;gap:.6rem;align-items:flex-start}
+
+/* Related-exam and seating notices float as a card instead of blocking the page. */
+#exam-updates:not(:modal){position:fixed;inset:auto auto 16px 16px;margin:0;z-index:30;width:min(380px,calc(100vw - 32px));max-height:min(70vh,520px);overflow:auto;padding:18px 20px;box-shadow:0 14px 36px rgba(20,40,55,.22)}
+#exam-updates h2{font-size:17px;margin:0 0 6px}
+#exam-updates .sync-intro{margin:0;color:var(--muted);font-size:13px}
+#exam-updates .import-exams-list{gap:.5rem;margin:.8rem 0}
+@media(max-width:640px){#exam-updates:not(:modal){inset:auto 8px 8px 8px;width:auto}}

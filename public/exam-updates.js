@@ -1,4 +1,5 @@
 import {$,esc,api} from './exam-common.js';
+// Notices float as a non-modal card, so a student can keep browsing the schedule while deciding.
 export function examUpdates({getBatch,getUser,isSaving,apply,language,notice}){
  let state=null,generation=0,running=false,submitting=false;
  const dialog=$('#exam-updates'),T=(zh,en)=>language()?en:zh;
@@ -21,11 +22,11 @@ export function examUpdates({getBatch,getUser,isSaving,apply,language,notice}){
   const id=getBatch().id,uid=getUser().id,version=generation;
   $('#exam-updates-title').textContent=T('有新的关联考试','New related exams');$('#exam-updates-error').textContent='';
   const sessions=getBatch().sessions;
-  $('#exam-updates-content').innerHTML=`<div class="import-exams-list">${offered.map(id=>{const s=sessions.find(s=>s.id===id);return `<label><input type="checkbox" value="${esc(id)}" checked hidden><span>${esc(s?(language()?(s.titleEn||s.title):s.title):id)} · ${esc(s?.date||'')}</span></label>`;}).join('')}</div><div class="sync-options"><button id="import-all">${T('一键导入','Import all')}</button><button id="import-select">${T('选择考试导入','Choose exams')}</button><button id="import-cancel">${T('取消','Cancel')}</button></div>`;
+  $('#exam-updates-content').innerHTML=`<p class="sync-intro">${T('根据已发布的座位表，你还参加了以下考试。要加入“我的考试”吗？','The published seating shows you also sit these exams. Add them to My exams?')}</p><div class="import-exams-list">${offered.map(id=>{const s=sessions.find(s=>s.id===id);return `<label><input type="checkbox" value="${esc(id)}" checked hidden><span>${esc(s?(language()?(s.titleEn||s.title):s.title):id)} · ${esc(s?.date||'')}</span></label>`;}).join('')}</div><div class="sync-options"><button id="import-all">${T('一键导入','Import all')}</button><button id="import-select">${T('选择考试导入','Choose exams')}</button><button id="import-cancel">${T('取消','Cancel')}</button></div>`;
   const finish=async ids=>{if(submitting)return;submitting=true;dialog.querySelectorAll('button').forEach(b=>b.disabled=true);try{const next=await api('/exams/'+id+'/personal-import',{method:'POST',body:JSON.stringify({offered,ids})});if(!current(id,uid,version))return;state=next;apply(getBatch(),next.choices);dialog.close();}catch(e){if(current(id,uid,version)){if(!ids.length){state.newExams=state.newExams.filter(exam=>!offered.includes(exam));dialog.close();notice(e.message);}else $('#exam-updates-error').textContent=e.message;}}finally{if(current(id,uid,version)){submitting=false;dialog.querySelectorAll('button').forEach(b=>b.disabled=false);if(!dialog.open)present();}}};
   $('#import-all').onclick=()=>finish(offered);
   $('#import-select').onclick=()=>{dialog.querySelectorAll('input').forEach(el=>el.hidden=false);$('#import-select').textContent=T('导入所选','Import selected');$('#import-select').onclick=()=>finish([...dialog.querySelectorAll('input:checked')].map(el=>/** @type {HTMLInputElement} */(el).value));};
-  $('#import-cancel').onclick=()=>finish([]);dialog.oncancel=e=>{e.preventDefault();finish([]);};dialog.showModal();
+  $('#import-cancel').onclick=()=>finish([]);dialog.oncancel=e=>{e.preventDefault();finish([]);};dialog.show();
  }
  function showChanges(){
   const changes=state.changes,id=getBatch().id,uid=getUser().id,version=generation;
@@ -34,9 +35,11 @@ export function examUpdates({getBatch,getUser,isSaving,apply,language,notice}){
   $('#exam-updates-title').textContent=T('考试座位安排有更改','Your exam seating has changed');$('#exam-updates-error').textContent='';
   $('#exam-updates-content').innerHTML=`<ul class="student-changes">${changes.map(change=>{const exam=getBatch().sessions.find(s=>s.id===change.examId);return `<li><strong>${esc(exam?(language()?(exam.titleEn||exam.title):exam.title):change.examId)}</strong><p>${esc(labels[change.kind])}</p>${change.kind==='changed'?`<p>${esc(location(change.before))} → ${esc(location(change.after))}</p>`:change.after?`<p>${esc(location(change.after))}</p>`:''}</li>`;}).join('')}</ul><button id="ack-changes">${T('我知道了','Got it')}</button>`;
   const finish=async()=>{if(submitting)return;submitting=true;$('#ack-changes').disabled=true;try{const next=await api('/exams/'+id+'/personal-ack',{method:'POST',body:JSON.stringify({ids:changes.map(c=>c.id)})});if(!current(id,uid,version))return;state=next;apply(getBatch(),next.choices);dialog.close();}catch(e){if(current(id,uid,version))$('#exam-updates-error').textContent=e.message;}finally{if(current(id,uid,version)){submitting=false;if($('#ack-changes'))$('#ack-changes').disabled=false;if(!dialog.open)present();}}};
-  $('#ack-changes').onclick=finish;dialog.oncancel=e=>{e.preventDefault();finish();};dialog.showModal();
+  $('#ack-changes').onclick=finish;dialog.oncancel=e=>{e.preventDefault();finish();};dialog.show();
  }
  $('#import-related').onclick=()=>check(true);
+ // A non-modal dialog ignores Escape, so the card answers it as the modal did, unless another dialog is on top.
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&dialog.open&&!document.querySelector('dialog:modal')){e.preventDefault();dialog.dispatchEvent(new Event('cancel',{cancelable:true}));}});
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)check();});window.addEventListener('focus',()=>check());
  document.addEventListener('close',()=>queueMicrotask(()=>present()),true);
  setInterval(()=>{if(!document.hidden)check();},60000);
