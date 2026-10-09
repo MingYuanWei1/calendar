@@ -114,8 +114,11 @@ body.detail-closed .workspace{grid-template-columns:180px minmax(0,1fr)}body.edi
 }
 
 /* School day overrides remain visible independently of event filters. */
-.airy .day.weekend{background:#dbe3ea}.airy .day.weekend .day-number{color:#3f5361;font-weight:600}
+.airy .day.weekend:not(.outside){background:#e4eaf0}.airy .day.weekend:not(.outside) .day-number{color:#3f5361;font-weight:600}
+.airy .day.outside{background:var(--subtle)}
 .airy .weekdays span:nth-last-child(-n+2){color:#3f5361;font-weight:600}
+/* Calendar grid lines, darker than the general --line so the cells read clearly. */
+.airy .day,.airy .weekdays,.week-date,.week-card-column,.week-date-head,.week-all-day{border-color:#c5d1da}
 .airy .day.day-off,.airy .day.day-off.today{background:#e3f2e7}
 .airy .day.day-school,.airy .day.day-school.today{background:#fff}
 .airy .day.day-school .day-number{color:var(--text)}
@@ -130,7 +133,7 @@ body.detail-closed .workspace{grid-template-columns:180px minmax(0,1fr)}body.edi
 .day-legend{display:flex;align-items:center;justify-content:flex-end;gap:14px;flex-wrap:wrap;padding:7px 16px 0;font-size:10px;color:var(--muted);flex-shrink:0}
 .day-legend>span{display:inline-flex;align-items:center;gap:4px}
 .legend-weekday:before,.legend-weekend:before,.legend-off:before{content:'';width:10px;height:10px;border:1px solid #c8d2d9;border-radius:2px;background:#fff}
-.legend-weekend:before{background:#dbe3ea;border-color:#a9b8c4}.legend-off:before{background:#e3f2e7;border-color:#94bca1}
+.legend-weekend:before{background:#e4eaf0;border-color:#a9b8c4}.legend-off:before{background:#e3f2e7;border-color:#94bca1}
 .agenda-plan{font-size:12px;color:#286747;margin:4px 0 8px}.agenda-day.day-off{background:#e3f2e7;border-radius:8px;padding-left:8px;padding-right:8px}.agenda-day.day-school .agenda-plan{color:#28647b}
 @media(max-width:760px){.day-legend{justify-content:flex-start;padding:12px 18px}.agenda-date .day-badge{margin-top:5px}}
 
@@ -156,7 +159,7 @@ body.detail-closed .workspace{grid-template-columns:180px minmax(0,1fr)}body.edi
 .week-card.selected,.week-bar.selected{outline:2px solid var(--event-color);outline-offset:-2px}.week-card.cancelled strong,.week-bar.cancelled{text-decoration:line-through}.week-card.cancelled,.week-bar.cancelled{opacity:.65}
 .week-card:hover,.week-bar:hover{background:var(--event-bg);filter:brightness(.97)}
 .week-no-events{text-align:center;color:var(--muted);font-size:11px;padding:16px 0}.week-bars>.week-no-events{grid-column:1/-1;padding:0}
-.week-date.weekend,.week-card-column.weekend{background:#dbe3ea}.week-date.day-off,.week-card-column.day-off{background:#e3f2e7}.week-date.day-school,.week-card-column.day-school{background:white}
+.week-date.weekend,.week-card-column.weekend{background:#e4eaf0}.week-date.day-off,.week-card-column.day-off{background:#e3f2e7}.week-date.day-school,.week-card-column.day-school{background:white}
 .week-mode .agenda{display:none!important}
 @media(max-width:760px){
   .airy .view-switch{display:flex}.airy .app-header .calendar-toolbar{flex-wrap:wrap}.airy .app-header .calendar-actions{justify-content:space-between;width:100%}
