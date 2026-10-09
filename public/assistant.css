@@ -1,0 +1,48 @@
+/* 校历问答 drawer, shared by the calendar and exam pages (both define --accent, --soft, --line…). */
+.assistant-trigger{display:inline-flex;align-items:center;gap:6px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);background:var(--surface);font-weight:600;white-space:nowrap}
+.assistant-trigger:hover{background:var(--soft)}
+.assistant-trigger svg{flex:none}
+.assistant{position:fixed;top:12px;right:12px;bottom:12px;z-index:2147483001;width:min(440px,calc(100vw - 24px));display:flex;flex-direction:column;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 48px rgba(20,40,55,.22);overflow:hidden}
+.assistant[hidden]{display:none}
+.assistant-head{display:flex;align-items:flex-start;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.assistant-head h2{margin:0;font-size:17px}
+.assistant-head p{margin:2px 0 0;font-size:12px;color:var(--muted)}
+.assistant-head .assistant-tools{margin-left:auto;display:flex;gap:6px}
+.assistant-head button{border:0;background:transparent;padding:4px 8px;border-radius:6px;color:var(--muted)}
+.assistant-head button:hover{background:var(--soft);color:var(--text)}
+.assistant-log{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.assistant-empty{color:var(--muted);font-size:13px;line-height:1.7}
+.assistant-msg{max-width:92%;font-size:14px;line-height:1.7;white-space:pre-wrap;word-break:break-word}
+.assistant-msg.user{align-self:flex-end;background:var(--accent);color:#fff;padding:8px 12px;border-radius:12px 12px 2px 12px}
+.assistant-msg.bot{align-self:flex-start;background:var(--soft);padding:10px 12px;border-radius:12px 12px 12px 2px}
+.assistant-msg.bot.error{background:#fbeaea;color:#8a2c2c}
+.assistant-retry{margin-left:6px;border:1px solid #8a2c2c;background:transparent;color:#8a2c2c;border-radius:6px;padding:1px 8px;font-size:12px}
+.assistant-msg .typing{display:inline-flex;gap:4px;vertical-align:middle}
+.assistant-msg .typing i{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:assistant-dot 1s infinite}
+.assistant-msg .typing i:nth-child(2){animation-delay:.15s}.assistant-msg .typing i:nth-child(3){animation-delay:.3s}
+@keyframes assistant-dot{50%{opacity:.25}}
+.assistant-msg .cite{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;margin:0 1px;border:0;border-radius:9px;background:var(--accent);color:#fff;font-size:11px;font-weight:700;vertical-align:1px;line-height:1}
+.assistant-cards{display:flex;flex-direction:column;gap:6px;margin-top:10px;white-space:normal}
+.assistant-card{display:grid;grid-template-columns:22px 1fr;gap:2px 8px;text-align:left;width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:13px;line-height:1.5}
+.assistant-card:hover,.assistant-card.flash{border-color:var(--accent);background:var(--surface)}
+.assistant-card.flash{box-shadow:0 0 0 3px var(--soft)}
+.assistant-card .n{grid-row:span 3;align-self:start;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:10px;background:var(--accent);color:#fff;font-size:11px;font-weight:700}
+.assistant-card strong{font-size:14px}
+.assistant-card .meta{color:var(--muted)}
+.assistant-card .seat{color:var(--accent);font-weight:600}
+.assistant-card .tag{justify-self:start;font-size:11px;padding:0 6px;border-radius:4px;background:#f1e4e4;color:#8a2c2c}
+.assistant-suggest{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 10px}
+.assistant-suggest button{border-radius:999px;font-size:13px;padding:5px 11px;background:var(--surface)}
+.assistant-form{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--line);align-items:flex-end}
+.assistant-form textarea{flex:1;resize:none;min-height:40px;max-height:120px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:14px;line-height:1.5}
+.assistant-form textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.assistant-form button{background:var(--accent);color:#fff;border-color:var(--accent);border-radius:10px;padding:9px 14px;font-weight:600}
+.assistant-note{margin:0;padding:0 16px 10px;font-size:12px;color:var(--muted)}
+.assistant-note.warn{color:#8a2c2c}
+/* Wide screens keep the page usable beside the drawer, so opened citations stay visible. */
+@media (min-width:1100px){body.assistant-open{padding-right:452px}}
+@media (max-width:640px){
+ .assistant{top:auto;left:0;right:0;bottom:0;width:100vw;height:86dvh;border-radius:16px 16px 0 0}
+ .assistant-trigger .label{display:none}
+}
+@media print{.assistant,.assistant-trigger{display:none}}

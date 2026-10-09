@@ -10,6 +10,7 @@ import {eventSchema,dayPlanSchema} from './validation.mjs';
 import {installQuota} from './llm-quota.mjs';
 import {installFeeds} from './feeds.mjs';
 import {installNoticeExtract} from './notice-extract.mjs';
+import {installAssistant} from './assistant.mjs';
 export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/Shanghai',trustProxy='',sso={},llm={}}){
   new Intl.DateTimeFormat('en',{timeZone}).format();
   const base=new URL(origin);if(!['http:','https:'].includes(base.protocol)||base.origin!==origin)throw new Error('APP_ORIGIN must contain only scheme and host/port');
@@ -144,6 +145,7 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   const exams=installExams(app,db,{requireAdmin,isAdmin:req=>session(req)?.role>=2,user:session,origin,timeZone,llm,quota});
   installFeeds(app,db,{user:session,account:schoolAuth.account,origin,timeZone,matching:exams.matching});
   installNoticeExtract(app,db,{requireAdmin,llm,timeZone,quota});
+  installAssistant(app,db,{session,llm,matching:exams.matching,timeZone,quota});
   app.use('/api',(req,res)=>res.status(404).json({error:'接口不存在。'}));
   app.use((req,res,next)=>{
     const required=pageRole(new URL(origin+req.originalUrl));

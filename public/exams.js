@@ -62,6 +62,13 @@ async function saveChoices(next){
  try{const ids=await api('/exams/'+id+'/choices',{method:'PUT',body:JSON.stringify({ids:[...next]})});if(batch?.id===id){chosen=new Set(ids);notice(T('选择已保存','Selections saved'),false);}}
  catch(e){notice(e.message);}finally{saving=false;render();await updates.check();}
 }
+// Shows an exam's week and opens its details; used by assistant citations and ?exam= links.
+async function examFocus(batchId,examId){
+ if(batch?.id!==batchId){if(!batches.some(b=>b.id===batchId))return;await loadBatch(batchId);}
+ const exam=batch?.sessions.find(s=>s.id===examId);if(!exam)return;
+ mine=false;division=exam.division||division;grade='';week=exam.date;render();await showDetail(examId);
+}
+/** @type {any} */(window).examFocus=examFocus;
 async function showDetail(id){
  const generation=++detailLoadNumber;
  const exam=batch.sessions.find(s=>s.id===id);if(!exam){$('#detail').close();return;}detailExamId=id;
@@ -124,7 +131,7 @@ $('#pdf-submit').onclick=async()=>{
  catch(error){$('#pdf-error').textContent=T('PDF 导出失败，请重试。','PDF export failed. Please retry.');}
  finally{container.remove();$('#pdf-submit').textContent=T('下载 PDF','Download PDF');$('#pdf-submit').disabled=false;$('#pdf-close').disabled=false;}
 };
-async function start(){try{[school,batches,config]=await Promise.all([api('/school/session'),api('/exams'),api('/config')]);const params=new URLSearchParams(location.search),requested=batches.find(b=>b.id===params.get('batch'));const today=new Intl.DateTimeFormat('en-CA',{timeZone:config.timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());if(Object.hasOwn(divisions,params.get('division')))division=params.get('division');const matching=batches.find(b=>b.start<=params.get('date')&&b.end>=params.get('date'));const nearest=[...batches].filter(b=>b.end>=today).sort((a,b)=>a.start.localeCompare(b.start))[0];render();if(batches.length)await loadBatch((requested||matching||nearest||batches[0]).id);if(params.has('auth'))notice(params.get('auth')==='unconfigured'?T('学校 Microsoft SSO 尚未配置，请联系管理员。','Microsoft SSO is not configured.'):T('登录未完成，请重试。','Sign-in failed. Please retry.'));}catch(e){notice(e.message);}}
+async function start(){try{[school,batches,config]=await Promise.all([api('/school/session'),api('/exams'),api('/config')]);const params=new URLSearchParams(location.search),requested=batches.find(b=>b.id===params.get('batch'));const today=new Intl.DateTimeFormat('en-CA',{timeZone:config.timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());if(Object.hasOwn(divisions,params.get('division')))division=params.get('division');const matching=batches.find(b=>b.start<=params.get('date')&&b.end>=params.get('date'));const nearest=[...batches].filter(b=>b.end>=today).sort((a,b)=>a.start.localeCompare(b.start))[0];render();if(batches.length)await loadBatch((requested||matching||nearest||batches[0]).id);if(params.get('exam')&&batch)await examFocus(batch.id,params.get('exam'));if(params.has('auth'))notice(params.get('auth')==='unconfigured'?T('学校 Microsoft SSO 尚未配置，请联系管理员。','Microsoft SSO is not configured.'):T('登录未完成，请重试。','Sign-in failed. Please retry.'));}catch(e){notice(e.message);}}
 start();
 
 window.addEventListener('account-changed',()=>location.reload());
