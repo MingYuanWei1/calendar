@@ -106,6 +106,9 @@ function renderCalendar(){
   const first = new Date(state.year,state.month,1,12);const last = new Date(state.year,state.month+1,0,12);
   const offset=(first.getDay()+6)%7;const count=Math.ceil((offset+last.getDate())/7)*7;
   const start=new Date(state.year,state.month,1-offset,12);
+  const monthStart=isoDate(first),monthEnd=isoDate(last);
+  // Padding days from the neighbouring months stay empty: events show only in their own month.
+  const shownOn=(e,iso)=>iso>=monthStart&&iso<=monthEnd&&onDate(e,iso);
   const monthEvents=events.filter(matches).filter(e=>e.start<=isoDate(last)&&(e.end||e.start)>=isoDate(first));
   $('#month-title').textContent=new Intl.DateTimeFormat(state.lang?'en-GB':'zh-CN',{year:'numeric',month:'long'}).format(first);
   $('#weekdays').innerHTML=(state.lang?['MON','TUE','WED','THU','FRI','SAT','SUN']:['周一','周二','周三','周四','周五','周六','周日']).map(d=>`<span>${d}</span>`).join('');
@@ -114,30 +117,31 @@ function renderCalendar(){
   for(let w=0;w<count/7;w++){
     const dates=Array.from({length:7},(_,i)=>new Date(state.year,state.month,1-offset+w*7+i,12));
     const weekStart=isoDate(dates[0]),weekEnd=isoDate(dates[6]);
-    const multi=events.filter(matches).filter(isMulti).filter(e=>e.start<=weekEnd&&e.end>=weekStart).sort((a,b)=>a.start.localeCompare(b.start)||b.end.localeCompare(a.end));
+    const shownStart=weekStart<monthStart?monthStart:weekStart,shownEnd=weekEnd>monthEnd?monthEnd:weekEnd;
+    const multi=events.filter(matches).filter(isMulti).filter(e=>e.start<=shownEnd&&e.end>=shownStart).sort((a,b)=>a.start.localeCompare(b.start)||b.end.localeCompare(a.end));
     const lanes=[];const occupied=Array.from({length:7},()=>new Set());
     const placements=multi.map(e=>{
-      const from=Math.max(0,dates.findIndex(d=>isoDate(d)>=e.start));
-      let to=dates.findIndex(d=>isoDate(d)>e.end);if(to<0)to=7;
+      const from=Math.max(0,dates.findIndex(d=>isoDate(d)>=(e.start>shownStart?e.start:shownStart)));
+      let to=dates.findIndex(d=>isoDate(d)>(e.end<shownEnd?e.end:shownEnd));if(to<0)to=7;
       let lane=lanes.findIndex(end=>end<=from);if(lane<0)lane=lanes.length;lanes[lane]=to;
       return {event:e,from,to,lane};
     });
     const hiddenMulti=placements.filter(p=>p.lane>=calendarSlots).map(p=>p.event);
-    const dailyCounts=dates.map(date=>events.filter(matches).filter(e=>onDate(e,isoDate(date))).length);
+    const dailyCounts=dates.map(date=>events.filter(matches).filter(e=>shownOn(e,isoDate(date))).length);
     // Reserve the final row for expansion only on dates that really have overflow.
     for(const p of placements){
-      if(p.lane===calendarSlots-1&&dates.slice(p.from,p.to).some((date,index)=>dailyCounts[p.from+index]>calendarSlots||hiddenMulti.some(e=>onDate(e,isoDate(date)))))hiddenMulti.push(p.event);
+      if(p.lane===calendarSlots-1&&dates.slice(p.from,p.to).some((date,index)=>dailyCounts[p.from+index]>calendarSlots||hiddenMulti.some(e=>shownOn(e,isoDate(date)))))hiddenMulti.push(p.event);
     }
     const bars=placements.filter(p=>!hiddenMulti.includes(p.event)).map(({event:e,from,to,lane})=>{
       for(let column=from;column<to;column++)occupied[column].add(lane);
-      return `<button class="span-event ${e.type}${e.cancelled?' cancelled':''}${state.selected===e.id?' selected':''}${e.start<weekStart?' continues-left':''}${e.end>weekEnd?' continues-right':''}" data-event="${e.id}" style="grid-column:${from+1}/${to+1};grid-row:${lane+1}" aria-label="${esc(label(e))}" title="${esc(label(e))}">${e.cancelled?esc(cancelText(e))+' · ':''}${e.oldDate?esc(t('changed'))+' · ':''}${esc(text(e.title))} · ${esc(scopeText(e))}</button>`;
+      return `<button class="span-event ${e.type}${e.cancelled?' cancelled':''}${state.selected===e.id?' selected':''}${e.start<shownStart&&shownStart===weekStart?' continues-left':''}${e.end>shownEnd&&shownEnd===weekEnd?' continues-right':''}" data-event="${e.id}" style="grid-column:${from+1}/${to+1};grid-row:${lane+1}" aria-label="${esc(label(e))}" title="${esc(label(e))}">${e.cancelled?esc(cancelText(e))+' · ':''}${e.oldDate?esc(t('changed'))+' · ':''}${esc(text(e.title))} · ${esc(scopeText(e))}</button>`;
     }).join('');
     html+=`<div class="week">`;
     for(let i=0;i<7;i++){
-      const d=dates[i],iso=isoDate(d),plan=dayPlan(iso);const items=events.filter(matches).filter(e=>!isMulti(e)&&onDate(e,iso)).sort(sortEvents);
+      const d=dates[i],iso=isoDate(d),plan=dayPlan(iso);const items=events.filter(matches).filter(e=>!isMulti(e)&&shownOn(e,iso)).sort(sortEvents);
       // A cross-day bar occupies only the dates it actually covers. Fill gaps on each date.
       const freeRows=Array.from({length:calendarSlots},(_,row)=>row).filter(row=>!occupied[i].has(row));
-      const hiddenSpans=hiddenMulti.filter(e=>onDate(e,iso)).length;
+      const hiddenSpans=hiddenMulti.filter(e=>shownOn(e,iso)).length;
       const needsMore=items.length>freeRows.length||hiddenSpans>0;
       const eventRows=needsMore?freeRows.filter(row=>row<calendarSlots-1):freeRows;
       const visibleItems=items.slice(0,eventRows.length);
