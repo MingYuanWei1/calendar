@@ -1,4 +1,5 @@
 import {$,$$,esc,corners,icon,app,T,tx,TYPES,SCOPES,api,toast,modal,closeModal,busy,errorLine,go,refreshNav,md,mdw,dateRange,monthLabel,statusOf,statusTag,statusLabel,loadEvents} from './console-core.js';
+import {noticeDialog} from './console-notice.js';
 
 const view={tab:'all',q:'',type:'all',div:'all',desc:false,menu:null};
 const isMulti=e=>Boolean(e.end&&e.end!==e.start);
@@ -12,7 +13,7 @@ export async function showEvents(main){
  if(!app.data.events){main.innerHTML=`<p class="loading">${T('正在加载事件…','Loading events…')}</p>`;await loadEvents();}
  main.innerHTML=`<div class="page">
  <header class="page-head"><div><div class="kicker">${T('管理后台','Admin console')}</div><h1>${T('事件','Events')}</h1><p class="sub">${T('全部学部 · 无需审核，直接发布','All divisions · Publish without approval')}</p></div>
- <div class="page-actions"><button type="button" class="btn btn-secondary" data-act="refresh">${T('刷新','Refresh')}</button><a class="btn btn-primary blueprint" href="#events/new">${corners}${icon.plus}${T('新增事件','New event')}</a></div></header>
+ <div class="page-actions"><button type="button" class="btn btn-secondary" data-act="refresh">${T('刷新','Refresh')}</button><button type="button" class="btn btn-secondary" data-act="notice">${T('✨ 从通知生成','✨ From a notice')}</button><a class="btn btn-primary blueprint" href="#events/new">${corners}${icon.plus}${T('新增事件','New event')}</a></div></header>
  <div class="tabs" role="tablist" id="ev-tabs"></div>
  <div class="toolbar">
   <label class="search">${icon.search}<input class="input" id="ev-q" type="search" value="${esc(view.q)}" placeholder="${T('搜索名称、地点或主办方','Search title, location or organiser')}" aria-label="${T('搜索事件','Search events')}"></label>
@@ -76,6 +77,7 @@ async function onListClick(event){
  if(act!=='menu'&&view.menu){view.menu=null;if(!act)renderResults();}
  if(act==='menu'){view.menu=view.menu===e.id?null:e.id;renderResults();$(`[data-act=menu][data-id="${CSS.escape(e.id)}"]`)?.focus();}
  else if(act==='refresh'){target.disabled=true;try{await loadEvents();refreshNav();renderResults();toast(T('列表已刷新。','List refreshed.'));}catch(error){toast(error.message,{bad:true});}finally{target.disabled=false;}}
+ else if(act==='notice')noticeDialog();
  else if(act==='sort'){view.desc=!view.desc;renderResults();}
  else if(act==='reset'){Object.assign(view,{q:'',type:'all',div:'all',tab:'all'});$('#ev-q').value='';$('#ev-type').value='all';$('#ev-div').value='all';renderResults();}
  else if(act==='preview'){renderResults();previewEvent(e);}

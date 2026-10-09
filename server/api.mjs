@@ -9,6 +9,7 @@ import {digest,verifyPassword} from './passwords.mjs';
 import {eventSchema,dayPlanSchema} from './validation.mjs';
 import {installQuota} from './llm-quota.mjs';
 import {installFeeds} from './feeds.mjs';
+import {installNoticeExtract} from './notice-extract.mjs';
 export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/Shanghai',trustProxy='',sso={},llm={}}){
   new Intl.DateTimeFormat('en',{timeZone}).format();
   const base=new URL(origin);if(!['http:','https:'].includes(base.protocol)||base.origin!==origin)throw new Error('APP_ORIGIN must contain only scheme and host/port');
@@ -36,6 +37,7 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   const quota=installQuota(db,{session,dailyLimit:llm.dailyLimit});
   const clearCookie=res=>res.clearCookie('calendar_session',{path:'/',httpOnly:true,sameSite:'strict',secure:base.protocol==='https:'});
   app.use('/api/admin/exam-extract',express.json({limit:'20mb'}));
+  app.use('/api/admin/notice-extract',express.json({limit:'20mb'}));
   app.use('/api/admin/exams',express.json({limit:'4mb'}));
   app.use('/api/exam-schedule-pdf',express.json({limit:'4mb'}));
   app.use('/api',express.json({limit:'128kb'}));
@@ -141,6 +143,7 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   installAccounts(app,db,{requireRole,currentUser:session});
   const exams=installExams(app,db,{requireAdmin,isAdmin:req=>session(req)?.role>=2,user:session,origin,timeZone,llm,quota});
   installFeeds(app,db,{user:session,account:schoolAuth.account,origin,timeZone,matching:exams.matching});
+  installNoticeExtract(app,db,{requireAdmin,llm,timeZone,quota});
   app.use('/api',(req,res)=>res.status(404).json({error:'接口不存在。'}));
   app.use((req,res,next)=>{
     const required=pageRole(new URL(origin+req.originalUrl));
