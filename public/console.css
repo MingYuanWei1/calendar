@@ -426,3 +426,15 @@ mark.src-hit{background:color-mix(in srgb,#f2c94c 55%,transparent);outline:1px s
 .notice-note{font-size:12px}
 .notice-done{opacity:.6}.notice-done .notice-head::after{content:"✓";margin-left:auto;color:#3f7a52;font-weight:700}
 @media (max-width:860px){.notice-grid{grid-template-columns:1fr}}
+/* Repeat rule editor and a series' dates */
+.repeat-custom{display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.chip.day-toggle{min-width:34px;justify-content:center}
+.month-days{display:grid;grid-template-columns:repeat(7,36px);border-top:1px solid var(--color-divider);border-left:1px solid var(--color-divider)}
+.month-days>button{height:32px;border:0;border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);background:transparent;font-size:13px;cursor:pointer}
+.month-days>button[aria-pressed=true]{background:var(--color-accent);color:var(--color-bg)}
+.repeat-summary:empty{display:none}
+.form-grid>.repeat-summary{grid-column:2/-1;margin:0;color:var(--color-accent-800)}
+.date-row{display:grid;grid-template-columns:minmax(150px,auto) minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--color-divider)}
+.date-tags{display:flex;flex-wrap:wrap;gap:6px}
+.struck-row .cell-main{text-decoration:line-through;color:var(--color-neutral-700)}
+@media (max-width:760px){.date-row{grid-template-columns:1fr}.date-row .row-actions{justify-content:flex-start}}

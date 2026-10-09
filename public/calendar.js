@@ -6,7 +6,7 @@ const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const copy = {
   brand:['日历','Calendar'], calendarNav:['校历','Calendar'], examsNav:['考试安排','Exams'],
-  publicCalendar:['属于每一位同学的校园日程','A calendar for every student'], searchLabel:['搜索','Search'], september:['2026 年 9 月','September 2026'], autumn:['秋季学期','Autumn term'], scope:['适用学部','School division'], reset:['重置','Reset'], types:['事件类型','Event types'], scopeNote:['选择学部时，同时显示全校事件。','School-wide events are included in every division.'], publicNote:['公开校历 · 无需登录','Public calendar · No sign-in'], schoolLife:['校园生活 / SCHOOL LIFE','SCHOOL LIFE'], term:['2026—2027 学年 · 秋季学期','2026–2027 · Autumn term'], today:['今天','Today'], monthView:['月历','Month'], weekView:['周历','Week'], listView:['日程','Agenda'], emptyTitle:['没有符合条件的事件','No matching events'], emptyHelp:['试试其他关键词，或重置筛选。','Try another search or reset your filters.'], dayEvents:['当天事件','EVENTS ON THIS DAY'], registrationPreview:['报名入口示意','Registration preview'], registrationNotice:['正式发布时，此处打开管理员填写的外部报名表。当前设计稿未连接真实表单。','In the published calendar, this opens the external form provided by an administrator. This design is not connected to a real form.'], understood:['知道了','Got it'], detail:['事件详情','EVENT DETAILS'], close:['关闭详情','Close details'], when:['时间','When'], where:['地点','Where'], for:['适用','For'], host:['主办','Host'], about:['事件说明','About this event'], allDay:['全天','All day'], till:['截止','Due'], cancelled:['已取消','Cancelled'], changed:['已改期','Rescheduled'], registration:['查看报名表','Open registration form'], external:['通过外部表单报名，本平台仅展示信息。','Registration is handled by an external form.'], updated:['更新于 9 月 18 日 16:30','Updated 18 Sep, 16:30'], chooseEvent:['选择一项事件查看详情','Select an event to see the details'], missingLocation:['未设置地点','No location specified'], allSchools:['全部学部','All divisions'], schoolwide:['全校','School-wide'], primary:['小学部','Primary'], middle:['初中部','Middle'], high:['高中部','High'], noDayEvents:['当天没有符合条件的事件','No matching events on this day'], searchPlaceholder:['搜索事件','Search events'], previous:['上个月','Previous month'], next:['下个月','Next month'], closeDay:['关闭当天事件','Close day events']
+  publicCalendar:['属于每一位同学的校园日程','A calendar for every student'], searchLabel:['搜索','Search'], september:['2026 年 9 月','September 2026'], autumn:['秋季学期','Autumn term'], scope:['适用学部','School division'], reset:['重置','Reset'], types:['事件类型','Event types'], scopeNote:['选择学部时，同时显示全校事件。','School-wide events are included in every division.'], publicNote:['公开校历 · 无需登录','Public calendar · No sign-in'], schoolLife:['校园生活 / SCHOOL LIFE','SCHOOL LIFE'], term:['2026—2027 学年 · 秋季学期','2026–2027 · Autumn term'], today:['今天','Today'], monthView:['月历','Month'], weekView:['周历','Week'], listView:['日程','Agenda'], emptyTitle:['没有符合条件的事件','No matching events'], emptyHelp:['试试其他关键词，或重置筛选。','Try another search or reset your filters.'], dayEvents:['当天事件','EVENTS ON THIS DAY'], registrationPreview:['报名入口示意','Registration preview'], registrationNotice:['正式发布时，此处打开管理员填写的外部报名表。当前设计稿未连接真实表单。','In the published calendar, this opens the external form provided by an administrator. This design is not connected to a real form.'], understood:['知道了','Got it'], detail:['事件详情','EVENT DETAILS'], close:['关闭详情','Close details'], when:['时间','When'], where:['地点','Where'], for:['适用','For'], host:['主办','Host'], about:['事件说明','About this event'], allDay:['全天','All day'], till:['截止','Due'], cancelled:['已取消','Cancelled'], cancelledOnce:['本次取消','Cancelled this time'], repeats:['重复','Repeats'], changed:['已改期','Rescheduled'], registration:['查看报名表','Open registration form'], external:['通过外部表单报名，本平台仅展示信息。','Registration is handled by an external form.'], updated:['更新于 9 月 18 日 16:30','Updated 18 Sep, 16:30'], chooseEvent:['选择一项事件查看详情','Select an event to see the details'], missingLocation:['未设置地点','No location specified'], allSchools:['全部学部','All divisions'], schoolwide:['全校','School-wide'], primary:['小学部','Primary'], middle:['初中部','Middle'], high:['高中部','High'], noDayEvents:['当天没有符合条件的事件','No matching events on this day'], searchPlaceholder:['搜索事件','Search events'], previous:['上个月','Previous month'], next:['下个月','Next month'], closeDay:['关闭当天事件','Close day events']
 };
 const types = {
   exam:{label:['考试','Exams'],color:'var(--exam)'}, competition:{label:['比赛','Competitions'],color:'var(--competition)'}, activity:{label:['活动','Activities'],color:'var(--activity)'}, deadline:{label:['截止日','Deadlines'],color:'var(--deadline)'}
@@ -14,8 +14,15 @@ const types = {
 const schools = ['allSchools','primary','middle','high'];
 const state = {lang:Number(localStorage.getItem('exam-language')||0),year:new Date().getFullYear(),month:new Date().getMonth(),school:'allSchools',types:new Set(Object.keys(types)),query:'',view:'month',anchor:'',selected:null};
 const mobileQuery = matchMedia('(max-width:760px)');
+/** Events as published: a repeating event appears once, with its 重复规则. */
+/** @type {SchoolEvent[]} */
+const series = [];
+/** What the calendar draws: plain events plus each repeating event's dates in the visible range. */
 /** @type {SchoolEvent[]} */
 const events = [];
+/** Set once recurrence.mjs loads: expands series between two dates, and summarises a rule. */
+let expandSeries=(list,from,to)=>list;
+let repeatSummary=rule=>'';
 let detailReturnDay=null;
 let detailScrollY=0;
 let calendarSlots=4;
@@ -44,9 +51,10 @@ function onDate(event,iso){return event.start<=iso && (event.end||event.start)>=
 function sortEvents(a,b){return (isMulti(a)?0:1)-(isMulti(b)?0:1) || (a.time||'00:00').localeCompare(b.time||'00:00') || a.id.localeCompare(b.id);}
 function timeText(event){if(!event.time)return t('allDay');return (event.type==='deadline'?t('till')+' ':'')+event.time+(event.endTime?'–'+event.endTime:'');}
 function scopeText(event){return event.scope.map(t).join(state.lang?' / ':'、');}
+function cancelText(event){return t(event.cancelledOnce?'cancelledOnce':'cancelled');}
 function label(event){return `${text(event.title)} · ${formatDate(event.start)} · ${timeText(event)}`;}
-function eventButton(event){return `<button class="event ${event.type}${event.cancelled?' cancelled':''}${state.selected===event.id?' selected':''}" data-event="${event.id}" title="${esc(label(event))}" aria-label="${esc(label(event))}"><span class="dot"></span><span class="event-text">${event.cancelled?esc(t('cancelled'))+' · ':''}${event.oldDate?esc(t('changed'))+' · ':''}${event.type==='deadline'?esc(t('till'))+' ':''}${event.time?`<time>${event.time}</time> `:''}${esc(text(event.title))}</span></button>`;}
-function agendaButton(event){return `<button class="agenda-event ${event.type}${event.cancelled?' cancelled':''}${state.selected===event.id?' selected':''}" data-event="${event.id}"><span class="dot"></span><span><strong>${event.cancelled?esc(t('cancelled'))+' · ':''}${event.oldDate?esc(t('changed'))+' · ':''}${esc(text(event.title))}</strong><small>${esc(timeText(event))} · ${esc(scopeText(event))}${event.location?' · '+esc(text(event.location)):''}</small></span></button>`;}
+function eventButton(event){return `<button class="event ${event.type}${event.cancelled?' cancelled':''}${state.selected===event.id?' selected':''}" data-event="${event.id}" title="${esc(label(event))}" aria-label="${esc(label(event))}"><span class="dot"></span><span class="event-text">${event.cancelled?esc(cancelText(event))+' · ':''}${event.oldDate?esc(t('changed'))+' · ':''}${event.type==='deadline'?esc(t('till'))+' ':''}${event.time?`<time>${event.time}</time> `:''}${esc(text(event.title))}</span></button>`;}
+function agendaButton(event){return `<button class="agenda-event ${event.type}${event.cancelled?' cancelled':''}${state.selected===event.id?' selected':''}" data-event="${event.id}"><span class="dot"></span><span><strong>${event.cancelled?esc(cancelText(event))+' · ':''}${event.oldDate?esc(t('changed'))+' · ':''}${esc(text(event.title))}</strong><small>${esc(timeText(event))} · ${esc(scopeText(event))}${event.location?' · '+esc(text(event.location)):''}</small></span></button>`;}
 function setSchool(school){state.school=school;state.selected=null;render();}
 function toggleType(type){state.types.has(type)?state.types.delete(type):state.types.add(type);state.selected=null;render();}
 function resetFilters(){state.school='allSchools';state.types=new Set(Object.keys(types));state.query='';$('#search').value='';state.selected=null;render();}
@@ -62,11 +70,26 @@ function renderFilters(){
 function bindEvents(root){root.querySelectorAll('[data-event]').forEach(b=>b.onclick=()=>selectEvent(b.dataset.event));}
 function syncDetailMode(){const modal=mobileQuery.matches&&document.body.classList.contains('mobile-detail');$$('.app-header,.school-tabs,.sidebar,.main-calendar').forEach(el=>el.inert=modal);if(modal){$('#details').setAttribute('role','dialog');$('#details').setAttribute('aria-modal','true');}else{$('#details').removeAttribute('role');$('#details').removeAttribute('aria-modal');}}
 function selectEvent(id){detailReturnDay=$('#day-dialog').open?$('#day-dialog').dataset.date:null;detailScrollY=window.scrollY;state.selected=id;document.body.classList.remove('detail-closed');document.body.classList.add('mobile-detail');$('#day-dialog').close();renderCalendar();renderDetail();syncDetailMode();if(mobileQuery.matches)$('#close-detail')?.focus();}
-// Shows an event's month and opens its details; used by ?event= links from calendar subscriptions.
-function calendarFocus(id){
-  const event=events.find(e=>e.id===id);if(!event)return false;
-  resetFilters();const [year,month]=event.start.split('-').map(Number);state.year=year;state.month=month-1;
-  render();selectEvent(id);return true;
+function shiftDate(iso,days){const date=dateValue(iso);date.setDate(date.getDate()+days);return isoDate(date);}
+/** The dates on screen: the whole month grid, or the week around the anchor. */
+function visibleRange(){
+  if(state.view==='week'){const monday=shiftDate(state.anchor||schoolToday(),-(dateValue(state.anchor||schoolToday()).getDay()+6)%7);return [monday,shiftDate(monday,6)];}
+  const first=new Date(state.year,state.month,1,12);
+  return [isoDate(new Date(state.year,state.month,1-(first.getDay()+6)%7,12)),isoDate(new Date(state.year,state.month+1,7,12))];
+}
+function refreshOccurrences(){const [from,to]=visibleRange();events.splice(0,events.length,...expandSeries(series,from,to));}
+// Shows an event's month and opens its details; used by ?event=<id>[&date=<date>] links from subscriptions and the assistant.
+// Without a date, a repeating event opens on its next date.
+function calendarFocus(id,date){
+  const item=series.find(e=>e.id===id);if(!item)return false;
+  let target=item;
+  if(item.repeat){
+    const from=date?shiftDate(date,-366):schoolToday(),dates=expandSeries([item],from,shiftDate(date||from,366));
+    target=date?dates.find(e=>e.occurrence===date):dates.find(e=>!e.cancelled)||dates[0];
+    if(!target)return false;
+  }
+  resetFilters();const [year,month]=target.start.split('-').map(Number);state.year=year;state.month=month-1;
+  render();selectEvent(target.id);return true;
 }
 window.calendarFocus=calendarFocus;
 function renderCalendar(){
@@ -77,6 +100,7 @@ function renderCalendar(){
   $('#week-view').setAttribute('aria-pressed',String(state.view==='week'));
   $('#previous').setAttribute('aria-label',state.view==='week'?(state.lang?'Previous week':'上一周'):t('previous'));
   $('#next').setAttribute('aria-label',state.view==='week'?(state.lang?'Next week':'下一周'):t('next'));
+  refreshOccurrences();
   if(state.view==='week'){renderWeek();return;}
 
   const first = new Date(state.year,state.month,1,12);const last = new Date(state.year,state.month+1,0,12);
@@ -106,7 +130,7 @@ function renderCalendar(){
     }
     const bars=placements.filter(p=>!hiddenMulti.includes(p.event)).map(({event:e,from,to,lane})=>{
       for(let column=from;column<to;column++)occupied[column].add(lane);
-      return `<button class="span-event ${e.type}${e.cancelled?' cancelled':''}${state.selected===e.id?' selected':''}${e.start<weekStart?' continues-left':''}${e.end>weekEnd?' continues-right':''}" data-event="${e.id}" style="grid-column:${from+1}/${to+1};grid-row:${lane+1}" aria-label="${esc(label(e))}" title="${esc(label(e))}">${e.cancelled?esc(t('cancelled'))+' · ':''}${e.oldDate?esc(t('changed'))+' · ':''}${esc(text(e.title))} · ${esc(scopeText(e))}</button>`;
+      return `<button class="span-event ${e.type}${e.cancelled?' cancelled':''}${state.selected===e.id?' selected':''}${e.start<weekStart?' continues-left':''}${e.end>weekEnd?' continues-right':''}" data-event="${e.id}" style="grid-column:${from+1}/${to+1};grid-row:${lane+1}" aria-label="${esc(label(e))}" title="${esc(label(e))}">${e.cancelled?esc(cancelText(e))+' · ':''}${e.oldDate?esc(t('changed'))+' · ':''}${esc(text(e.title))} · ${esc(scopeText(e))}</button>`;
     }).join('');
     html+=`<div class="week">`;
     for(let i=0;i<7;i++){

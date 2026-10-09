@@ -16,9 +16,13 @@ async function api(path,options={}){
 function schoolToday(){return new Intl.DateTimeFormat('en-CA',{timeZone:settings.timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}
 function setLoadMessage(message,error=false){const el=$('#load-status');el.textContent=message;el.classList.toggle('request-error',error);}
 async function loadEvents(){
-  const [list,plans,{createDayPlanResolver}]=await Promise.all([api('/events'),api('/day-plans'),import('./day-plans.mjs')]);
-  resolveDayPlan=createDayPlanResolver(Object.fromEntries(plans.map(plan=>[plan.date,plan])));
-  events.splice(0,events.length,...list);
+  const [list,plans,{createDayPlanResolver},recurrence]=await Promise.all([api('/events'),api('/day-plans'),import('./day-plans.mjs'),import('./recurrence.mjs')]);
+  const byDate=Object.fromEntries(plans.map(plan=>[plan.date,plan]));
+  resolveDayPlan=createDayPlanResolver(byDate);
+  expandSeries=(items,from,to)=>recurrence.expandEvents(items,byDate,from,to);
+  repeatSummary=rule=>recurrence.describeRepeat(rule,state.lang);
+  series.splice(0,series.length,...list);
+  refreshOccurrences();
   if(!events.some(e=>e.id===state.selected&&matches(e)))state.selected=null;
   renderCalendar();renderDetail();
 }
@@ -30,8 +34,8 @@ async function startCalendar(){
     settings=await api('/config');
     const current=schoolToday().split('-').map(Number);state.year=current[0];state.month=current[1]-1;
     await loadEvents();render();setLoadMessage('');
-    // Links from subscribed calendars open the event: /?event=<id>.
-    const focus=new URLSearchParams(location.search).get('event');
-    if(focus&&calendarFocus(focus))history.replaceState(null,'',location.pathname);
+    // Links from subscribed calendars open the event: /?event=<id>, plus &date=<date> for one date of a repeating event.
+    const query=new URLSearchParams(location.search),focus=query.get('event');
+    if(focus&&calendarFocus(focus,query.get('date')||undefined))history.replaceState(null,'',location.pathname);
   }catch(error){setLoadMessage('校历暂时无法加载，请点击重试。',true);$('#retry-load').hidden=false;}
 }

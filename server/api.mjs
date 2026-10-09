@@ -7,6 +7,7 @@ import {randomBytes,randomUUID} from 'node:crypto';
 import {installExams} from './exams.mjs';
 import {digest,verifyPassword} from './passwords.mjs';
 import {eventSchema,dayPlanSchema} from './validation.mjs';
+import {OVERRIDABLE,addDays,fitsSeries,isSeriesDate,seriesDates} from '../public/recurrence.mjs';
 import {installQuota} from './llm-quota.mjs';
 import {installFeeds} from './feeds.mjs';
 import {installNoticeExtract} from './notice-extract.mjs';
@@ -95,35 +96,113 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   });
   const getEvent=id=>{const row=db.prepare('SELECT body FROM events WHERE id=?').get(id);return row?JSON.parse(row.body):null;};
   const conflict=(res)=>res.status(409).json({error:'事件已在其他窗口更新。请保留输入，返回列表刷新后再编辑。',code:'CONFLICT'});
+  const dayPlans=()=>Object.fromEntries(db.prepare('SELECT date,kind FROM day_plans').all().map(plan=>[plan.date,plan]));
+  const write=event=>db.prepare('UPDATE events SET status=?,version=?,body=? WHERE id=?').run(event.status,event.version,JSON.stringify(event),event.id);
+  const insert=event=>db.prepare('INSERT INTO events VALUES(?,?,?,?)').run(event.id,event.status,event.version,JSON.stringify(event));
+  const bump=event=>({...event,version:event.version+1,updatedAt:new Date().toISOString()});
+  // Dates with their own changes must still be dates of the series after its rule changes.
+  const unfit=(series,plans)=>Object.keys(series.exceptions||{}).filter(date=>!fitsSeries(series,plans,date)).sort();
+  const unfitError=(res,dates)=>res.status(422).json({error:`这些日期有单独的修改或取消，新的重复规则不再包含它们：${dates.join('、')}。请先在“重复日期”中恢复这些日期。`,fields:[{field:'repeat',message:'Restore the changed dates first'}]});
+  /** Which single date of a series a request targets; null when it targets the whole event. */
+  function targetDate(req,res,event){
+   const date=req.body?.occurrence?.date;
+   if(date===undefined)return null;
+   if(typeof date!=='string'||!isSeriesDate(event,dayPlans(),date)){res.status(422).json({error:'这一天不在该重复事件的日期中，请刷新后重试。'});return false;}
+   return date;
+  }
+  /**
+   * Ends a series the day before `date` and starts `next` as a new series from that date, which takes the
+   * later dates' own changes with it. A count carries over as the number of dates still to come.
+   */
+  function split(res,existing,date,next){
+   const plans=dayPlans(),held=seriesDates(existing,plans,addDays(date,-1)).length;
+   const {count,...rule}=existing.repeat;
+   const keep=([key])=>key<date,entries=Object.entries(existing.exceptions||{});
+   const old=bump({...existing,repeat:{...rule,until:addDays(date,-1)},exceptions:Object.fromEntries(entries.filter(keep))});
+   const repeat=next.repeat&&count&&next.repeat.count===count?{...next.repeat,count:Math.max(1,count-held)}:next.repeat;
+   const created={...next,repeat,id:randomUUID(),exceptions:Object.fromEntries(entries.filter(entry=>!keep(entry))),previousSchedule:undefined,oldDate:undefined,version:1,updatedAt:new Date().toISOString()};
+   const bad=unfit(created,plans);
+   if(bad.length)return unfitError(res,bad);
+   db.transactionSync(()=>{write(old);insert(created);});
+   res.json(created);
+  }
   function persist(req,res,existing){
-    const parsed=eventSchema.safeParse(req.body);
-    if(!parsed.success)return res.status(422).json({error:'请检查事件内容。',fields:parsed.error.issues.map(i=>({field:i.path[0],message:i.message}))});
-    const value=parsed.data;
-    if(existing&&value.version!==existing.version)return conflict(res);
-    if((!existing&&value.status==='cancelled')||(existing&&value.status==='cancelled'&&existing.status!=='cancelled'))return res.status(422).json({error:'请使用取消事件操作。'});
-    for(const path of [value.poster,value.qr])if(path&&!db.prepare('SELECT id FROM media WHERE id=?').get(path.split('/').at(-1)))return res.status(422).json({error:'图片不存在，请重新上传。'});
-    const updated={...value,id:existing?.id||randomUUID(),status:existing?.cancelled?'cancelled':value.status,cancelled:existing?.cancelled||false,cancelReason:existing?.cancelReason,previousSchedule:existing?.previousSchedule,oldDate:existing?.oldDate,version:(existing?.version||0)+1,updatedAt:new Date().toISOString()};
-    if(existing&&existing.status!=='draft'&&['start','end','time','endTime'].some(key=>existing[key]!==updated[key])){
-      updated.previousSchedule={start:existing.start,end:existing.end,time:existing.time,endTime:existing.endTime,type:existing.type};updated.oldDate=existing.start;
-    }
-    if(existing)db.prepare('UPDATE events SET status=?,version=?,body=? WHERE id=?').run(updated.status,updated.version,JSON.stringify(updated),updated.id);
-    else db.prepare('INSERT INTO events VALUES(?,?,?,?)').run(updated.id,updated.status,updated.version,JSON.stringify(updated));
-    res.status(existing?200:201).json(updated);
+   // A single date follows the series' rule, which need not hold on the date it moves to.
+   const parsed=eventSchema.safeParse(req.body?.occurrence?.span==='one'?{...req.body,repeat:undefined}:req.body);
+   if(!parsed.success)return res.status(422).json({error:'请检查事件内容。',fields:parsed.error.issues.map(i=>({field:i.path[0],message:i.message}))});
+   const value=parsed.data;
+   if(existing&&value.version!==existing.version)return conflict(res);
+   if((!existing&&value.status==='cancelled')||(existing&&value.status==='cancelled'&&existing.status!=='cancelled'))return res.status(422).json({error:'请使用取消事件操作。'});
+   for(const path of [value.poster,value.qr])if(path&&!db.prepare('SELECT id FROM media WHERE id=?').get(path.split('/').at(-1)))return res.status(422).json({error:'图片不存在，请重新上传。'});
+   const date=existing&&targetDate(req,res,existing);
+   if(date===false)return;
+   if(date)return persistDate(req,res,existing,value,date);
+   const updated={...value,id:existing?.id||randomUUID(),status:existing?.cancelled?'cancelled':value.status,cancelled:existing?.cancelled||false,cancelReason:existing?.cancelReason,previousSchedule:existing?.previousSchedule,oldDate:existing?.oldDate,exceptions:existing?.exceptions,version:(existing?.version||0)+1,updatedAt:new Date().toISOString()};
+   if(updated.repeat||existing?.repeat){
+    // Changing a series is not a reschedule; single dates record their own moves.
+    Object.assign(updated,{previousSchedule:undefined,oldDate:undefined});
+    const bad=unfit(updated,dayPlans());
+    if(bad.length)return unfitError(res,bad);
+   }else if(existing&&existing.status!=='draft'&&['start','end','time','endTime'].some(key=>existing[key]!==updated[key])){
+    updated.previousSchedule={start:existing.start,end:existing.end,time:existing.time,endTime:existing.endTime,type:existing.type};updated.oldDate=existing.start;
+   }
+   if(existing)write(updated);else insert(updated);
+   res.status(existing?200:201).json(updated);
+  }
+  /** "This event only" stores the fields that differ from the series; "this and future" splits the series. */
+  function persistDate(req,res,existing,value,date){
+   if(req.body.occurrence.span==='future'){
+    const next={...value,repeat:value.repeat||existing.repeat,status:existing.status,cancelled:false,cancelReason:undefined};
+    if(date===existing.start)return persist({body:{...req.body,...next,occurrence:undefined}},res,existing);
+    return split(res,existing,date,next);
+   }
+   if(req.body.occurrence.span!=='one')return res.status(422).json({error:'请选择修改范围。'});
+   if(value.type!==existing.type||value.timeMode!==existing.timeMode||value.scope.join()!==existing.scope.join())return res.status(422).json({error:'单次修改不能更改类型、时间形式或适用范围，请修改整个系列。'});
+   const own={...existing.exceptions?.[date]};delete own.deleted;
+   for(const key of OVERRIDABLE){
+    const series=key==='start'?date:existing[key];
+    if(JSON.stringify(value[key])!==JSON.stringify(series))own[key]=value[key];else delete own[key];
+   }
+   const exceptions={...existing.exceptions,[date]:own};
+   if(!Object.keys(own).length)delete exceptions[date];
+   const updated=bump({...existing,exceptions});
+   write(updated);res.json(updated);
   }
   app.post('/api/admin/events',requireAdmin,(req,res)=>persist(req,res,null));
   app.put('/api/admin/events/:id',requireAdmin,(req,res)=>{const event=getEvent(req.params.id);if(!event)return res.status(404).json({error:'事件不存在。'});persist(req,res,event);});
   app.post('/api/admin/events/:id/cancel',requireAdmin,(req,res)=>{
-    const event=getEvent(req.params.id);if(!event)return res.status(404).json({error:'事件不存在。'});
-    if(req.body?.version!==event.version)return conflict(res);
-    if(event.status!=='published')return res.status(422).json({error:'只能取消已发布的事件。'});
-    if(typeof req.body.reason!=='string'||req.body.reason.length>2000)return res.status(422).json({error:'取消原因不能超过 2000 字。'});
-    Object.assign(event,{status:'cancelled',cancelled:true,cancelReason:req.body.reason.trim(),version:event.version+1,updatedAt:new Date().toISOString()});
-    db.prepare('UPDATE events SET status=?,version=?,body=? WHERE id=?').run(event.status,event.version,JSON.stringify(event),event.id);res.json(event);
+   const event=getEvent(req.params.id);if(!event)return res.status(404).json({error:'事件不存在。'});
+   if(req.body?.version!==event.version)return conflict(res);
+   if(event.status!=='published')return res.status(422).json({error:'只能取消已发布的事件。'});
+   if(typeof req.body.reason!=='string'||req.body.reason.length>2000)return res.status(422).json({error:'取消原因不能超过 2000 字。'});
+   const reason=req.body.reason.trim(),date=targetDate(req,res,event);
+   if(date===false)return;
+   // 本次取消: the date stays visible with its own reason while the rest of the series continues.
+   if(date&&req.body.occurrence.span==='one'){
+    const updated=bump({...event,exceptions:{...event.exceptions,[date]:{...event.exceptions?.[date],cancelled:true,cancelReason:reason}}});
+    write(updated);return res.json(updated);
+   }
+   if(date&&date!==event.start)return split(res,event,date,{...event,start:date,status:'cancelled',cancelled:true,cancelReason:reason});
+   const updated=bump({...event,status:'cancelled',cancelled:true,cancelReason:reason});
+   write(updated);res.json(updated);
+  });
+  // Restoring a date drops its own changes, cancellation or deletion so it follows the series again.
+  app.post('/api/admin/events/:id/restore',requireAdmin,(req,res)=>{
+   const event=getEvent(req.params.id);if(!event)return res.status(404).json({error:'事件不存在。'});
+   if(req.body?.version!==event.version)return conflict(res);
+   const date=req.body.occurrence?.date;
+   if(!event.exceptions?.[date])return res.status(422).json({error:'这一天没有单独的修改。'});
+   const exceptions={...event.exceptions};delete exceptions[date];
+   const updated=bump({...event,exceptions});
+   write(updated);res.json(updated);
   });
   app.delete('/api/admin/events/:id',requireAdmin,(req,res)=>{
-    const event=getEvent(req.params.id);if(!event)return res.status(404).json({error:'事件不存在。'});
-    if(req.body?.version!==event.version)return conflict(res);
-    db.prepare('DELETE FROM events WHERE id=?').run(event.id);res.status(204).end();
+   const event=getEvent(req.params.id);if(!event)return res.status(404).json({error:'事件不存在。'});
+   if(req.body?.version!==event.version)return conflict(res);
+   const date=targetDate(req,res,event);
+   if(date===false)return;
+   if(date){const updated=bump({...event,exceptions:{...event.exceptions,[date]:{deleted:true}}});write(updated);return res.json(updated);}
+   db.prepare('DELETE FROM events WHERE id=?').run(event.id);res.status(204).end();
   });
   app.post('/api/admin/media',requireAdmin,express.raw({type:['image/png','image/jpeg','image/webp'],limit:'5mb'}),async(req,res)=>{
     if(!Buffer.isBuffer(req.body))return res.status(415).json({error:'请上传 PNG、JPEG 或 WebP 图片。'});
@@ -135,7 +214,8 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   app.get('/api/media/:id',async(req,res)=>{
     if(!/^[a-f0-9-]{36}$/.test(req.params.id)||!db.prepare('SELECT id FROM media WHERE id=?').get(req.params.id))return res.sendStatus(404);
     const path='/api/media/'+req.params.id;
-    const published=db.prepare("SELECT id FROM events WHERE status IN ('published','cancelled') AND (json_extract(body,'$.poster')=? OR json_extract(body,'$.qr')=?) LIMIT 1").get(path,path);
+    // A single date of a series may carry its own poster, so look through the whole stored event.
+    const published=db.prepare("SELECT id FROM events WHERE status IN ('published','cancelled') AND instr(body,?)>0 LIMIT 1").get(JSON.stringify(path));
     if(!published&&!(session(req)?.role>=2))return res.sendStatus(404);
     const bytes=await media.read(req.params.id);
     if(!bytes)return res.sendStatus(404);

@@ -45,7 +45,7 @@ async function navigate(){
  $('#console-dialog').open&&$('#console-dialog').close();
  renderNav();
  const main=$('#console-main');main.scrollTop=0;
- const show={events:()=>route[1]?showEditor(main,route[1]):showEvents(main),days:()=>showDays(main),exams:()=>route[1]?showBatch(main,route[1]):showExams(main),accounts:()=>showAccounts(main),settings:()=>showSettings(main)}[route[0]];
+ const show={events:()=>route[1]?showEditor(main,route[1],route[2]):showEvents(main),days:()=>showDays(main),exams:()=>route[1]?showBatch(main,route[1]):showExams(main),accounts:()=>showAccounts(main),settings:()=>showSettings(main)}[route[0]];
  app.rerender=()=>show();
  try{await show();}catch(error){main.innerHTML=`<p class="load-error">${esc(error.message)}</p>`;}
  renderNav();

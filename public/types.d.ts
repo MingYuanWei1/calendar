@@ -23,4 +23,20 @@ interface SchoolEvent {
   oldDate?: string;
   previousSchedule?: {start:string; end?:string; time?:string; endTime?:string; type:string};
   updatedAt?: string;
+  repeat?: RepeatRule;
+  exceptions?: Record<string, Record<string, any>>;
+  seriesId?: string;
+  occurrence?: string;
+  cancelledOnce?: boolean;
+}
+interface RepeatRule {
+  freq: 'daily' | 'weekly' | 'monthly';
+  interval: number;
+  schoolDays?: boolean;
+  weekdays?: number[];
+  monthDays?: number[];
+  ordinal?: number;
+  weekday?: number;
+  until?: string;
+  count?: number;
 }

@@ -97,8 +97,8 @@
   const small=matchMedia('(max-width:640px)').matches;
   if(item.kind==='event'){
    const focus=/** @type {any} */(window).calendarFocus;
-   if(focus&&focus(item.id)){if(small)close();return;}
-   location.href='/?event='+encodeURIComponent(item.id);return;
+   if(focus&&focus(item.id,item.date)){if(small)close();return;}
+   location.href='/?event='+encodeURIComponent(item.id)+(item.date?'&date='+item.date:'');return;
   }
   const focus=/** @type {any} */(window).examFocus;
   if(focus){focus(item.batchId,item.id);if(small)close();return;}

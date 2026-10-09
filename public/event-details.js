@@ -6,7 +6,8 @@ function eventDetails(event) {
   const row = (name, value) => value ? `<div class="meta-row"><span class="meta-label">${esc(t(name))}</span><div class="meta-value">${value}</div></div>` : '';
   let notice = '';
   if (event.cancelled) {
-    notice = `<div class="change-notice cancel-notice"><strong>${esc(t('cancelled'))}</strong><p>${esc(event.cancelReason || (state.lang ? 'This event will not take place.' : '此事件不再举行，保留记录供查阅。'))}</p></div>`;
+    const fallback = event.cancelledOnce ? (state.lang ? 'This date will not take place. The other dates of this repeating event go ahead.' : '本次不举行，该重复事件的其他日期照常。') : (state.lang ? 'This event will not take place.' : '此事件不再举行，保留记录供查阅。');
+    notice = `<div class="change-notice cancel-notice"><strong>${esc(cancelText(event))}</strong><p>${esc(event.cancelReason || fallback)}</p></div>`;
   } else if (event.oldDate) {
     const previous = event.previousSchedule;
     const original = previous ? `${formatDate(previous.start)}${previous.end && previous.end !== previous.start ? ' — ' + formatDate(previous.end) : ''} · ${timeText(previous)}` : formatDate(event.oldDate);
@@ -16,6 +17,7 @@ function eventDetails(event) {
     <h2>${esc(text(event.title))}</h2><p class="detail-subtitle">${esc(scopeText(event))} · ${state.lang ? 'School event' : '校园公共事件'}</p>${notice}
     <div class="detail-meta">
       ${row('when', `${esc(when)}<small>${esc(timeText(event))} · ${state.lang ? 'School local time' : '学校当地时间'}</small>`)}
+      ${event.repeat ? row('repeats', esc(repeatSummary(event.repeat))) : ''}
       ${row('where', esc(text(event.location)))}
       ${row('for', event.scope.map(s => `<span class="scope-badge">${esc(t(s))}</span>`).join(''))}
       ${row('host', esc(text(event.host)))}
