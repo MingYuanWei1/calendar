@@ -33,6 +33,10 @@ export function timeModeOf({type,start,end,time,endTime}){
 }
 const issues=result=>result.success?[]:result.error.issues.map(i=>`${i.path.join('.')||'event'}: ${i.message}`);
 
+// A multi-day event moved by its start date alone keeps its length.
+const daysBetween=(from,to)=>Math.round((Date.parse(to)-Date.parse(from))/86400000);
+const shift=(iso,days)=>{const d=new Date(iso+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);};
+
 /** Turns raw model items into reviewable proposals, resolving refs (E1…) to existing events. */
 export function resolveNotice(raw,refs){
  const warnings=[],items=[];
@@ -54,7 +58,7 @@ export function resolveNotice(raw,refs){
    if(item.action==='cancel'){
     items.push({...base,target:summary,cancelReason:item.cancelReason||'',problems:target.status==='published'?[]:['只能取消已发布的事件']});
    }else{
-    const e=item.event||{},change={start:e.start||target.start,end:e.end&&e.end!==(e.start||target.start)?e.end:'',time:e.time??target.time??'',endTime:target.type==='deadline'?'':e.endTime??target.endTime??''};
+    const e=item.event||{},start=e.start||target.start,change={start,end:e.end&&e.end!==start?e.end:!e.end&&target.end?shift(target.end,daysBetween(target.start,start)):'',time:e.time??target.time??'',endTime:target.type==='deadline'?'':e.endTime??target.endTime??''};
     const next={...target,...change,end:change.end||undefined,time:change.time||undefined,endTime:change.endTime||undefined,timeMode:timeModeOf({...target,...change})};
     items.push({...base,target:summary,change,problems:issues(eventSchema.safeParse(next))});
    }

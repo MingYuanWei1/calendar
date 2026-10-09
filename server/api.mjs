@@ -35,7 +35,7 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   const session=req=>localUser(req)||schoolAuth.user(req);
   const requireRole=role=>(req,res,next)=>{const user=session(req);if(!user)return res.status(401).json({error:'登录已失效，请重新登录。',code:'AUTH'});if(user.role<role)return res.status(403).json({error:'当前账户没有操作权限。',code:'FORBIDDEN'});next();};
   const requireAdmin=requireRole(2);
-  const quota=installQuota(db,{session,dailyLimit:llm.dailyLimit});
+  const quota=installQuota(db,{session,timeZone,dailyLimit:llm.dailyLimit});
   const clearCookie=res=>res.clearCookie('calendar_session',{path:'/',httpOnly:true,sameSite:'strict',secure:base.protocol==='https:'});
   app.use('/api/admin/exam-extract',express.json({limit:'20mb'}));
   app.use('/api/admin/notice-extract',express.json({limit:'20mb'}));

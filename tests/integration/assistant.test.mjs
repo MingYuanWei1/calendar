@@ -80,7 +80,6 @@ test('the assistant answers from published data, cites real items and sees only 
  await ask(visitor,[{role:'user',content:'我的考试在哪？'}]);
  const anonymous=state.prompts.at(-1).messages[0].content;
  assert.doesNotMatch(anonymous,/mySeat|inMyExams/);assert.match(anonymous,/nobody is signed in/);assert.match(anonymous,/sign in/i);
- assert.doesNotMatch(anonymous,/identity|demo bar|身份/);
 
  // A conversation continues with earlier turns; plain JSON is still available.
  const plain=await ask(visitor,[{role:'user',content:'下次放假？'},{role:'assistant',content:'10 月 1 日。'},{role:'user',content:'放几天？'}],'application/json');

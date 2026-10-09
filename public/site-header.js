@@ -135,7 +135,6 @@
   const reset=feedDialog.querySelector('[data-reset]');
   if(reset)reset.onclick=async()=>{try{feeds=await request('/feeds/mine/reset',{method:'POST'});show('mine');}catch(error){alert(error.message);}};
   if(!feedDialog.open)feedDialog.showModal();
-  window.dispatchEvent(new CustomEvent('demo-tour',{detail:{type:'subscribe',feed:kind}}));
  }
  function subscriptions(){
   renderSubscribe();

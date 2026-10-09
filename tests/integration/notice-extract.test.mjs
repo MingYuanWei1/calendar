@@ -94,6 +94,14 @@ test('a notice becomes reviewable proposals about new, moved and cancelled event
  assert.deepEqual((await json('/day-plans')).find(p=>p.date==='2026-10-24'),{date:'2026-10-24',kind:'school',title:['调休',''],follows:1});
 });
 
+test('moving a multi-day event by its start date keeps its length',async t=>{
+ const {llm,json,stream}=await setup(t);
+ await json('/admin/events','POST',published({title:['研学旅行','Study trip'],start:'2026-10-12',end:'2026-10-14',timeMode:'multi'}),201);
+ llm.state.items=[{action:'reschedule',target:'E1',event:{start:'2026-10-19'},source:{page:1,quote:'研学旅行推迟一周'}}];
+ const [moved]=(await stream({parts:[{kind:'text',text:'研学旅行推迟一周'}]})).at(-1).result.items;
+ assert.equal(moved.change.start,'2026-10-19');assert.equal(moved.change.end,'2026-10-21');assert.deepEqual(moved.problems,[]);
+});
+
 test('only admins may read notices, and bad or oversized materials are refused',async t=>{
  const {json,signIn,extract}=await setup(t);
  await json('/admin/accounts','POST',{username:'reader',password:'notice-reader-password',name:'Reader',role:1},201);

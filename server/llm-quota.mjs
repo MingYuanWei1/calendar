@@ -7,14 +7,14 @@ const messages={
  extract:{rate:'AI 提取太频繁，请稍后再试。',quota:'今日 AI 额度已用完，请明天再试或手工录入。'}
 };
 
-export function installQuota(db,{session,dailyLimit=1500}){
+export function installQuota(db,{session,timeZone,dailyLimit=1500}){
  db.exec(`CREATE TABLE IF NOT EXISTS llm_calls(key TEXT NOT NULL,at INTEGER NOT NULL);
  CREATE INDEX IF NOT EXISTS llm_calls_key ON llm_calls(key,at);
  CREATE TABLE IF NOT EXISTS llm_daily(day TEXT PRIMARY KEY,count INTEGER NOT NULL);`);
  const used=(key,since)=>db.prepare('SELECT COUNT(*) AS n FROM llm_calls WHERE key=? AND at>?').get(key,since).n;
  /** Resolves to null when the call may go ahead (and counts it), otherwise to a user-facing refusal. */
  function take(req,kind){
-  const now=Date.now(),day=new Date(now).toISOString().slice(0,10),{count,windowMs}=LIMITS[kind];
+  const now=Date.now(),day=new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(now),{count,windowMs}=LIMITS[kind];
   const address=req.calendarClientAddress||req.ip||'unknown',user=session(req),person=`${kind}:${user?'user:'+user.id:'address:'+address}`;
   return db.transactionSync(()=>{
    db.prepare('DELETE FROM llm_calls WHERE at<?').run(now-Math.max(PER_ADDRESS.windowMs,...Object.values(LIMITS).map(l=>l.windowMs)));
@@ -26,7 +26,5 @@ export function installQuota(db,{session,dailyLimit=1500}){
    return null;
   });
  }
- /** Express middleware that answers 429 once a limit is reached. */
- const guard=kind=>(req,res,next)=>{const refused=take(req,kind);if(refused)return res.status(429).json(refused);next();};
- return {take,guard};
+ return {take};
 }
