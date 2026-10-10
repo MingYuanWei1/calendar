@@ -105,7 +105,11 @@ export function installExams(app,db,{requireAdmin,isAdmin,user,origin,timeZone,q
   if(Number(req.headers['x-draft-version'])!==r.version)return res.status(409).json({error:'草稿已修改，请刷新后重新提取。'});
   if(!Buffer.isBuffer(req.body)||!String(req.headers['x-file-name']||'').toLowerCase().endsWith('.xlsx'))return fail(res,'仅支持 .xlsx 文件。');
   const refused=quota.take(req,'extract');if(refused)return res.status(429).json(refused);
-  await respond(req,res,async progress=>{const result=await extractSeats(req.body,JSON.parse(r.draft),llm,progress);return {...result,seats:students.organize({...JSON.parse(r.draft),seats:result.seats},false).seats};},error=>{const message=error.message||'';if(error.name==='TimeoutError')return `模型超过 ${SEAT_TIMEOUT/1000} 秒没有返回新内容，提取已停止。请把工作簿拆成较少的工作表后重试。`;return /^(请|仅|Excel|最多|表格|工作簿|LLM Worker|模型)/.test(message)?message:`与 LLM Worker 的连接中断（${error.name||'Error'}），请稍后重试；如反复出现，请拆分工作簿。`;},422);
+  await respond(req,res,async progress=>{
+   const organize=result=>({...result,seats:students.organize({...JSON.parse(r.draft),seats:result.seats},false).seats});
+   try{return organize(await extractSeats(req.body,JSON.parse(r.draft),llm,progress));}
+   catch(error){if(error.partial)error.partial=organize(error.partial);throw error;}
+  },error=>{const message=error.message||'';if(error.name==='TimeoutError')return `模型超过 ${SEAT_TIMEOUT/1000} 秒没有返回新内容，提取已停止。请把工作簿拆成较少的工作表后重试。`;return /^(请|仅|Excel|最多|表格|工作簿|LLM Worker|模型)/.test(message)?message:`与 LLM Worker 的连接中断（${error.name||'Error'}），请稍后重试；如反复出现，请拆分工作簿。`;},422);
  });
  app.post('/api/admin/exams/:id/student-preview',requireAdmin,(req,res)=>{
   const r=row(req.params.id);if(conflict(req,res,r))return;

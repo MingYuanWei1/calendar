@@ -8,7 +8,7 @@ import {createApplication} from '../../server/app.mjs';
 import {setAdminPassword} from '../../server/store.mjs';
 test('Worker extraction authenticates, routes purpose aliases, validates previews and never saves automatically',async()=>{
  const calls=[];let malformed=false,flashEnabled=true;
- const gateway=http.createServer(async(req,res)=>{assert.equal(req.headers.authorization,'Bearer fixture-token');res.setHeader('Content-Type','application/json');if(req.url==='/v1/capabilities')return res.end(JSON.stringify({purposes:{flash:{enabled:flashEnabled},think:{enabled:true},vision:{enabled:true}}}));let body='';for await(const part of req)body+=part;calls.push(JSON.parse(body));res.end(JSON.stringify({choices:[{message:{content:malformed?'bad json':JSON.stringify({sessions:[{title:'数学 HL',subject:'数学',level:'HL',division:'high',grades:[12],date:'2026-09-21',start:'08:10',end:'09:40',rooms:['101']}],warnings:[]})}}]}));});
+ const gateway=http.createServer(async(req,res)=>{assert.equal(req.headers.authorization,'Bearer fixture-token');res.setHeader('Content-Type','application/json');if(req.url==='/v1/capabilities')return res.end(JSON.stringify({purposes:{flash:{enabled:flashEnabled},think:{enabled:true},vision:{enabled:true}}}));let body='';for await(const part of req)body+=part;calls.push(JSON.parse(body));res.end(JSON.stringify({choices:[{message:{content:malformed===true?'bad json':malformed?malformed:JSON.stringify({sessions:[{title:'数学 HL',subject:'数学',level:'HL',division:'high',grades:[12],date:'2026-09-21',start:'08:10',end:'09:40',rooms:['101']}],warnings:[]})}}]}));});
  await new Promise(r=>gateway.listen(0,'127.0.0.1',r));
  const directory=await mkdtemp(join(tmpdir(),'extract-test-')),instance=createApplication({dataDir:directory,origin:'http://calendar.test',llm:{url:`http://127.0.0.1:${gateway.address().port}`,token:'fixture-token'}}),server=instance.app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
  const base=`http://127.0.0.1:${server.address().port}/api`,call=(path,method='GET',body,cookie='')=>fetch(base+path,{method,headers:{Origin:'http://calendar.test','Content-Type':'application/json',Cookie:cookie},...(body?{body:JSON.stringify(body)}:{})});
@@ -25,5 +25,9 @@ test('Worker extraction authenticates, routes purpose aliases, validates preview
   assert.equal((await call('/admin/exam-extract','POST',{...input,images:[]},cookie)).status,422);
   flashEnabled=false;const count=calls.length;assert.equal((await call('/admin/exam-extract','POST',input,cookie)).status,502);assert.equal(calls.length,count);flashEnabled=true;
   malformed=true;assert.equal((await call('/admin/exam-extract','POST',input,cookie)).status,502);
+  // Sessions the model finished before its answer broke off come back as `partial`, normalized like a full result.
+  malformed='{"sessions":[{"title":"数学 HL","subject":"数学","level":"HL","division":"high","grades":["G12"],"date":"2026-09-21","start":"08:10","end":"09:40","rooms":["101"]},{"title":';
+  response=await call('/admin/exam-extract','POST',input,cookie);assert.equal(response.status,502);const failed=await response.json();
+  assert.equal(failed.partial.sessions.length,1);assert.ok(failed.partial.sessions[0].id);assert.deepEqual(failed.partial.sessions[0].grades,[12]);
  }finally{await new Promise(r=>server.close(r));await new Promise(r=>gateway.close(r));instance.close();await rm(directory,{recursive:true,force:true});}
 });

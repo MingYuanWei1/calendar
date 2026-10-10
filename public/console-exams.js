@@ -396,8 +396,14 @@ async function extractSessions(b,pages,name){
   });
   final=done.result;
   reviewExtracted(b,final,review,{elapsed:done.elapsed});
- }catch(error){if(error.name!=='AbortError')review.error(error.message);}
+ }catch(error){
+  if(error.name==='AbortError')return;
+  // Retrying reuses the open dialog; the sessions finished before the failure can be added first.
+  const partial=error.partial;
+  review.error(error.message,{retry:()=>extractSessions(batch(),pages,name),partial:partial&&{count:partial.sessions.length,use:()=>{final=partial;reviewExtracted(batch(),{...partial,warnings:[interrupted(partial.sessions.length),...partial.warnings]},review);}}});
+ }
 }
+const interrupted=n=>T(`提取中断：以下仅为中断前识别的 ${n} 条，其余内容请稍后重试提取或手动补充。`,`Extraction was interrupted: only the ${n} results found before then are shown. Retry later or add the rest by hand.`);
 function reviewExtracted(b,result,review,{preset=false,elapsed=null}={}){
  const rows=result.sessions;
  const cell=(i,name,value,attrs='')=>`<input class="input" name="${name}" data-i="${i}" value="${esc(value??'')}" aria-label="${name} ${i+1}" ${attrs}>`;
@@ -456,7 +462,11 @@ async function extractSeats(b,file){
   });
   final=done.result;
   seatResults(b,final,review,{elapsed:done.elapsed});
- }catch(error){if(error.name!=='AbortError')review.error(error.message);}
+ }catch(error){
+  if(error.name==='AbortError')return;
+  const partial=error.partial;
+  review.error(error.message,{retry:()=>extractSeats(batch(),file),partial:partial&&{count:partial.seats.length,use:()=>{final=partial;seatResults(batch(),{...partial,warnings:[interrupted(partial.seats.length),...partial.warnings]},review);}}});
+ }
 }
 function seatResults(b,result,review,{elapsed=null,preset=false}={}){
  const groups=new Map();

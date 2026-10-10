@@ -68,8 +68,9 @@ test('exam extraction streams NDJSON stages and items, then the normalised resul
  }finally{await new Promise(r=>server.close(r));await new Promise(r=>llm.server.close(r));instance.close();await rm(directory,{recursive:true,force:true});}
 });
 
-test('a failing gateway is retried once, and malformed output is regenerated once with a reset',async()=>{
- const {streamJson}=await import('../../server/llm-stream.mjs');
+test('a failing gateway is retried up to RETRY.times, and malformed output is regenerated once with a reset',async()=>{
+ const {streamJson,RETRY}=await import('../../server/llm-stream.mjs');
+ const pause=RETRY.pause;RETRY.pause=()=>5;
  const replies=[];let calls=0;
  const server=http.createServer(async(req,res)=>{
   for await(const chunk of req);
@@ -82,9 +83,10 @@ test('a failing gateway is retried once, and malformed output is regenerated onc
  const config={url:`http://127.0.0.1:${server.address().port}`,token:'t'};
  const events=[],progress={stage:s=>events.push('stage:'+s),item:(k,i)=>events.push(`item:${i}`),reset:()=>events.push('reset'),text(){},source(){}};
  try{
-  replies.push({status:503},{content:'{"sessions":[{"title":"A"}]}'});
+  replies.push({status:503},{status:503},{status:503},{content:'{"sessions":[{"title":"A"}]}'});
   assert.deepEqual(await streamJson(config,{model:'flash',messages:[]},5000,progress),{sessions:[{title:'A'}]});
-  assert.equal(calls,2);assert.ok(!events.includes('reset'));
+  assert.equal(calls,4);assert.ok(!events.includes('reset'));
+  assert.deepEqual(events.filter(e=>e==='stage:reconnecting').length,3);
   replies.length=0;calls=0;events.length=0;
   replies.push({content:'{"sessions":[{"title":"A"},{"tit'},{content:'{"sessions":[{"title":"B"}]}'});
   assert.deepEqual(await streamJson(config,{model:'flash',messages:[]},5000,progress),{sessions:[{title:'B'}]});
@@ -94,7 +96,10 @@ test('a failing gateway is retried once, and malformed output is regenerated onc
   await assert.rejects(()=>streamJson(config,{model:'flash',messages:[]},5000,progress),SyntaxError);
   assert.equal(calls,2);
   replies.length=0;calls=0;replies.push({status:502});
-  await assert.rejects(()=>streamJson(config,{model:'flash',messages:[]},5000,progress),/502/);
-  assert.equal(calls,2);
- }finally{await new Promise(r=>server.close(r));}
+  await assert.rejects(()=>streamJson(config,{model:'flash',messages:[]},5000,progress),/502.*重试 10 次/);
+  assert.equal(calls,RETRY.times+1);
+  // The items finished before a failure travel on the error, so callers can offer them.
+  replies.length=0;calls=0;replies.push({content:'{"sessions":[{"title":"A"},{"title":"B"},{"tit'});
+  await assert.rejects(()=>streamJson(config,{model:'flash',messages:[]},5000,progress),error=>{assert.deepEqual(error.items,{sessions:[{title:'A'},{title:'B'}]});return true;});
+ }finally{RETRY.pause=pause;await new Promise(r=>server.close(r));}
 });

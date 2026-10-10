@@ -32,9 +32,16 @@ export function installExamExtract(app,requireAdmin,config,subjects,quota,school
    const instruction=extractionInstruction(start,end,subjects(),rules.rules);
    const content=[{type:'text',text:'Extract the timetable from these PDF pages. Embedded PDF text (may be incomplete):\n'+text},...images.map(url=>({type:'image_url',image_url:{url}}))];
    progress.stage('reading',{pages:images.length});
-   const parsed=resultSchema.parse(await streamJson(config,{model,messages:[{role:'system',content:instruction},{role:'user',content}]},120000,progress));
+   const session=s=>normalizeCourse({id:randomUUID(),title:s.title||'',titleEn:s.titleEn||'',subject:s.subject||'',subjectEn:s.subjectEn||'',level:s.level||'',division:s.division||'',grades:[...new Set((s.grades||[]).map(parseGrade).filter(Boolean))].sort((a,b)=>a-b),date:s.date||'',start:s.start||'',end:s.end||'',rooms:s.rooms||[],note:s.note||'',cancelled:false,source:s.source||null},subjects(),rules.curriculum);
+   // On failure, keep the sessions the model had finished so the administrator can add them and retry the rest.
+   const salvage=(error,list)=>{const sessions=(Array.isArray(list)?list:[]).flatMap(s=>{const r=item.safeParse(s);return r.success?[session(r.data)]:[];});if(sessions.length)error.partial={sessions,warnings:[]};return error;};
+   let raw;
+   try{raw=await streamJson(config,{model,messages:[{role:'system',content:instruction},{role:'user',content}]},120000,progress);}
+   catch(error){throw salvage(error,error.items?.sessions);}
+   const parsed=resultSchema.safeParse(raw);
+   if(!parsed.success)throw salvage(parsed.error,raw?.sessions);
    progress.stage('validating');
-   return {sessions:parsed.sessions.map(s=>normalizeCourse({id:randomUUID(),title:s.title||'',titleEn:s.titleEn||'',subject:s.subject||'',subjectEn:s.subjectEn||'',level:s.level||'',division:s.division||'',grades:[...new Set((s.grades||[]).map(parseGrade).filter(Boolean))].sort((a,b)=>a-b),date:s.date||'',start:s.start||'',end:s.end||'',rooms:s.rooms||[],note:s.note||'',cancelled:false,source:s.source||null},subjects(),rules.curriculum)),warnings:parsed.warnings};
+   return {sessions:parsed.data.sessions.map(session),warnings:parsed.data.warnings};
   },extractionFailure);
  });
 }

@@ -7,6 +7,7 @@ import {esc,corners,icon,T} from './console-core.js';
 /**
  * POSTs to an NDJSON endpoint and calls onMessage for every {type:'stage'|'item'|'source'|'text'|'done'|'error'} line.
  * Resolves with the `done` result; rejects with the server's message on `error` or a failed request.
+ * The rejection's `partial` holds the results the server finished before failing, if any.
  * @param {string} path
  * @param {{body?:BodyInit,headers?:Record<string,string>,signal?:AbortSignal}} [options]
  * @param {(message:any)=>void} [onMessage]
@@ -17,13 +18,13 @@ export async function streamApi(path,{body,headers={},signal}={},onMessage=()=>{
  const raw=body instanceof Blob;
  try{response=await fetch('/api'+path,{method:'POST',credentials:'same-origin',body,signal,headers:{Accept:'application/x-ndjson',...(raw?{}:{'Content-Type':'application/json'}),...headers}});}
  catch(error){if(error.name==='AbortError')throw error;throw new Error(T('无法连接服务器，请重试。','Unable to connect. Please retry.'));}
- if(!response.ok){const detail=await response.json().catch(()=>({}));throw new Error(detail.error||T('请求失败，请重试。','Request failed. Please retry.'));}
+ if(!response.ok){const detail=await response.json().catch(()=>({}));throw Object.assign(new Error(detail.error||T('请求失败，请重试。','Request failed. Please retry.')),{partial:detail.partial});}
  const reader=response.body.getReader(),decoder=new TextDecoder();
  let buffer='',result;
  const handle=line=>{
   if(!line.trim())return;
   const message=JSON.parse(line);
-  if(message.type==='error')throw new Error(message.error);
+  if(message.type==='error')throw Object.assign(new Error(message.error),{partial:message.partial});
   if(message.type==='done')result=message;
   onMessage(message);
  };
@@ -152,7 +153,8 @@ const stageText=(stage,detail,count)=>({
  reading:T(`模型正在阅读材料${detail.pages?`（${detail.pages} 页）`:detail.sheets?`（${detail.sheets} 个工作表）`:''}…`,`The model is reading${detail.pages?` ${detail.pages} page(s)`:detail.sheets?` ${detail.sheets} sheet(s)`:''}…`),
  generating:count?T(`正在识别… 已识别 ${count} 条`,`Extracting… ${count} found`):T('正在识别…','Extracting…'),
  validating:T('正在校验结果…','Checking the results…'),
- retrying:T('模型返回的格式有误，正在自动重试…','The model’s answer was malformed; retrying…')
+ retrying:T('模型返回的格式有误，正在自动重试…','The model’s answer was malformed; retrying…'),
+ reconnecting:T(`LLM Worker 暂时不可用（${detail.status||'网络错误'}），正在第 ${detail.attempt}/${detail.of} 次重试…`,`The LLM Worker is unavailable (${detail.status||'network error'}); retry ${detail.attempt} of ${detail.of}…`)
 })[stage]||stage;
 
 /**
@@ -207,7 +209,8 @@ export function reviewView({title,sourceOf=()=>null,onClose=()=>{}}){
   count(text){q('[data-count]').textContent=text;},
   /** Replaces the results with their final, editable form and stops the timer. */
   results(html,{notes=[],elapsed=null,preset=false,total=null}={}){
-   finished=true;window.clearInterval(timer);
+   finished=true;window.clearInterval(timer);this.alert('');
+   dialog.classList.remove('ai-failed');
    const seconds=((elapsed??(performance.now()-started))/1000).toFixed(1);
    dialog.classList.add('ai-done');
    q('[data-stage]').textContent=preset?T('预设结果 · 未调用 LLM','Preset results · the LLM was not called'):T(`完成 · 用时 ${seconds} 秒`,`Done in ${seconds} s`);
@@ -219,11 +222,22 @@ export function reviewView({title,sourceOf=()=>null,onClose=()=>{}}){
   actions(html){q('[data-actions]').innerHTML=html;return q('[data-actions]');},
   /** Shows an inline problem (e.g. a failed save) without ending the review. */
   alert(message){const el=q('[data-error]');el.textContent=message;el.hidden=!message;},
-  /** Ends the review with an error; `fallback` offers the preset sample results instead. */
-  error(message,{fallback=null}={}){
+  /**
+   * Ends the review with an error. `fallback` offers the preset sample results instead, `partial`
+   * ({count, use}) offers the results finished before the failure, and `retry` runs the extraction again.
+   */
+  error(message,{fallback=null,partial=null,retry=null}={}){
    window.clearInterval(timer);dialog.classList.add('ai-failed');
    q('[data-stage]').textContent=T('提取未完成','Extraction stopped');
    const el=q('[data-error]');el.textContent=message;el.hidden=!message;
+   if(partial?.count){
+    q('[data-actions]').insertAdjacentHTML('beforeend',`<button type="button" class="btn btn-secondary" data-partial>${T(`先使用已提取的 ${partial.count} 条`,`Use the ${partial.count} found so far`)}</button>`);
+    /** @type {HTMLElement} */(q('[data-partial]')).onclick=partial.use;
+   }
+   if(retry){
+    q('[data-actions]').insertAdjacentHTML('beforeend',`<button type="button" class="btn btn-primary" data-retry>${T('重试','Retry')}</button>`);
+    /** @type {HTMLElement} */(q('[data-retry]')).onclick=retry;
+   }
    if(fallback){
     q('[data-actions]').insertAdjacentHTML('beforeend',`<button type="button" class="btn btn-primary" data-fallback>${T('改用示例的预设结果','Use the sample’s preset results')}</button>`);
     /** @type {HTMLElement} */(q('[data-fallback]')).onclick=()=>{close();fallback();};
