@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import {getFontData} from './font-data.mjs';
-import {seatSchema,seatErrors,divisionNames} from './exam-model.mjs';
+import {seatSchema,seatErrors,adaptRooms,divisionNames} from './exam-model.mjs';
 import {gradeLabel} from '../public/grades.mjs';
 import unzipper from 'unzipper';
 const columns=['考试编号','教室','排','列','班级','中文名','英文名'];
@@ -33,7 +33,8 @@ export async function parseSeats(buffer,batch){
   const parsed=seatSchema.safeParse({examId,room,row:Number(r),column:Number(c),className,name,englishName,grade:row.getCell(8).text.trim()?Number(row.getCell(8).text):null});
   if(!parsed.success)errors.push(`第 ${n} 行：${parsed.error.issues.map(i=>i.message).join('；')}`);else seats.push(parsed.data);
  });
- return {seats,errors:[...errors,...seatErrors(batch,seats)].slice(0,100)};
+ const {rooms,changes}=adaptRooms(batch,seats);
+ return {seats,roomChanges:changes,errors:[...errors,...seatErrors({...batch,rooms},seats)].slice(0,100)};
 }
 export async function makeSchedulePdf(batch,sessions,{timeZone,scope,english=false}){
  const doc=new PDFDocument({size:'A4',margin:40,info:{Title:batch.title,Author:english?'Calendar':'日历'}}),buffers=[];

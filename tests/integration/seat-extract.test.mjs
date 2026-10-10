@@ -30,7 +30,8 @@ test('XLSX seat extraction preserves grid context, validates matches and only pr
   assert.deepEqual((await (await fetch(base+'/admin/exams',{headers:{Cookie:cookie}})).json()).find(b=>b.id===saved.id).seats,[]);assert.deepEqual(await (await fetch(base+'/admin/students',{headers:{Cookie:cookie}})).json(),[]);
   seats=[seat,{...seat,examId:'sl'}];result=await (await run()).json();assert.match(result.errors.join(''),/重复占用/);
   seats=[{...seat,examId:'unknown'}];result=await (await run()).json();assert.match(result.errors.join(''),/不匹配/);
-  seats=[{...seat,row:3}];result=await (await run()).json();assert.match(result.errors.join(''),/范围/);
+  seats=[{...seat,row:3,column:4}];result=await (await run()).json();assert.deepEqual(result.errors,[]);assert.deepEqual(result.roomChanges,[{name:'101',from:{rows:2,columns:2},to:{rows:3,columns:4}}]);
+  assert.deepEqual((await (await fetch(base+'/admin/exams',{headers:{Cookie:cookie}})).json()).find(b=>b.id===saved.id).rooms,batch.rooms);
   enabled=false;const count=calls.length;assert.equal((await run()).status,422);assert.equal(calls.length,count);
  }finally{await new Promise(r=>server.close(r));instance.close();await new Promise(r=>gateway.close(r));await rm(directory,{recursive:true,force:true});}
 });

@@ -20,3 +20,20 @@ export function moveSeat(batch,index,row,column,examIds=null){
  if(target){target.row=seat.row;target.column=seat.column;}
  seat.row=row;seat.column=column;return true;
 }
+export const ROOM_MAX=40;
+/**
+ * Grows rooms so every seat fits: a seating sheet may hold more rows or columns than the room was set up with
+ * (rooms from session extraction start at 5 × 5). Rooms only grow, never shrink, and each grown room is flagged
+ * `sizeReview` until an administrator confirms it. Sizes beyond ROOM_MAX stay as they are, so seatErrors reports them.
+ */
+export function adaptRooms(batch,seats=batch.seats){
+ const changes=[];
+ const rooms=batch.rooms.map(room=>{
+  const own=seats.filter(s=>s.room===room.name);
+  const rows=Math.max(room.rows,...own.map(s=>s.row)),columns=Math.max(room.columns,...own.map(s=>s.column));
+  if((rows===room.rows&&columns===room.columns)||rows>ROOM_MAX||columns>ROOM_MAX)return room;
+  changes.push({name:room.name,from:{rows:room.rows,columns:room.columns},to:{rows,columns}});
+  return {...room,rows,columns,sizeReview:true};
+ });
+ return {rooms,changes};
+}

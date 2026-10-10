@@ -1,5 +1,5 @@
 import {$,$$,esc,corners,icon,app,T,tx,SCOPES,api,toast,modal,closeModal,busy,errorLine,fail,go,refreshNav,md,mdw,stamp,loadBatches,loadSubjects} from './console-core.js';
-import {moveSeat,roomExamsAt,seatViewTimes} from './exam-seats.mjs';
+import {adaptRooms,moveSeat,roomExamsAt,seatViewTimes} from './exam-seats.mjs';
 import {subjectName} from './exam-subjects.mjs';
 import {defaultExamSlots,slotOf} from './exam-times.mjs';
 import {importPreview} from './exam-import-preview.js';
@@ -106,6 +106,8 @@ function seatContext(b){
  const active=exam?roomExamsAt(editable,exam,room.name,time):[];
  return {room,exams,exam,times,time,active,ids:active.map(s=>s.id)};
 }
+const sizeTag=()=>`<span class="tag tag-outline small">${T('尺寸待确认','Check size')}</span>`;
+const roomChangeNotes=changes=>(changes||[]).map(c=>T(`教室 ${c.name} 已从 ${c.from.rows}×${c.from.columns} 调整为 ${c.to.rows}×${c.to.columns}，导入后需在教室设置中人工确认。`,`Room ${c.name} grows from ${c.from.rows}×${c.from.columns} to ${c.to.rows}×${c.to.columns}; confirm its size in the room settings after importing.`));
 function roomsTab(b){
  const ctx=seatContext(b);
  if(!ctx)return `<div class="empty"><p style="font-size:14px">${T('暂无教室，请先新增教室。','No rooms yet. Add a room first.')}</p><button type="button" class="btn btn-secondary" data-act="add-room">+ ${T('新增教室','Add room')}</button></div>`;
@@ -118,8 +120,8 @@ function roomsTab(b){
   const examNote=seat&&active.length>1?' · '+sName(active.find(s=>s.id===seat.examId)):'';
   seats+=`<button type="button" class="seat${seat?' taken':''}" data-row="${r}" data-column="${c}"${seat?` data-index="${index}"`:''} title="${esc(`${T(`第 ${r} 排 · 第 ${c} 列`,`Row ${r}, column ${c}`)}${examNote}`)}"><strong>${esc(label)}</strong><span>${esc(seat?seat.className:`${r}-${c}`)}</span></button>`;
  }
- return `<div class="rooms-layout"><div class="room-list">${b.rooms.map((r,i)=>`<button type="button" data-room="${i}" aria-pressed="${r===room}"><strong>${esc(r.name)}</strong><small>${r.rows} × ${r.columns} · ${count(b.sessions.filter(s=>s.rooms.includes(r.name)).length,'场','sessions')}</small></button>`).join('')}<button type="button" class="btn btn-ghost" data-act="add-room" style="align-self:flex-start;margin-top:8px">+ ${T('新增教室','Add room')}</button></div>
- <div class="room-detail"><div class="head"><h4>${esc(room.name)}</h4><span class="muted" style="font-size:13px">${T(`${room.rows} 排 × ${room.columns} 列`,`${room.rows} rows × ${room.columns} columns`)}</span><button type="button" class="btn btn-ghost" data-act="edit-room" style="margin-left:auto;font-size:13px">${T('编辑教室','Edit room')}</button></div>
+ return `<div class="rooms-layout"><div class="room-list">${b.rooms.map((r,i)=>`<button type="button" data-room="${i}" aria-pressed="${r===room}"><strong>${esc(r.name)}</strong><small>${r.rows} × ${r.columns} · ${count(b.sessions.filter(s=>s.rooms.includes(r.name)).length,'场','sessions')}</small>${r.sizeReview?sizeTag():''}</button>`).join('')}<button type="button" class="btn btn-ghost" data-act="add-room" style="align-self:flex-start;margin-top:8px">+ ${T('新增教室','Add room')}</button></div>
+ <div class="room-detail"><div class="head"><h4>${esc(room.name)}</h4><span class="muted" style="font-size:13px">${T(`${room.rows} 排 × ${room.columns} 列`,`${room.rows} rows × ${room.columns} columns`)}</span>${room.sizeReview?`${sizeTag()}<button type="button" class="btn btn-secondary" data-act="confirm-room" style="font-size:13px" title="${T('尺寸由座位表自动扩大，请核对排数和列数与实际教室一致','The size was grown to fit the seating sheet; check the rows and columns match the real room')}">${T('确认尺寸','Confirm size')}</button>`:''}<button type="button" class="btn btn-ghost" data-act="edit-room" style="margin-left:auto;font-size:13px">${T('编辑教室','Edit room')}</button></div>
  ${exams.length?`<div class="chips">${exams.map(s=>`<button type="button" class="chip plain" data-room-exam="${esc(s.id)}" aria-pressed="${s===exam}">${esc(md(s.date))} ${s.start} · ${esc(sName(s))}${b.sessions.find(x=>x.id===s.id).cancelled?T('（已取消）',' (cancelled)'):''}</button>`).join('')}</div>
  ${times.length>1?`<div class="chips" aria-label="${T('查看时刻','View time')}"><span class="muted" style="font-size:12px;align-self:center">${T('查看时刻','View at')}</span>${times.map(t=>`<button type="button" class="chip plain" data-time="${t}" aria-pressed="${t===time}">${t}</button>`).join('')}</div>`:''}
  <div class="seat-scroll"><div class="seat-map"><div class="podium">${T('讲 台','FRONT')}</div><div class="seat-grid" id="seat-grid" style="grid-template-columns:repeat(${room.columns},92px)">${seats}</div></div></div>`
@@ -142,7 +144,7 @@ function onBatchClick(e,b){
  else if(d.roomExam){view.exam=d.roomExam;view.time='';rerender();}
  else if(d.time){view.time=d.time;rerender();}
  else if(d.row&&!t.dataset.dragged)seatDialog(b,Number(d.row),Number(d.column),d.index===undefined?-1:Number(d.index));
- else ({meta:()=>batchMetaDialog(b),delete:()=>deleteDialog(b),'pub-schedule':()=>publishDialog(b,false),'pub-seating':()=>publishDialog(b,true),extract:()=>extractDialog(b),'add-exam':()=>examDialog(null),'add-room':()=>roomDialog(-1),'edit-room':()=>roomDialog(b.rooms.indexOf(seatContext(b).room)),slots:()=>slotsDialog(b)})[d.act]?.();
+ else ({meta:()=>batchMetaDialog(b),delete:()=>deleteDialog(b),'pub-schedule':()=>publishDialog(b,false),'pub-seating':()=>publishDialog(b,true),extract:()=>extractDialog(b),'add-exam':()=>examDialog(null),'add-room':()=>roomDialog(-1),'edit-room':()=>roomDialog(b.rooms.indexOf(seatContext(b).room)),'confirm-room':()=>{const name=seatContext(b).room.name;update(next=>{const room=next.rooms.find(r=>r.name===name);if(room)delete room.sizeReview;},T(`已确认教室 ${name} 的尺寸。`,`Confirmed the size of room ${name}.`)).catch(error=>toast(error.message,{bad:true}));},slots:()=>slotsDialog(b)})[d.act]?.();
 }
 
 /* Drag a taken seat onto another seat to move or swap it. */
@@ -333,7 +335,8 @@ function publishDialog(b,seating){
  const rows=sorted(b.sessions);
  const body=modal(seating?T('座位表发布预览','Seating publish preview'):T('考试安排发布预览','Schedule publish preview'),seating
   ?`<p style="font-size:14px">${T(`共 ${b.sessions.length} 场考试、${b.rooms.length} 间教室、${b.seats.length} 个座位。发布前请在“教室”页逐间核对。`,`${b.sessions.length} sessions across ${b.rooms.length} rooms, ${b.seats.length} seats. Check each room on the Rooms tab before publishing.`)}</p>
-   <div class="list-box rooms">${b.rooms.map(r=>`<div><span style="font-weight:500">${esc(r.name)}</span><span class="muted">${r.rows} × ${r.columns} · ${count(b.sessions.filter(s=>s.rooms.includes(r.name)).length,'场','sessions')} · ${count(b.seats.filter(s=>s.room===r.name).length,'座','seats')}</span></div>`).join('')}</div>`
+   ${b.rooms.some(r=>r.sizeReview)?`<p class="callout">${T('标记“尺寸待确认”的教室由座位表自动扩大，请先在“教室”页确认尺寸再发布。','Rooms marked “Check size” were grown to fit the seating sheet; confirm them on the Rooms tab before publishing.')}</p>`:''}
+   <div class="list-box rooms">${b.rooms.map(r=>`<div><span style="font-weight:500">${esc(r.name)}</span><span class="muted">${r.rows} × ${r.columns} · ${count(b.sessions.filter(s=>s.rooms.includes(r.name)).length,'场','sessions')} · ${count(b.seats.filter(s=>s.room===r.name).length,'座','seats')}</span>${r.sizeReview?sizeTag():''}</div>`).join('')}</div>`
   :`<div class="list-box publish">${rows.map(s=>`<div><span class="num">${esc(md(s.date))} · ${s.start}–${s.end}</span><span class="${s.cancelled?'struck':''}">${esc(sName(s))} · ${esc(s.grades.map(g=>gradeLabel(g,app.lang)).join(' / '))}</span><span>${esc(s.rooms.join(' / '))}</span></div>`).join('')||`<div class="muted">${T('暂无考试','No sessions')}</div>`}</div>`
  +`<p class="callout">${seating?T('使用学校 Microsoft 账号登录的学生可查看全部已发布座位表。','Students signed in with a school Microsoft account can view all published seating.'):T('时间、教室或取消状态发生变化时，已发布座位表将撤下，需核对后重新发布。','If times, rooms or cancellations change later, published seating is withdrawn and must be re-published.')}</p>
  ${actions({saveLabel:seating?T('确认发布座位表','Publish seating'):T('确认发布考试安排','Publish schedule')})}`,{size:'wide'});
@@ -401,7 +404,7 @@ function reviewExtracted(b,result,review,{preset=false,elapsed=null}={}){
  review.results(`<p style="font-size:14px">${T(`提取到 ${rows.length} 场考试。请核对日期、时间、学部、年级及教室；取消勾选可跳过某行。`,`Found ${rows.length} sessions. Check dates, times, divisions, grades and rooms; untick a row to skip it.`)}</p>
  <div style="overflow:auto"><table class="review-table"><thead><tr><th>${T('加入','Add')}</th><th>${T('考试名称','Exam')}</th><th>${T('学科 / Level','Subject / Level')}</th><th>${T('学部 / 年级','Division / grades')}</th><th>${T('日期','Date')}</th><th>${T('开始 / 结束','Start / end')}</th><th>${T('教室（逗号分隔）','Rooms (comma-separated)')}</th></tr></thead><tbody>
  ${rows.map((s,i)=>`<tr data-row="${i}" data-pick="${i}"><td><input type="checkbox" name="include" checked aria-label="${T(`加入第 ${i+1} 场`,`Add row ${i+1}`)}"></td><td>${cell(i,'title',s.title)}</td><td>${cell(i,'subject',s.subject)}${cell(i,'level',s.level)}</td><td><select class="input" name="division" aria-label="division ${i+1}"><option value="">${T('请选择','Choose')}</option>${divisions.map(k=>`<option value="${k}"${s.division===k?' selected':''}>${tx(SCOPES[k])}</option>`).join('')}</select>${cell(i,'grades',s.grades.join(', '))}</td><td>${cell(i,'date',s.date,'type="date"')}</td><td>${cell(i,'start',s.start,'type="time"')}${cell(i,'end',s.end,'type="time"')}</td><td>${cell(i,'rooms',s.rooms.join(','))}</td></tr>`).join('')}</tbody></table></div>
- <p class="muted" style="font-size:12px">${T('仅追加选中场次。新教室会以 5 排 × 5 列加入草稿，可在教室设置中调整；不会生成学生座位数据。','Only ticked rows are added. New rooms are added as 5 × 5 and can be adjusted later; no seats are created.')}</p>`,{notes:result.warnings||[],elapsed,preset,total:rows.length});
+ <p class="muted" style="font-size:12px">${T('仅追加选中场次。新教室会以 5 排 × 5 列加入草稿，导入座位表时若座位超出会自动扩大（需人工确认），也可在教室设置中调整；不会生成学生座位数据。','Only ticked rows are added. New rooms are added as 5 × 5; importing seating grows a room that is too small (to be confirmed by hand), and sizes can be adjusted later. No seats are created.')}</p>`,{notes:result.warnings||[],elapsed,preset,total:rows.length});
  const bar=review.actions(`<button type="button" class="btn btn-secondary" data-dismiss>${T('返回','Go back')}</button><button type="button" class="btn btn-primary" data-save${rows.length?'':' disabled'}>${T('确认加入草稿','Add to draft')}</button>`);
  bar.querySelector('[data-dismiss]').onclick=review.close;
  const save=bar.querySelector('[data-save]');
@@ -459,16 +462,16 @@ function seatResults(b,result,review,{elapsed=null,preset=false}={}){
  const groups=new Map();
  result.seats.forEach((seat,i)=>{const key=`${seat.examId}\u0000${seat.room}`;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(i);});
  review.results([...groups.values()].map(indexes=>{const first=result.seats[indexes[0]];return `<div class="seat-group"><h4>${esc(examName(b,first.examId))} · ${esc(first.room)} <span class="muted num" style="font-size:13px">${T(`${indexes.length} 座`,`${indexes.length} seats`)}</span></h4>${indexes.map(i=>seatLine(b,result.seats[i],i)).join('')}</div>`;}).join('')||`<p class="muted">${T('未识别到座位。','No seats found.')}</p>`,
-  {notes:[...(result.warnings||[]),...(result.errors||[])],elapsed,preset,total:result.seats.length});
+  {notes:[...roomChangeNotes(result.roomChanges),...(result.warnings||[]),...(result.errors||[])],elapsed,preset,total:result.seats.length});
  const bar=review.actions(`<button type="button" class="btn btn-secondary" data-dismiss>${T('返回','Go back')}</button><button type="button" class="btn btn-primary" data-next${result.seats.length?'':' disabled'}>${T('下一步：核对身份并导入','Next: check identities and import')}</button>`);
  bar.querySelector('[data-dismiss]').onclick=review.close;
  bar.querySelector('[data-next]').onclick=()=>{review.close();seatPreview(batch(),result,T('LLM 座位表提取预览','LLM seat extraction preview'));};
 }
 function seatPreview(b,result,title){
  $('#close-preview').setAttribute('aria-label',T('关闭','Close'));
- importPreview(result,{title,batch:b,accept:seats=>{
+ importPreview(result,{title,batch:b,roomNotes:roomChangeNotes,accept:seats=>{
   if(batch().version!==b.version)throw new Error(T('草稿已修改，请重新导入。','The draft changed; import again.'));
   $('#preview-dialog').close();
-  update(next=>next.seats=seats,T(`已导入 ${seats.length} 个座位到草稿。`,`Imported ${seats.length} seats into the draft.`)).catch(error=>toast(error.message,{bad:true}));
+  update(next=>{next.seats=seats;next.rooms=adaptRooms(next,seats).rooms;},T(`已导入 ${seats.length} 个座位到草稿。`,`Imported ${seats.length} seats into the draft.`)).catch(error=>toast(error.message,{bad:true}));
  }});
 }

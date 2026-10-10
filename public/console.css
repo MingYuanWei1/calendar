@@ -294,7 +294,7 @@ dialog.dialog::backdrop{background:color-mix(in srgb,var(--color-neutral-900) 50
 .list-box{max-height:340px;overflow:auto;border-top:1px solid var(--color-divider)}
 .list-box>div{display:grid;gap:12px;padding:7px 0;border-bottom:1px solid var(--color-faint);font-size:13px;align-items:center}
 .list-box.publish>div{grid-template-columns:150px minmax(0,1fr) 150px}
-.list-box.rooms>div{grid-template-columns:minmax(0,1fr) auto}
+.list-box.rooms>div{grid-template-columns:minmax(0,1fr) auto auto}
 .list-box.subjects>div{grid-template-columns:140px minmax(0,1fr)}
 .subject-add{display:grid;grid-template-columns:140px minmax(0,1fr) auto;gap:12px;align-items:end}
 .review-table{width:100%;border-collapse:collapse;font-size:13px}

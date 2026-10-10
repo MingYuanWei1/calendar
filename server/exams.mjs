@@ -7,7 +7,7 @@ import {installSubjects} from './exam-subjects.mjs';
 import {installSchoolRules} from './school-rules.mjs';
 import express from 'express';
 import {randomUUID} from 'node:crypto';
-import {batchEvent,batchSchema,numberGrades,seatErrors,schedule,scheduleKey} from './exam-model.mjs';
+import {adaptRooms,batchEvent,batchSchema,numberGrades,seatErrors,schedule,scheduleKey} from './exam-model.mjs';
 import {seatTemplate,parseSeats,makeSchedulePdf} from './exam-files.mjs';
 export function installExams(app,db,{requireAdmin,isAdmin,user,origin,timeZone,quota,sso={},llm={}}){
  db.exec(`CREATE TABLE IF NOT EXISTS exam_batches(id TEXT PRIMARY KEY,version INTEGER NOT NULL,draft TEXT NOT NULL,published TEXT,seating TEXT);
@@ -95,6 +95,8 @@ export function installExams(app,db,{requireAdmin,isAdmin,user,origin,timeZone,q
   const b=JSON.parse(r.draft),published=publicBatch(r);if(!published)return fail(res,'请先发布考试安排。');
   if(JSON.stringify(b.sessions)!==JSON.stringify(published.sessions.map(({changed,...s})=>s)))return fail(res,'考试安排有未发布修改，请先发布考试安排。');
   const errors=seatErrors(b);if(errors.length)return fail(res,errors.join('；'));
+  const unconfirmed=b.rooms.filter(room=>room.sizeReview).map(room=>room.name);
+  if(unconfirmed.length)return fail(res,`教室 ${unconfirmed.join('、')} 的尺寸由座位表自动调整，请先在教室设置中确认。`);
   db.prepare('UPDATE exam_batches SET seating=?,version=? WHERE id=?').run(JSON.stringify({rooms:b.rooms,seats:students.publishSeats(b),publishedAt:new Date().toISOString()}),r.version+1,r.id);res.json(info(row(r.id)));
  });
  app.get('/api/admin/exams/:id/template',requireAdmin,async(req,res)=>{const r=row(req.params.id);if(!r)return res.sendStatus(404);res.set({'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','Content-Disposition':'attachment; filename="exam-seats-template.xlsx"'}).send(Buffer.from(await seatTemplate(JSON.parse(r.draft))));});
@@ -107,8 +109,9 @@ export function installExams(app,db,{requireAdmin,isAdmin,user,origin,timeZone,q
  });
  app.post('/api/admin/exams/:id/student-preview',requireAdmin,(req,res)=>{
   const r=row(req.params.id);if(conflict(req,res,r))return;
-  const parsed=batchSchema.safeParse({...JSON.parse(r.draft),seats:req.body.seats});if(!parsed.success)return fail(res,parsed.error.issues.map(i=>i.message).join('；'));
-  res.json({seats:students.organize(parsed.data,false).seats,errors:seatErrors(parsed.data),warnings:[]});
+  const draft=JSON.parse(r.draft),{rooms,changes}=adaptRooms(draft,Array.isArray(req.body.seats)?req.body.seats.filter(s=>Number.isInteger(s?.row)&&Number.isInteger(s?.column)):[]);
+  const parsed=batchSchema.safeParse({...draft,rooms,seats:req.body.seats});if(!parsed.success)return fail(res,parsed.error.issues.map(i=>i.message).join('；'));
+  res.json({seats:students.organize(parsed.data,false).seats,roomChanges:changes,errors:seatErrors(parsed.data),warnings:[]});
  });
  app.post('/api/admin/exams/:id/import-preview',requireAdmin,express.raw({type:'application/octet-stream',limit:'2mb'}),async(req,res)=>{
   const r=row(req.params.id);if(!r)return res.sendStatus(404);if(!Buffer.isBuffer(req.body))return fail(res,'请上传 Excel 文件。');

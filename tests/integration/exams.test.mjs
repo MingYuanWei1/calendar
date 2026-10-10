@@ -52,6 +52,15 @@ test('exam publication, private seating, per-account choices, import validation 
   const sheet=workbook.getWorksheet('座位数据');sheet.addRow(['math','2101',1,1,'G10','测试学生','Test']);
   let imported=await fetch(base+'/api'+path+'/import-preview',{method:'POST',headers:{Origin:'http://calendar.test',Cookie:admin,'Content-Type':'application/octet-stream'},body:await workbook.xlsx.writeBuffer()});assert.equal(imported.status,200);let preview=await imported.json();assert.equal(preview.errors.length,0);assert.equal(preview.seats.length,1);
   sheet.addRow(['english','2101',1,1,'G8','测试学生乙','Test B']);imported=await fetch(base+'/api'+path+'/import-preview',{method:'POST',headers:{Origin:'http://calendar.test',Cookie:admin,'Content-Type':'application/octet-stream'},body:await workbook.xlsx.writeBuffer()});preview=await imported.json();assert.match(preview.errors.join(''),/重复占用/);
+  const grown=new ExcelJS.Workbook();await grown.xlsx.load(Buffer.from(await (await call(path+'/template','GET',null,admin)).arrayBuffer()));
+  const preview2101=async rows=>{const sheet=grown.getWorksheet('座位数据');sheet.spliceRows(2,sheet.rowCount);rows.forEach(r=>sheet.addRow(r));return (await fetch(base+'/api'+path+'/import-preview',{method:'POST',headers:{Origin:'http://calendar.test',Cookie:admin,'Content-Type':'application/octet-stream'},body:await grown.xlsx.writeBuffer()})).json();};
+  preview=await preview2101([['math','2101',7,6,'G10','后排学生','Back row']]);assert.deepEqual(preview.errors,[]);assert.deepEqual(preview.roomChanges,[{name:'2101',from:{rows:5,columns:5},to:{rows:7,columns:6}}]);
+  preview=await preview2101([['math','2101',41,1,'G10','后排学生','Back row']]);assert.ok(preview.errors.length);assert.deepEqual(preview.roomChanges,[]);
+  res=await call(path,'PUT',{...batch,rooms:batch.rooms.map(r=>({...r,sizeReview:true}))},admin);assert.equal(res.status,200);batch=await res.json();
+  assert.equal(batch.scheduleChanged,false);assert.equal((await (await call('/exams/'+batch.id)).json()).rooms[0].sizeReview,undefined);
+  res=await call(path+'/publish-seats','POST',{version:batch.version},admin);assert.equal(res.status,422);assert.match((await res.json()).error,/2101.*确认/);
+  res=await call(path,'PUT',{...batch,rooms:batch.rooms.map(({sizeReview,...r})=>r)},admin);batch=await res.json();
+  res=await call(path+'/publish-seats','POST',{version:batch.version},admin);assert.equal(res.status,200);batch=await res.json();
   assert.equal((await call('/exams/'+batch.id+'/pdf?mine=1')).status,401);
   res=await call('/exams/'+batch.id+'/pdf?mine=1','GET',null,a);assert.equal(res.status,200);const pdf=Buffer.from(await res.arrayBuffer());assert.equal(pdf.subarray(0,4).toString(),'%PDF');assert.ok(pdf.length>4000);
   res=await call('/exams/'+batch.id+'/pdf?division=high');assert.equal(res.status,200);
