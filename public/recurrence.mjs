@@ -5,7 +5,7 @@
 // Shared by the server (validation, feeds, assistant), the public calendar and the admin console.
 
 /** Fields a single date may override; type, scope and time mode always follow the series. */
-export const OVERRIDABLE=['title','location','host','description','start','time','endTime','poster','qr','registrationUrl'];
+export const OVERRIDABLE=['title','location','host','description','note','start','time','endTime','poster','qr','registrationUrl'];
 
 const parts=iso=>iso.split('-').map(Number);
 const toIso=ms=>new Date(ms).toISOString().slice(0,10);
@@ -101,7 +101,8 @@ export function fitsSeries(event,plans,iso){
 /** One dated instance of a series, shaped like a plain event so calendars can render it directly. */
 export function occurrence(event,date){
  const ex=event.exceptions?.[date]||{},override=Object.fromEntries(OVERRIDABLE.filter(k=>ex[k]!==undefined).map(k=>[k,ex[k]]));
- const start=override.start||date,moved=event.status!=='draft'&&(start!==date||(override.time??event.time)!==event.time||(override.endTime??event.endTime)!==event.endTime);
+ // Students are told a school date moved; a person moving one of their own 个人事件 needs no notice.
+ const start=override.start||date,moved=event.status!=='draft'&&!event.personal&&(start!==date||(override.time??event.time)!==event.time||(override.endTime??event.endTime)!==event.endTime);
  const once=!event.cancelled&&Boolean(ex.cancelled);
  return {...event,...override,id:`${event.id}@${date}`,seriesId:event.id,occurrence:date,start,end:undefined,exceptions:undefined,
   cancelled:Boolean(event.cancelled||ex.cancelled),cancelReason:once?ex.cancelReason||'':event.cancelReason,cancelledOnce:once,

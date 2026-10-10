@@ -242,3 +242,42 @@ body.detail-closed .workspace{grid-template-columns:180px minmax(0,1fr)}body.edi
 .division-chip[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:white}
 .grade-chip[aria-pressed=true]{background:var(--soft);color:var(--accent);border-color:transparent}
 .grade-chip[aria-pressed=false]{text-decoration:line-through;opacity:.6}
+
+/* 个人事件: an outlined dot and a dashed edge set them apart from school events. */
+.personal-option input{border-style:dashed}
+.event.personal .dot,.agenda-event.personal .dot,.type-chip.personal .dot,.detail-type.personal .dot{background:transparent!important;border:1.5px solid var(--event-color,var(--accent));box-sizing:border-box}
+.type-chip.personal{--event-color:var(--accent);--event-bg:var(--soft)}
+.event.personal{outline:1px dashed var(--event-color);outline-offset:-1px}
+.week-card.personal,.week-bar.personal{border-style:dashed}
+.add-personal{display:inline-flex;align-items:center;gap:6px;background:var(--accent);border:1px solid var(--accent);color:white;border-radius:7px;font-size:12px;padding:6px 12px;white-space:nowrap}
+.add-personal[hidden]{display:none}
+.add-personal span[aria-hidden]{font-size:15px;line-height:1}
+@media(max-width:760px){
+  .add-personal,.airy .add-personal{position:fixed;right:18px;bottom:22px;z-index:20;width:52px;height:52px;padding:0;border-radius:50%;justify-content:center;box-shadow:0 6px 18px rgba(20,50,70,.28)}
+  .add-personal span[aria-hidden]{font-size:26px}
+  .add-personal-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+}
+.day-add-personal{display:block;width:100%;margin-top:12px;padding:9px;border:1px dashed var(--accent);border-radius:8px;background:transparent;color:var(--accent);font-size:13px}
+.personal-actions{display:flex;gap:10px;margin-top:22px}
+.personal-actions button{padding:9px 16px;border-radius:6px}
+
+#personal-dialog{width:min(560px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;border:0;border-radius:12px;padding:20px 22px;background:var(--surface);color:var(--text)}
+#personal-dialog::backdrop{background:rgba(20,35,45,.35)}
+.personal-form{display:flex;flex-direction:column;gap:14px;margin-top:12px}
+.personal-field{display:flex;flex-direction:column;gap:6px}
+.personal-label{font-size:12px;font-weight:600;color:var(--muted)}
+.personal-form input:not([type=checkbox]),.personal-form textarea{border:1px solid var(--line);border-radius:6px;padding:7px 9px;background:var(--surface);font-size:13px;min-width:0}
+.personal-form textarea{min-height:70px;resize:vertical}
+.personal-form input[type=number]{width:72px}
+.personal-inline{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.personal-seg{display:flex;flex-wrap:wrap;gap:6px}
+.personal-seg button,.personal-toggle,.personal-span button{font-size:12px;padding:6px 11px;border-radius:16px;border:1px solid var(--line);background:transparent}
+.personal-seg button[aria-pressed=true],.personal-toggle[aria-pressed=true]{background:var(--soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+.personal-seg button:disabled{opacity:.5;cursor:not-allowed}
+.personal-help{margin:4px 0 0;font-size:12px;color:var(--muted)}
+.personal-span{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+.personal-span button{border-radius:8px;padding:11px;text-align:left;font-size:13px}
+.personal-error{margin:0;min-height:1em;font-size:12px;color:#b3261e}
+.personal-buttons{display:flex;justify-content:flex-end;gap:10px}
+.personal-buttons button{padding:9px 16px;border-radius:6px}
+.personal-buttons .danger{background:#b3261e;border-color:#b3261e}

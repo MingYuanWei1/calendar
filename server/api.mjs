@@ -6,7 +6,7 @@ import {schedulePdfSchema,vectorSchedulePdf} from './schedule-pdf.mjs';
 import {randomBytes,randomUUID} from 'node:crypto';
 import {installExams} from './exams.mjs';
 import {digest,verifyPassword} from './passwords.mjs';
-import {eventSchema,dayPlanSchema} from './validation.mjs';
+import {eventSchema,personalEventSchema,dayPlanSchema} from './validation.mjs';
 import {OVERRIDABLE,addDays,fitsSeries,isSeriesDate,seriesDates} from '../public/recurrence.mjs';
 import {installQuota} from './llm-quota.mjs';
 import {installFeeds} from './feeds.mjs';
@@ -97,11 +97,17 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
       }
       });res.status(204).end();
   });
-  const getEvent=id=>{const row=db.prepare('SELECT body FROM events WHERE id=?').get(id);return row?JSON.parse(row.body):null;};
   const conflict=(res)=>res.status(409).json({error:'事件已在其他窗口更新。请保留输入，返回列表刷新后再编辑。',code:'CONFLICT'});
   const dayPlans=()=>Object.fromEntries(db.prepare('SELECT date,kind FROM day_plans').all().map(plan=>[plan.date,plan]));
-  const write=event=>db.prepare('UPDATE events SET status=?,version=?,body=? WHERE id=?').run(event.status,event.version,JSON.stringify(event),event.id);
-  const insert=event=>db.prepare('INSERT INTO events VALUES(?,?,?,?)').run(event.id,event.status,event.version,JSON.stringify(event));
+  // Where events live: the school's shared table, or one person's own 个人事件.
+  const schoolEvents={
+   schema:eventSchema,school:true,
+   get:id=>{const row=db.prepare('SELECT body FROM events WHERE id=?').get(id);return row?JSON.parse(row.body):null;},
+   write:event=>db.prepare('UPDATE events SET status=?,version=?,body=? WHERE id=?').run(event.status,event.version,JSON.stringify(event),event.id),
+   insert:event=>db.prepare('INSERT INTO events VALUES(?,?,?,?)').run(event.id,event.status,event.version,JSON.stringify(event)),
+   remove:id=>db.prepare('DELETE FROM events WHERE id=?').run(id)
+  };
+  const getEvent=schoolEvents.get;
   const bump=event=>({...event,version:event.version+1,updatedAt:new Date().toISOString()});
   // Dates with their own changes must still be dates of the series after its rule changes.
   const unfit=(series,plans)=>Object.keys(series.exceptions||{}).filter(date=>!fitsSeries(series,plans,date)).sort();
@@ -117,7 +123,7 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
    * Ends a series the day before `date` and starts `next` as a new series from that date, which takes the
    * later dates' own changes with it. A count carries over as the number of dates still to come.
    */
-  function split(res,existing,date,next){
+  function split(res,store,existing,date,next){
    const plans=dayPlans(),held=seriesDates(existing,plans,addDays(date,-1)).length;
    const {count,...rule}=existing.repeat;
    const keep=([key])=>key<date,entries=Object.entries(existing.exceptions||{});
@@ -126,41 +132,44 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
    const created={...next,repeat,id:randomUUID(),exceptions:Object.fromEntries(entries.filter(entry=>!keep(entry))),previousSchedule:undefined,oldDate:undefined,version:1,updatedAt:new Date().toISOString()};
    const bad=unfit(created,plans);
    if(bad.length)return unfitError(res,bad);
-   db.transactionSync(()=>{write(old);insert(created);});
+   db.transactionSync(()=>{store.write(old);store.insert(created);});
    res.json(created);
   }
-  function persist(req,res,existing){
+  function persist(req,res,existing,store=schoolEvents){
    // A single date follows the series' rule, which need not hold on the date it moves to.
-   const parsed=eventSchema.safeParse(req.body?.occurrence?.span==='one'?{...req.body,repeat:undefined}:req.body);
+   const parsed=store.schema.safeParse(req.body?.occurrence?.span==='one'?{...req.body,repeat:undefined}:req.body);
    if(!parsed.success)return res.status(422).json({error:'请检查事件内容。',fields:parsed.error.issues.map(i=>({field:i.path[0],message:i.message}))});
-   const value=parsed.data;
+   // 个人事件 are never drafts and are never cancelled, only deleted.
+   const value=store.school?parsed.data:{...parsed.data,status:'published',personal:true};
    if(existing&&value.version!==existing.version)return conflict(res);
    if((!existing&&value.status==='cancelled')||(existing&&value.status==='cancelled'&&existing.status!=='cancelled'))return res.status(422).json({error:'请使用取消事件操作。'});
    for(const path of [value.poster,value.qr])if(path&&!db.prepare('SELECT id FROM media WHERE id=?').get(path.split('/').at(-1)))return res.status(422).json({error:'图片不存在，请重新上传。'});
    const date=existing&&targetDate(req,res,existing);
    if(date===false)return;
-   if(date)return persistDate(req,res,existing,value,date);
+   if(date)return persistDate(req,res,existing,value,date,store);
    const updated={...value,id:existing?.id||randomUUID(),status:existing?.cancelled?'cancelled':value.status,cancelled:existing?.cancelled||false,cancelReason:existing?.cancelReason,previousSchedule:existing?.previousSchedule,oldDate:existing?.oldDate,exceptions:existing?.exceptions,version:(existing?.version||0)+1,updatedAt:new Date().toISOString()};
    if(updated.repeat||existing?.repeat){
     // Changing a series is not a reschedule; single dates record their own moves.
     Object.assign(updated,{previousSchedule:undefined,oldDate:undefined});
     const bad=unfit(updated,dayPlans());
     if(bad.length)return unfitError(res,bad);
-   }else if(existing&&existing.status!=='draft'&&['start','end','time','endTime'].some(key=>existing[key]!==updated[key])){
+   }else if(store.school&&existing&&existing.status!=='draft'&&['start','end','time','endTime'].some(key=>existing[key]!==updated[key])){
+    // Students are told a school event was rescheduled; a person moving their own event needs no notice.
     updated.previousSchedule={start:existing.start,end:existing.end,time:existing.time,endTime:existing.endTime,type:existing.type};updated.oldDate=existing.start;
    }
-   if(existing)write(updated);else insert(updated);
+   if(existing)store.write(updated);else store.insert(updated);
    res.status(existing?200:201).json(updated);
   }
   /** "This event only" stores the fields that differ from the series; "this and future" splits the series. */
-  function persistDate(req,res,existing,value,date){
+  function persistDate(req,res,existing,value,date,store){
    if(req.body.occurrence.span==='future'){
     const next={...value,repeat:value.repeat||existing.repeat,status:existing.status,cancelled:false,cancelReason:undefined};
-    if(date===existing.start)return persist({body:{...req.body,...next,occurrence:undefined}},res,existing);
-    return split(res,existing,date,next);
+    if(date===existing.start)return persist({body:{...req.body,...next,occurrence:undefined}},res,existing,store);
+    return split(res,store,existing,date,next);
    }
    if(req.body.occurrence.span!=='one')return res.status(422).json({error:'请选择修改范围。'});
-   if(value.type!==existing.type||value.timeMode!==existing.timeMode||value.scope.join()!==existing.scope.join())return res.status(422).json({error:'单次修改不能更改类型、时间形式或适用范围，请修改整个系列。'});
+   const audience=e=>JSON.stringify([e.scope,e.grades||[]]);
+   if(value.type!==existing.type||value.timeMode!==existing.timeMode||(store.school&&audience(value)!==audience(existing)))return res.status(422).json({error:'单次修改不能更改类型、时间形式或适用范围，请修改整个系列。'});
    const own={...existing.exceptions?.[date]};delete own.deleted;
    for(const key of OVERRIDABLE){
     const series=key==='start'?date:existing[key];
@@ -169,7 +178,20 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
    const exceptions={...existing.exceptions,[date]:own};
    if(!Object.keys(own).length)delete exceptions[date];
    const updated=bump({...existing,exceptions});
-   write(updated);res.json(updated);
+   store.write(updated);res.json(updated);
+  }
+  /** Deletes a whole event, one date of a series, or ("future") a date and every later one. */
+  function removeEvent(req,res,event,store){
+   if(req.body?.version!==event.version)return conflict(res);
+   const date=targetDate(req,res,event);
+   if(date===false)return;
+   if(date&&req.body.occurrence.span==='future'&&date!==event.start){
+    const {count,...rule}=event.repeat,keep=Object.entries(event.exceptions||{}).filter(([key])=>key<date);
+    const updated=bump({...event,repeat:{...rule,until:addDays(date,-1)},exceptions:Object.fromEntries(keep)});
+    store.write(updated);return res.json(updated);
+   }
+   if(date&&req.body.occurrence.span!=='future'){const updated=bump({...event,exceptions:{...event.exceptions,[date]:{deleted:true}}});store.write(updated);return res.json(updated);}
+   store.remove(event.id);res.status(204).end();
   }
   app.post('/api/admin/events',requireAdmin,(req,res)=>persist(req,res,null));
   app.put('/api/admin/events/:id',requireAdmin,(req,res)=>{const event=getEvent(req.params.id);if(!event)return res.status(404).json({error:'事件不存在。'});persist(req,res,event);});
@@ -183,11 +205,11 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
    // 本次取消: the date stays visible with its own reason while the rest of the series continues.
    if(date&&req.body.occurrence.span==='one'){
     const updated=bump({...event,exceptions:{...event.exceptions,[date]:{...event.exceptions?.[date],cancelled:true,cancelReason:reason}}});
-    write(updated);return res.json(updated);
+    schoolEvents.write(updated);return res.json(updated);
    }
-   if(date&&date!==event.start)return split(res,event,date,{...event,start:date,status:'cancelled',cancelled:true,cancelReason:reason});
+   if(date&&date!==event.start)return split(res,schoolEvents,event,date,{...event,start:date,status:'cancelled',cancelled:true,cancelReason:reason});
    const updated=bump({...event,status:'cancelled',cancelled:true,cancelReason:reason});
-   write(updated);res.json(updated);
+   schoolEvents.write(updated);res.json(updated);
   });
   // Restoring a date drops its own changes, cancellation or deletion so it follows the series again.
   app.post('/api/admin/events/:id/restore',requireAdmin,(req,res)=>{
@@ -197,16 +219,34 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
    if(!event.exceptions?.[date])return res.status(422).json({error:'这一天没有单独的修改。'});
    const exceptions={...event.exceptions};delete exceptions[date];
    const updated=bump({...event,exceptions});
-   write(updated);res.json(updated);
+   schoolEvents.write(updated);res.json(updated);
   });
   app.delete('/api/admin/events/:id',requireAdmin,(req,res)=>{
    const event=getEvent(req.params.id);if(!event)return res.status(404).json({error:'事件不存在。'});
-   if(req.body?.version!==event.version)return conflict(res);
-   const date=targetDate(req,res,event);
-   if(date===false)return;
-   if(date){const updated=bump({...event,exceptions:{...event.exceptions,[date]:{deleted:true}}});write(updated);return res.json(updated);}
-   db.prepare('DELETE FROM events WHERE id=?').run(event.id);res.status(204).end();
+   // The admin list deletes one date (误录) or the whole event; "future" stays a personal-event choice.
+   if(req.body?.occurrence)req.body.occurrence.span='one';
+   removeEvent(req,res,event,schoolEvents);
   });
+  // 个人事件: each signed-in person keeps their own, visible only to them.
+  db.exec('CREATE TABLE IF NOT EXISTS personal_events(id TEXT PRIMARY KEY,owner TEXT NOT NULL,version INTEGER NOT NULL,body TEXT NOT NULL); CREATE INDEX IF NOT EXISTS personal_events_owner ON personal_events(owner)');
+  const PERSONAL_LIMIT=500;
+  const personalEvents=owner=>({
+   schema:personalEventSchema,school:false,
+   get:id=>{const row=db.prepare('SELECT body FROM personal_events WHERE id=? AND owner=?').get(id,owner);return row?JSON.parse(row.body):null;},
+   write:event=>db.prepare('UPDATE personal_events SET version=?,body=? WHERE id=? AND owner=?').run(event.version,JSON.stringify(event),event.id,owner),
+   insert:event=>db.prepare('INSERT INTO personal_events VALUES(?,?,?,?)').run(event.id,owner,event.version,JSON.stringify(event)),
+   remove:id=>db.prepare('DELETE FROM personal_events WHERE id=? AND owner=?').run(id,owner)
+  });
+  const signedIn=(req,res,next)=>{if(!session(req))return res.status(401).json({error:'请先登录后再添加个人事件。',code:'AUTH'});next();};
+  const listPersonal=owner=>db.prepare("SELECT body FROM personal_events WHERE owner=? ORDER BY json_extract(body,'$.start'),id").all(owner).map(row=>({...JSON.parse(row.body),personal:true}));
+  app.get('/api/personal-events',signedIn,(req,res)=>res.json(listPersonal(session(req).id)));
+  app.post('/api/personal-events',signedIn,(req,res)=>{
+   const owner=session(req).id;
+   if(db.prepare('SELECT COUNT(*) AS n FROM personal_events WHERE owner=?').get(owner).n>=PERSONAL_LIMIT)return res.status(422).json({error:`个人事件最多 ${PERSONAL_LIMIT} 条，请先删除不需要的事件。`});
+   persist(req,res,null,personalEvents(owner));
+  });
+  app.put('/api/personal-events/:id',signedIn,(req,res)=>{const store=personalEvents(session(req).id),event=store.get(req.params.id);if(!event)return res.status(404).json({error:'事件不存在。'});persist(req,res,event,store);});
+  app.delete('/api/personal-events/:id',signedIn,(req,res)=>{const store=personalEvents(session(req).id),event=store.get(req.params.id);if(!event)return res.status(404).json({error:'事件不存在。'});removeEvent(req,res,event,store);});
   app.post('/api/admin/media',requireAdmin,express.raw({type:['image/png','image/jpeg','image/webp'],limit:'5mb'}),async(req,res)=>{
     if(!Buffer.isBuffer(req.body))return res.status(415).json({error:'请上传 PNG、JPEG 或 WebP 图片。'});
     const id=randomUUID();
@@ -227,9 +267,9 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   installAccounts(app,db,{requireRole,currentUser:session});
   const exams=installExams(app,db,{requireAdmin,isAdmin:req=>session(req)?.role>=2,user:session,origin,timeZone,llm,quota});
   examEvents=exams.events;
-  installFeeds(app,db,{user:session,account:schoolAuth.account,origin,timeZone,matching:exams.matching,examEvents});
+  installFeeds(app,db,{user:session,account:schoolAuth.account,origin,timeZone,matching:exams.matching,examEvents,personalEvents:listPersonal});
   installNoticeExtract(app,db,{requireAdmin,llm,timeZone,quota});
-  installAssistant(app,db,{session,llm,matching:exams.matching,timeZone,quota});
+  installAssistant(app,db,{session,llm,matching:exams.matching,timeZone,quota,personalEvents:listPersonal});
   app.use('/api',(req,res)=>res.status(404).json({error:'接口不存在。'}));
   app.use((req,res,next)=>{
     const required=pageRole(new URL(origin+req.originalUrl));

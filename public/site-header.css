@@ -100,6 +100,8 @@ body.admin-mode #site-header .search,body.admin-mode #site-header #admin-entry{d
 #subscribe-dialog .subscribe-actions a.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 #subscribe-dialog .subscribe-warning{padding:10px 12px;border-radius:8px;background:#fff6e6;color:#7a4b00;font-size:13px}
 #subscribe-dialog .subscribe-warning button{padding:0;border:0;color:inherit;text-decoration:underline;font-size:inherit}
+#subscribe-dialog .subscribe-option{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer}
+#subscribe-dialog .subscribe-option input{width:15px;height:15px;margin:0}
 #subscribe-dialog details{margin-top:14px;font-size:13px;color:var(--muted)}
 #subscribe-dialog summary{cursor:pointer;color:var(--accent)}
 #subscribe-dialog ul{margin:8px 0;padding-left:18px}

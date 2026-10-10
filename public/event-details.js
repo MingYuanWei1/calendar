@@ -2,6 +2,7 @@
 
 /** Shared by the public calendar and the administrator's preview. */
 function eventDetails(event) {
+  if (event.personal) return personalDetails(event);
   const when = formatDate(event.start, true) + (isMulti(event) ? ' — ' + formatDate(event.end, true) : '');
   const row = (name, value) => value ? `<div class="meta-row"><span class="meta-label">${esc(t(name))}</span><div class="meta-value">${value}</div></div>` : '';
   let notice = '';
@@ -42,6 +43,7 @@ function bindDetailActions(root) {
     const failed=()=>{img.closest('.event-media').innerHTML=`<p class="media-fallback">${state.lang?'Image unavailable. Other event details remain available.':'图片暂不可用，请查看其他事件信息。'}</p>`;};
     img.onerror=failed;if(img.complete&&!img.naturalWidth)failed();
   });
+  if (typeof bindPersonalActions === 'function') bindPersonalActions(root);
   root.querySelectorAll('[data-registration]').forEach(button => {
     button.onclick = () => $('#registration-dialog').showModal();
   });

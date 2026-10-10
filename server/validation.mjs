@@ -25,18 +25,14 @@ const repeatSchema=z.object({
     ...(until?{until}:{}),...(count?{count}:{})};
 });
 const media=z.string().regex(/^\/api\/media\/[a-f0-9-]{36}$/).or(z.literal('')).default('');
-export const eventSchema=z.object({
-  title:bilingual(250).refine(value=>value.some(Boolean),'A title in at least one language is required'),
+const timing={
   type:z.enum(['exam','competition','activity','deadline']),
   timeMode:z.enum(['timed','allDay','multi','deadline']),start:day,end:day.optional(),time:time.optional(),endTime:time.optional(),
-  scope:z.array(z.enum(['schoolwide','primary','middle','high'])).min(1).max(3).refine(value=>new Set(value).size===value.length&&(!value.includes('schoolwide')||value.length===1),'Choose school-wide or specific divisions'),
-  grades:z.array(z.number().int().min(1).max(12)).max(12).default([]),
-  status:z.enum(['draft','published','cancelled']),
-  location:bilingual(300).default(['','']),host:bilingual(300).default(['','']),description:bilingual(15000).default(['','']),
-  poster:media,qr:media,registrationUrl:optionalLink,
   repeat:repeatSchema.nullable().optional(),
   version:z.number().int().positive().optional()
-}).superRefine((event,ctx)=>{
+};
+/** Rules shared by school and personal events. A deadline without a time is due at any time that day (全天). */
+function checkTiming(event,ctx){
   const invalid=(path,message)=>ctx.addIssue({code:'custom',path:[path],message});
   if(event.type==='deadline'&&event.timeMode!=='deadline')invalid('timeMode','Deadline events require the deadline time format');
   if(event.timeMode==='deadline'&&event.type!=='deadline')invalid('type','Deadline time format requires Deadline event type');
@@ -46,8 +42,26 @@ export const eventSchema=z.object({
   if(event.repeat&&event.timeMode==='multi')invalid('repeat','Multi-day events cannot repeat');
   const problem=event.repeat&&repeatProblem(event.repeat,event.start);
   if(problem)invalid('repeat',problem);
-  if(event.grades.some(g=>!event.scope.includes(divisionOf(g))))invalid('grades','Grades must belong to the chosen divisions');
-}).transform(event=>{const grades=normalizeGrades(event.scope,event.grades);return {...event,end:event.timeMode==='multi'?event.end:undefined,time:['timed','deadline'].includes(event.timeMode)?event.time:undefined,endTime:event.timeMode==='timed'?event.endTime:undefined,repeat:event.repeat||undefined,grades:grades.length?grades:undefined};});
+}
+const tidyTiming=event=>({...event,end:event.timeMode==='multi'?event.end:undefined,time:['timed','deadline'].includes(event.timeMode)?event.time:undefined,endTime:event.timeMode==='timed'?event.endTime:undefined,repeat:event.repeat||undefined});
+export const eventSchema=z.object({
+  title:bilingual(250).refine(value=>value.some(Boolean),'A title in at least one language is required'),
+  ...timing,
+  scope:z.array(z.enum(['schoolwide','primary','middle','high'])).min(1).max(3).refine(value=>new Set(value).size===value.length&&(!value.includes('schoolwide')||value.length===1),'Choose school-wide or specific divisions'),
+  grades:z.array(z.number().int().min(1).max(12)).max(12).default([]),
+  status:z.enum(['draft','published','cancelled']),
+  location:bilingual(300).default(['','']),host:bilingual(300).default(['','']),description:bilingual(15000).default(['','']),
+  poster:media,qr:media,registrationUrl:optionalLink
+}).superRefine((event,ctx)=>{
+  checkTiming(event,ctx);
+  if(event.grades.some(g=>!event.scope.includes(divisionOf(g))))ctx.addIssue({code:'custom',path:['grades'],message:'Grades must belong to the chosen divisions'});
+}).transform(event=>{const grades=normalizeGrades(event.scope,event.grades);return {...tidyTiming(event),grades:grades.length?grades:undefined};});
+
+/** 个人事件: one title in either language, no audience, poster or registration, and never a draft. */
+export const personalEventSchema=z.object({
+  title:z.string().trim().min(1).max(250),...timing,
+  location:z.string().trim().max(300).default(''),note:z.string().trim().max(5000).default('')
+}).superRefine(checkTiming).transform(tidyTiming);
 
 export const dayPlanSchema=z.object({start:day,end:day.or(z.literal('')).optional(),kind:z.enum(['off','school','half','default']),title:bilingual(60).default(['','']),follows:z.number().int().min(1).max(5).nullable().default(null)})
   .transform(value=>({...value,end:value.end||value.start,follows:['school','half'].includes(value.kind)?value.follows:null}))

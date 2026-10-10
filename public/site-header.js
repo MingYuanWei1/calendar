@@ -10,7 +10,7 @@
   : '<div class="month-heading"><h1 id="month-title"></h1></div><div class="date-nav"><button id="previous" aria-label="上个月">‹</button><button id="today" data-i18n="today">今天</button><button id="next" aria-label="下个月">›</button></div>';
  const pageActions=exams
   ? '<button id="download" class="primary" disabled>下载 PDF</button>'
-  : '<div class="view-switch" aria-label="日历视图"><button id="month-view" aria-pressed="true" data-i18n="monthView">月历</button><button id="week-view" aria-pressed="false" data-i18n="weekView">周历</button><button id="list-view" aria-pressed="false" data-i18n="listView">日程</button></div>';
+  : '<div class="view-switch" aria-label="日历视图"><button id="month-view" aria-pressed="true" data-i18n="monthView">月历</button><button id="week-view" aria-pressed="false" data-i18n="weekView">周历</button><button id="list-view" aria-pressed="false" data-i18n="listView">日程</button></div><button id="add-personal" type="button" class="add-personal" hidden><span aria-hidden="true">+</span><span class="add-personal-label">添加个人事件</span></button>';
  header.innerHTML=`<a class="brand" href="/"><img src="/logo.png" alt=""><span data-i18n="brand" data-zh="日历" data-en="Calendar">日历</span></a><nav class="section-nav" aria-label="主要导航">${link('/','calendarNav','校历','Calendar',!exams)}${link('exams.html','examsNav','考试安排','Exams',exams)}</nav><div class="calendar-toolbar"><div class="date-controls">${management?'':dateControls}</div><div class="calendar-actions">${management?'':pageActions}</div></div><div class="header-actions">${management?'':`<div class="subscribe">${exams?'<button id="subscribe-exams" type="button" class="subscribe-button" aria-haspopup="menu" aria-expanded="false" aria-controls="subscribe-menu"></button><div id="subscribe-menu" class="account-menu subscribe-menu" role="menu" hidden><button type="button" role="menuitem" data-feed="exams"></button><button type="button" role="menuitem" data-feed="mine"></button></div>':'<button id="subscribe-calendar" type="button" class="subscribe-button"></button>'}</div>`}${management?'':'<button id="assistant-open" type="button" class="assistant-trigger"></button>'}<button id="language" class="language" aria-label="Switch to English">EN</button><div class="user-menu"><button id="school-account" type="button" disabled aria-expanded="false" aria-controls="account-menu">登录</button><div id="account-menu" class="account-menu" hidden><strong id="account-name"></strong><small id="account-role"></small><a id="account-console" href="/console.html" hidden>管理后台</a><button id="account-logout" type="button">退出登录</button><p id="account-error" role="alert"></p></div></div></div>`;
  const accountButton=/** @type {HTMLButtonElement} */(document.getElementById('school-account'));
  const menu=document.getElementById('account-menu');
@@ -111,15 +111,19 @@
   try{feeds=await request('/feeds');}catch(error){alert(error.message);return;}
   show(kind);
  }
+ // The school calendar may include the signed-in person's own 个人事件, which makes its link personal.
+ let withPersonal=false;
  function show(kind){
-  const url=feeds[kind]+(english()?'?lang=en':''),webcal=url.replace(/^https?:/,'webcal:');
+  const personalLink=kind==='mine'||(kind==='calendar'&&withPersonal&&Boolean(feeds.calendarMine));
+  const url=(kind==='calendar'&&personalLink?feeds.calendarMine:feeds[kind])+(english()?'?lang=en':''),webcal=url.replace(/^https?:/,'webcal:');
   if(!feedDialog){feedDialog=document.createElement('dialog');feedDialog.id='subscribe-dialog';document.body.append(feedDialog);feedDialog.addEventListener('click',event=>{if(event.target===feedDialog)feedDialog.close();});}
   const [title,why]=feedText[kind];
   feedDialog.innerHTML=`<form method="dialog" class="subscribe-head"><h2>${label(...title)}</h2><button aria-label="${label('关闭','Close')}">×</button></form>
    <p>${label(...why)}</p>
+   ${kind==='calendar'&&feeds.calendarMine?`<label class="subscribe-option"><input type="checkbox" data-personal ${withPersonal?'checked':''}>${label('包含个人事件','Include my personal events')}</label>`:''}
    <div class="subscribe-url"><input readonly value="${url.replace(/"/g,'&quot;')}" aria-label="${label('订阅链接','Subscription link')}"><button type="button" data-copy>${label('复制链接','Copy link')}</button></div>
    <div class="subscribe-actions"><a class="primary" href="${webcal.replace(/"/g,'&quot;')}">${label('添加到日历','Add to calendar')}</a><a href="${url.replace(/"/g,'&quot;')}" download>${label('下载 .ics','Download .ics')}</a></div>
-   ${kind==='mine'?`<p class="subscribe-warning">${label('这个链接只属于你，含你的座位信息，请勿分享。如已泄露，可','This link is yours alone and includes your seat; do not share it. If it leaks, ')}<button type="button" data-reset>${label('重新生成链接','generate a new link')}</button>${label('，旧链接会立即失效。','; the old one stops working at once.')}</p>`:''}
+   ${personalLink?`<p class="subscribe-warning">${kind==='mine'?label('这个链接只属于你，含你的座位信息，请勿分享。如已泄露，可','This link is yours alone and includes your seat; do not share it. If it leaks, '):label('这个链接只属于你，含你的个人事件，请勿分享。如已泄露，可','This link is yours alone and includes your personal events; do not share it. If it leaks, ')}<button type="button" data-reset>${label('重新生成链接','generate a new link')}</button>${label('，旧链接会立即失效（“我的考试”与含个人事件的校历订阅共用此链接密钥，会一起更换）。','; the old one stops working at once (“My exams” and the calendar with personal events share this key and change together).')}</p>`:''}
    <details><summary>${label('如何订阅？','How to subscribe')}</summary><ul>
     <li><b>iPhone / iPad / Mac</b>：${label('点击“添加到日历”，在弹出的窗口中确认订阅。','tap “Add to calendar” and confirm.')}</li>
     <li><b>${label('Google 日历','Google Calendar')}</b>：${label('电脑网页版 → 其他日历“+” → 通过网址添加 → 粘贴链接。','on the web: Other calendars “+” → From URL → paste the link.')}</li>
@@ -133,7 +137,9 @@
    button.textContent=label('已复制','Copied');setTimeout(()=>button.textContent=label('复制链接','Copy link'),1600);
   };
   const reset=feedDialog.querySelector('[data-reset]');
-  if(reset)reset.onclick=async()=>{try{feeds=await request('/feeds/mine/reset',{method:'POST'});show('mine');}catch(error){alert(error.message);}};
+  if(reset)reset.onclick=async()=>{try{feeds=await request('/feeds/mine/reset',{method:'POST'});show(kind);}catch(error){alert(error.message);}};
+  const personal=/** @type {HTMLInputElement|null} */(feedDialog.querySelector('[data-personal]'));
+  if(personal)personal.onchange=()=>{withPersonal=personal.checked;show(kind);};
   if(!feedDialog.open)feedDialog.showModal();
  }
  function subscriptions(){

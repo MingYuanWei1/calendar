@@ -8,7 +8,7 @@ const input=z.object({messages:z.array(z.object({role:z.enum(['user','assistant'
  .refine(value=>value.messages.at(-1)?.role==='user'&&value.messages.at(-1).content.length<=500,'The last message must be a question of at most 500 characters');
 const weekdays=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
-export function installAssistant(app,db,{session,llm,matching,timeZone,quota}){
+export function installAssistant(app,db,{session,llm,matching,timeZone,quota,personalEvents=()=>[]}){
  function context(user){
   const today=new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   const refs=new Map(),data={events:[],dayPlans:[],exams:[],me:null};
@@ -21,6 +21,13 @@ export function installAssistant(app,db,{session,llm,matching,timeZone,quota}){
    refs.set(ref,{kind:'event',id:e.id,date:next.occurrence||null,title:next.title,type:e.type,start:next.start,end:e.end||null,time:next.time||null,endTime:next.endTime||null,location:next.location,cancelled:Boolean(next.cancelled)});
    data.events.push({ref,name:{zh:e.title[0]||undefined,en:e.title[1]||undefined},type:e.type,start:e.start,end:e.end,time:e.time,endTime:e.endTime,for:e.scope,forGrades:e.grades,place:e.location.some(Boolean)?{zh:e.location[0]||undefined,en:e.location[1]||undefined}:undefined,cancelled:e.cancelled||undefined,cancelReason:e.cancelReason||undefined,movedFrom:e.oldDate||undefined,registration:e.registrationUrl?true:undefined,details:(e.description[0]||e.description[1]||'').slice(0,300)||undefined,
     ...(e.repeat?{repeats:describeRepeat(e.repeat,1),dates:dates.map(d=>d.cancelledOnce?{date:d.start,cancelledThisTime:true,reason:d.cancelReason||undefined}:d.oldDate?{date:d.start,time:d.time,endTime:d.endTime,movedFrom:d.oldDate}:d.start)}:{})});
+  });
+  // 个人事件: only the signed-in person's own, cited as P1, P2…
+  if(user)data.myEvents=personalEvents(user.id).map((e,i)=>{
+   const ref=`P${i+1}`,dates=e.repeat?expandEvents([e],plans,today,schoolYearEnd(today,1)):[],next=dates[0]||e;
+   refs.set(ref,{kind:'event',personal:true,id:e.id,date:next.occurrence||null,title:[next.title,next.title],type:e.type,start:next.start,end:e.end||null,time:next.time||null,endTime:next.endTime||null,location:[next.location,next.location],cancelled:false});
+   return {ref,name:e.title,type:e.type,start:e.start,end:e.end,time:e.time,endTime:e.endTime,place:e.location||undefined,note:e.note||undefined,
+    ...(e.repeat?{repeats:describeRepeat(e.repeat,1),dates:dates.map(d=>d.start)}:{})};
   });
   data.dayPlans=db.prepare('SELECT date,kind,title,follows FROM day_plans ORDER BY date').all().map(p=>({date:p.date,kind:p.kind,name:(([zh,en])=>zh||en?{zh:zh||undefined,en:en||undefined}:undefined)(JSON.parse(p.title||'["",""]')),followsWeekday:p.follows?weekdays[p.follows]:undefined}));
   let n=0;
@@ -55,6 +62,7 @@ Rules:
 - A repeating event has "repeats" (its rule) and "dates": every date it is held from today to the end of next school year. An object in dates is a single date that was cancelled this time (the rest of the series still happens) or moved. Use only these dates.
 - If the DATA does not contain the answer, say so plainly and suggest checking with the school office. Never guess times, places or seats.
 - Answer exactly the question asked. Do not add notes guessing what else the user might have meant, and never contradict yourself.
+- ${signedIn?'myEvents are the signed-in person\'s own 个人事件, visible only to them. Include them when asked about their schedule, say they are personal (个人 / personal), and cite them like events, e.g. [[P2]].':'Nobody is signed in, so there are no personal events.'}
 - An event's "for" lists divisions; forGrades, when present, narrows them to those grades (1–12). A deadline without a time is due any time that day.
 - Exam seats: ${signedIn?'the signed-in student\'s exams are sessions with inMyExams or mySeat. mySeat is their own seat: row counts from the front (podium), column from the left; say it naturally in the user\'s language, e.g. "3101 教室第 2 排第 3 列". You have no data about other students\' seats; refuse to speculate about them.':'nobody is signed in, so you have no personal exams or seats. If asked about "my" exams or seat, say they need to sign in with their school account (the 登录 / Sign in button at the top right) to see them.'}
 - Politely decline requests unrelated to this school's calendar, holidays or exams (homework, essays, general chat) and mention what you can help with.
@@ -74,7 +82,7 @@ ${JSON.stringify(data)}`;
    await requireFlash(llm);
    progress.stage('thinking');
    const text=await streamChat(llm,{model:'flash',messages:[{role:'system',content:instruction(ctx,Boolean(user))},...parsed.data.messages]},60000,progress.text);
-   const cited=[...new Set([...text.matchAll(/\[\[([EX]\d+)\]\]/g)].map(m=>m[1]))].filter(ref=>ctx.refs.has(ref));
+   const cited=[...new Set([...text.matchAll(/\[\[([EXP]\d+)\]\]/g)].map(m=>m[1]))].filter(ref=>ctx.refs.has(ref));
    return {answer:text,citations:Object.fromEntries(cited.map(ref=>[ref,ctx.refs.get(ref)]))};
   },error=>error.name==='TimeoutError'?'回答超时，请稍后再试。':/^(LLM Worker|请配置|模型)/.test(error.message||'')?error.message:'暂时无法回答，请稍后再试。');
  });

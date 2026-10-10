@@ -38,7 +38,7 @@
  function answer(message,streaming){
   const order=[];
   const text=streaming?message.content.replace(/\[\[[^\]]*\]?$/,''):message.content;
-  const html=esc(text).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\[\[([EX]\d+)\]\]/g,(match,ref)=>{
+  const html=esc(text).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\[\[([EXP]\d+)\]\]/g,(match,ref)=>{
    if(!streaming&&!message.citations?.[ref])return '';
    let n=order.indexOf(ref);if(n<0){order.push(ref);n=order.length-1;}
    return `<button type="button" class="cite" data-cite="${n}" aria-label="${L('引用','Citation')} ${n+1}">${n+1}</button>`;
@@ -113,7 +113,7 @@
   const openEl=/** @type {HTMLElement|null} */(target.closest('[data-open]'));
   if(openEl){const message=messages[Number(openEl.closest('[data-message]')?.getAttribute('data-message'))];const ref=message&&orderedRefs(message)[Number(openEl.dataset.open)];if(ref)open(message.citations[ref]);}
  });
- const orderedRefs=message=>[...new Set([...message.content.matchAll(/\[\[([EX]\d+)\]\]/g)].map(m=>m[1]).filter(ref=>message.citations?.[ref]))];
+ const orderedRefs=message=>[...new Set([...message.content.matchAll(/\[\[([EXP]\d+)\]\]/g)].map(m=>m[1]).filter(ref=>message.citations?.[ref]))];
  $('form').addEventListener('submit',event=>{event.preventDefault();ask(input.value);});
  input.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();ask(input.value);}});
  input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(120,input.scrollHeight)+'px';});

@@ -3,8 +3,8 @@ import {isSeriesDate,lastDate,matchesPattern,occurrence,weekdayOf} from '../publ
 import {gradeLabel} from '../public/grades.mjs';
 
 // 日历订阅: iCalendar (RFC 5545) feeds that phone and desktop calendars poll. The school calendar and all
-// published exams are public; "my exams" belongs to one student and is reached through a personal token,
-// because calendar apps cannot sign in. A token can be regenerated, which stops the old link working.
+// published exams are public; "my exams" and the school calendar with one's own 个人事件 belong to one person
+// and are reached through a personal token, because calendar apps cannot sign in. A token can be regenerated, which stops the old link working.
 const tokenPattern=/^[a-f0-9]{40}$/;
 
 /** Folds a content line at 75 octets without splitting a UTF-8 character. */
@@ -84,7 +84,7 @@ function recurrenceLines(e,plans,timeZone){
  return [`RRULE:${parts.join(';')}`,...[...new Set([...excluded,...deleted])].sort().map(date=>'EXDATE'+value(date)),...added.sort().map(date=>'RDATE'+value(date))];
 }
 
-export function installFeeds(app,db,{user,account,origin,timeZone,matching,examEvents=()=>[]}){
+export function installFeeds(app,db,{user,account,origin,timeZone,matching,examEvents=()=>[],personalEvents=()=>[]}){
  db.exec('CREATE TABLE IF NOT EXISTS feed_tokens(token TEXT PRIMARY KEY,user_id TEXT NOT NULL UNIQUE,created TEXT NOT NULL)');
  const L=(req,zh,en)=>req.query.lang==='en'?en:zh;
  const pick=(req,pair)=>(req.query.lang==='en'?(pair?.[1]||pair?.[0]):(pair?.[0]||pair?.[1]))||'';
@@ -93,20 +93,23 @@ export function installFeeds(app,db,{user,account,origin,timeZone,matching,examE
  const weekdays=[['周一','Monday'],['周二','Tuesday'],['周三','Wednesday'],['周四','Thursday'],['周五','Friday']];
  const kinds={off:['放假','No school'],school:['调休上课','Make-up school day'],half:['半天','Half day']};
 
- function calendarItems(req){
+ /** The school calendar, plus the person's own 个人事件 when `owner` is given. */
+ function calendarItems(req,owner){
   const items=[];
   const dayKinds=Object.fromEntries(db.prepare('SELECT date,kind FROM day_plans').all().map(plan=>[plan.date,plan]));
+  // A 个人事件 has one title, location and note rather than a Chinese–English pair.
+  const pair=value=>Array.isArray(value)?value:[value,value];
   const entry=e=>{
    const cancelled=e.cancelled||e.status==='cancelled';
    const when=e.timeMode==='timed'||(e.timeMode==='deadline'&&e.time)?timed(e.start,e.time,e.endTime||e.time,timeZone):allDay(e.start,e.timeMode==='multi'?e.end:e.start);
    const moved=e.previousSchedule?L(req,`已改期，原定 ${e.previousSchedule.start}${e.previousSchedule.time?' '+e.previousSchedule.time:''}`,`Rescheduled from ${e.previousSchedule.start}${e.previousSchedule.time?' '+e.previousSchedule.time:''}`):'';
-   const notes=[cancelled?L(req,`${e.cancelledOnce?'本次取消':'已取消'}：${e.cancelReason||''}`,`${e.cancelledOnce?'Cancelled this time':'Cancelled'}: ${e.cancelReason||''}`):'',moved,pick(req,e.description),e.registrationUrl?L(req,`报名：${e.registrationUrl}`,`Registration: ${e.registrationUrl}`):''].filter(Boolean);
+   const notes=[cancelled?L(req,`${e.cancelledOnce?'本次取消':'已取消'}：${e.cancelReason||''}`,`${e.cancelledOnce?'Cancelled this time':'Cancelled'}: ${e.cancelReason||''}`):'',moved,pick(req,e.description),e.note||'',e.registrationUrl?L(req,`报名：${e.registrationUrl}`,`Registration: ${e.registrationUrl}`):''].filter(Boolean);
    const tag=e.cancelledOnce?L(req,'[本次取消] ','[Cancelled this time] '):cancelled?L(req,'[已取消] ','[Cancelled] '):'';
    const url=e.examBatch?`${origin}/exams.html?batch=${encodeURIComponent(e.examBatch)}`:`${origin}/?event=${encodeURIComponent(e.seriesId||e.id)}${e.occurrence?'&date='+e.occurrence:''}`;
-   return {uid:`event-${e.seriesId||e.id}@calendar`,when,summary:`${tag}${e.type==='deadline'?L(req,'截止：','Due: '):''}${pick(req,e.title)}`,location:pick(req,e.location),description:notes.join('\n\n'),url,sequence:e.version,cancelled,transparent:e.type==='deadline'};
+   return {uid:`${e.personal?'personal':'event'}-${e.seriesId||e.id}@calendar`,when,summary:`${tag}${e.type==='deadline'?L(req,'截止：','Due: '):''}${pick(req,pair(e.title))}`,location:pick(req,pair(e.location)),description:notes.join('\n\n'),url,sequence:e.version,cancelled,transparent:e.type==='deadline'};
   };
   const school=db.prepare("SELECT body FROM events WHERE status IN ('published','cancelled')").all().map(row=>JSON.parse(row.body));
-  for(const e of [...school,...examEvents()]){
+  for(const e of [...school,...examEvents(),...(owner?personalEvents(owner):[])]){
    if(!e.repeat){items.push(entry(e));continue;}
    // A repeating event wears wall-clock times so its dates follow the school's clock.
    const local=(date,time)=>`;TZID=${timeZone}:${compact(date)}T${time.replace(':','')}00`;
@@ -153,15 +156,25 @@ export function installFeeds(app,db,{user,account,origin,timeZone,matching,examE
   db.prepare('INSERT INTO feed_tokens VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET token=excluded.token,created=excluded.created').run(token,u.id,new Date().toISOString());
   return token;
  };
- const links=u=>({calendar:base+'calendar.ics',exams:base+'exams.ics',mine:u?`${base}mine/${tokenFor(u)}.ics`:null});
+ // One personal token serves both personal links, so resetting it stops both.
+ const links=u=>({calendar:base+'calendar.ics',exams:base+'exams.ics',mine:u?`${base}mine/${tokenFor(u)}.ics`:null,calendarMine:u?`${base}calendar/${tokenFor(u)}.ics`:null});
  app.get('/api/feeds',(req,res)=>res.json(links(user(req))));
  app.post('/api/feeds/mine/reset',(req,res)=>{const u=user(req);if(!u)return res.status(401).json({error:'请先登录。'});tokenFor(u,true);res.json(links(u));});
 
  app.get('/api/feeds/calendar.ics',(req,res)=>send(res,{name:L(req,'日历 · 校历','Calendar · School calendar'),description:L(req,'学校活动、比赛、截止日与放假调休安排','School events, deadlines, days off and make-up days'),items:calendarItems(req),timeZone}));
  app.get('/api/feeds/exams.ics',(req,res)=>send(res,{name:L(req,'日历 · 考试安排','Calendar · Exams'),description:L(req,'已发布的全部考试场次','Every published exam session'),items:examItems(req)}));
+ const owner=file=>{
+  const token=file.replace(/\.ics$/,'');
+  const row=tokenPattern.test(token)&&db.prepare('SELECT user_id FROM feed_tokens WHERE token=?').get(token);
+  return row&&account(row.user_id);
+ };
+ app.get('/api/feeds/calendar/:file',(req,res)=>{
+  const u=owner(req.params.file);
+  if(!u)return res.status(404).type('text/plain').send('Subscription not found');
+  send(res,{name:L(req,`日历 · 校历与个人事件（${u.name}）`,`Calendar · School calendar and my events (${u.name})`),description:L(req,'学校活动、放假调休安排，以及我的个人事件','School events, days off and my own events'),items:calendarItems(req,u.id),timeZone});
+ });
  app.get('/api/feeds/mine/:file',(req,res)=>{
-  const token=req.params.file.replace(/\.ics$/,'');
-  const row=tokenPattern.test(token)&&db.prepare('SELECT user_id FROM feed_tokens WHERE token=?').get(token),u=row&&account(row.user_id);
+  const u=owner(req.params.file);
   if(!u)return res.status(404).type('text/plain').send('Subscription not found');
   // "My exams" is first filled from the student's matched seats, exactly as on the exams page.
   const only=bid=>{matching.prepare(u,bid);return new Set(db.prepare('SELECT exam_id FROM exam_choices WHERE user_id=? AND batch_id=?').all(u.id,bid).map(r=>r.exam_id));};
