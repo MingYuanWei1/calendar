@@ -123,6 +123,23 @@ export function jsonItems(onItem){
  };
 }
 export const stripFence=raw=>raw.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');
+/** Parses the model's JSON object, ignoring any prose or code fence the model wrote before or after it. */
+export function parseAnswer(raw){
+ const text=stripFence(raw);
+ try{return JSON.parse(text);}
+ catch(error){
+  const start=text.indexOf('{');if(start<0)throw error;
+  let depth=0,inString=false,escaped=false;
+  for(let i=start;i<text.length;i++){
+   const c=text[i];
+   if(inString){if(escaped)escaped=false;else if(c==='\\')escaped=true;else if(c==='"')inString=false;continue;}
+   if(c==='"')inString=true;
+   else if(c==='{')depth++;
+   else if(c==='}'&&--depth===0)return JSON.parse(text.slice(start,i+1));
+  }
+  throw error;
+ }
+}
 
 /** NDJSON responder: one JSON message per line, flushed immediately. */
 export function ndjson(res){
@@ -172,8 +189,10 @@ export async function streamJson(config,body,timeout,progress,idle){
   const retry=(attempt,status)=>progress.stage('reconnecting',{attempt,of:RETRY.times,status});
   try{raw=await streamChat(config,body,timeout,delta=>{if(first){first=false;progress.stage('generating');}feed(delta);},idle,retry);}
   catch(error){throw Object.assign(error,{items});}
-  try{return JSON.parse(stripFence(raw));}
+  try{return parseAnswer(raw);}
   catch(error){
+   // Log the end of the answer so the cause (cut off, or stray text) can be told apart in the server log.
+   console.error('LLM answer is not valid JSON:',raw.length,'chars, ends with',JSON.stringify(raw.slice(-200)));
    if(Object.keys(items).length)return {...items,warnings:[MALFORMED_TAIL]};
    if(tries)throw Object.assign(error,{items});
    progress.reset();progress.stage('retrying');
