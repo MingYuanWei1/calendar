@@ -36,9 +36,9 @@ export const eventSchema=z.object({
   version:z.number().int().positive().optional()
 }).superRefine((event,ctx)=>{
   const invalid=(path,message)=>ctx.addIssue({code:'custom',path:[path],message});
-  if(event.type==='deadline'&&event.timeMode!=='deadline')invalid('timeMode','Deadline events require a specific deadline time');
+  if(event.type==='deadline'&&event.timeMode!=='deadline')invalid('timeMode','Deadline events require the deadline time format');
   if(event.timeMode==='deadline'&&event.type!=='deadline')invalid('type','Deadline time format requires Deadline event type');
-  if(['timed','deadline'].includes(event.timeMode)&&!event.time)invalid('time','Time is required');
+  if(event.timeMode==='timed'&&!event.time)invalid('time','Time is required');
   if(event.timeMode==='timed'&&(!event.endTime||event.endTime<event.time))invalid('endTime','End time must not precede start time');
   if(event.timeMode==='multi'&&(!event.end||event.end<event.start))invalid('end','End date must not precede start date');
   if(event.repeat&&event.timeMode==='multi')invalid('repeat','Multi-day events cannot repeat');

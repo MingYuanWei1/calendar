@@ -97,7 +97,7 @@ export function installFeeds(app,db,{user,account,origin,timeZone,matching}){
   const dayKinds=Object.fromEntries(db.prepare('SELECT date,kind FROM day_plans').all().map(plan=>[plan.date,plan]));
   const entry=e=>{
    const cancelled=e.cancelled||e.status==='cancelled';
-   const when=e.timeMode==='timed'?timed(e.start,e.time,e.endTime,timeZone):e.timeMode==='deadline'?timed(e.start,e.time,e.time,timeZone):allDay(e.start,e.timeMode==='multi'?e.end:e.start);
+   const when=e.timeMode==='timed'||(e.timeMode==='deadline'&&e.time)?timed(e.start,e.time,e.endTime||e.time,timeZone):allDay(e.start,e.timeMode==='multi'?e.end:e.start);
    const moved=e.previousSchedule?L(req,`已改期，原定 ${e.previousSchedule.start}${e.previousSchedule.time?' '+e.previousSchedule.time:''}`,`Rescheduled from ${e.previousSchedule.start}${e.previousSchedule.time?' '+e.previousSchedule.time:''}`):'';
    const notes=[cancelled?L(req,`${e.cancelledOnce?'本次取消':'已取消'}：${e.cancelReason||''}`,`${e.cancelledOnce?'Cancelled this time':'Cancelled'}: ${e.cancelReason||''}`):'',moved,pick(req,e.description),e.registrationUrl?L(req,`报名：${e.registrationUrl}`,`Registration: ${e.registrationUrl}`):''].filter(Boolean);
    const tag=e.cancelledOnce?L(req,'[本次取消] ','[Cancelled this time] '):cancelled?L(req,'[已取消] ','[Cancelled] '):'';
@@ -108,12 +108,12 @@ export function installFeeds(app,db,{user,account,origin,timeZone,matching}){
    if(!e.repeat){items.push(entry(e));continue;}
    // A repeating event wears wall-clock times so its dates follow the school's clock.
    const local=(date,time)=>`;TZID=${timeZone}:${compact(date)}T${time.replace(':','')}00`;
-   const placed=item=>{const base=entry(item);return e.timeMode==='allDay'?base:{...base,when:[`DTSTART${local(item.start,item.time)}`,`DTEND${local(item.start,item.endTime||item.time)}`]};};
+   const placed=item=>{const base=entry(item);return e.timeMode==='allDay'||!e.time?base:{...base,when:[`DTSTART${local(item.start,item.time)}`,`DTEND${local(item.start,item.endTime||item.time)}`]};};
    items.push({...placed(e),recurrence:recurrenceLines(e,dayKinds,timeZone)});
    // Dates with their own changes override the series by RECURRENCE-ID; deleted ones are EXDATEs above.
    for(const date of Object.keys(e.exceptions||{}).sort()){
     if(e.exceptions[date].deleted||!isSeriesDate(e,dayKinds,date))continue;
-    items.push({...placed(occurrence(e,date)),recurrence:[`RECURRENCE-ID${e.timeMode==='allDay'?`;VALUE=DATE:${compact(date)}`:local(date,e.time)}`]});
+    items.push({...placed(occurrence(e,date)),recurrence:[`RECURRENCE-ID${e.timeMode==='allDay'||!e.time?`;VALUE=DATE:${compact(date)}`:local(date,e.time)}`]});
    }
   }
   // Consecutive days with the same plan become one all-day entry.

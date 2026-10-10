@@ -72,8 +72,8 @@ test('a notice becomes reviewable proposals about new, moved and cancelled event
  assert.deepEqual(moved.source,{page:1,quote:'辩论赛改至10月17日'});
  assert.equal(cancel.target.id,sports.id);assert.equal(cancel.cancelReason,'天气原因');
  assert.equal(fair.event.timeMode,'timed');assert.deepEqual(fair.event.scope,['middle','high']);assert.equal(fair.event.status,'draft');assert.deepEqual(fair.event.location,['科技中心','']);
- // A deadline without its time is kept but flagged; "schoolwide" wins over specific divisions.
- assert.equal(due.event.timeMode,'deadline');assert.deepEqual(due.event.scope,['schoolwide']);assert.ok(due.problems.some(p=>p.startsWith('time')));
+ // A deadline without its time is due all day; "schoolwide" wins over specific divisions.
+ assert.equal(due.event.timeMode,'deadline');assert.deepEqual(due.event.scope,['schoolwide']);assert.deepEqual(due.problems,[]);assert.equal(due.event.time,undefined);
  assert.equal(outing.event.timeMode,'multi');
  assert.deepEqual(plan.dayPlan,{start:'2026-10-24',end:'2026-10-24',kind:'school',title:['调休',''],follows:1});
 

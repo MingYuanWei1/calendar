@@ -49,7 +49,7 @@ function isMulti(event){return event.end && event.end!==event.start;}
 function matches(event){return event.status!=='draft' && state.types.has(event.type) && (state.school==='allSchools'||event.scope.includes('schoolwide')||event.scope.includes(state.school)) && (state.view!=='list'||!state.query||event.title.join(' ').toLocaleLowerCase().includes(state.query.toLocaleLowerCase()));}
 function onDate(event,iso){return event.start<=iso && (event.end||event.start)>=iso;}
 function sortEvents(a,b){return (isMulti(a)?0:1)-(isMulti(b)?0:1) || (a.time||'00:00').localeCompare(b.time||'00:00') || a.id.localeCompare(b.id);}
-function timeText(event){if(!event.time)return t('allDay');return (event.type==='deadline'?t('till')+' ':'')+event.time+(event.endTime?'–'+event.endTime:'');}
+function timeText(event){if(!event.time)return event.type==='deadline'?t('till')+' · '+t('allDay'):t('allDay');return (event.type==='deadline'?t('till')+' ':'')+event.time+(event.endTime?'–'+event.endTime:'');}
 function scopeText(event){return event.scope.map(t).join(state.lang?' / ':'、');}
 function cancelText(event){return t(event.cancelledOnce?'cancelledOnce':'cancelled');}
 function label(event){return `${text(event.title)} · ${formatDate(event.start)} · ${timeText(event)}`;}

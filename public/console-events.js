@@ -6,7 +6,7 @@ const view={tab:'all',q:'',type:'all',div:'all',desc:false,menu:null};
 const isMulti=e=>Boolean(e.end&&e.end!==e.start);
 const dateLine=e=>isMulti(e)?dateRange(e.start,e.end):e.repeat?T(`${mdw(e.start)} 起`,`From ${mdw(e.start)}`):mdw(e.start);
 const repeatTag=e=>e.repeat?`<span class="tag tag-outline small" title="${esc(describeRepeat(e.repeat,app.lang))}">↻ ${esc(describeRepeat({...e.repeat,until:undefined,count:undefined},app.lang))}</span>`:'';
-const timeLine=e=>e.time?(e.type==='deadline'?T('截止 ','Due '):'')+e.time+(e.endTime?'–'+e.endTime:''):isMulti(e)?T('跨日 · 全天','Multiple days · all day'):T('全天','All day');
+const timeLine=e=>e.time?(e.type==='deadline'?T('截止 ','Due '):'')+e.time+(e.endTime?'–'+e.endTime:''):isMulti(e)?T('跨日 · 全天','Multiple days · all day'):e.type==='deadline'?T('截止 · 全天','Due · all day'):T('全天','All day');
 const scopeLine=e=>e.scope.map(s=>tx(SCOPES[s])).join(app.lang?' / ':'、');
 const movedLine=e=>e.oldDate?T(`改期 · 原 ${md(e.oldDate)}`,`Moved from ${md(e.oldDate)}`):'';
 const whenOf=e=>`${dateLine(e)} · ${timeLine(e)}`;
@@ -132,7 +132,7 @@ function formFrom(e){
  const pair=(value,i)=>(value||['',''])[i]||'';
  const start=e?.start||app.today,r=e?.repeat;
  return {titleZh:pair(e?.title,0),titleEn:pair(e?.title,1),locZh:pair(e?.location,0),locEn:pair(e?.location,1),hostZh:pair(e?.host,0),hostEn:pair(e?.host,1),descZh:pair(e?.description,0),descEn:pair(e?.description,1),
-  type:e?.type||'activity',mode,start,end:e?.end||e?.start||app.today,time:e?.time||'14:00',endTime:e?.endTime||'15:00',scope:[...(e?.scope||['schoolwide'])],url:e?.registrationUrl||'',poster:e?.poster||'',qr:e?.qr||'',tried:false,
+  type:e?.type||'activity',mode,start,end:e?.end||e?.start||app.today,time:e?.time||'14:00',endTime:e?.endTime||'15:00',scope:[...(e?.scope||['schoolwide'])],dueAllDay:mode==='deadline'&&Boolean(e)&&!e.time,url:e?.registrationUrl||'',poster:e?.poster||'',qr:e?.qr||'',tried:false,
   rep:presetOf(r,start),freq:r?.freq||'weekly',interval:String(r?.interval||1),weekdays:r?.weekdays||[weekdayOf(start)],monthMode:r?.ordinal?'on':'each',monthDays:r?.monthDays||[Number(start.slice(8))],
   ordinal:String(r?.ordinal||(isLastOfMonth(start)?-1:Math.min(4,ordinalOf(start)))),weekday:String(r?.weekday||weekdayOf(start)),
   endMode:r?.until?'until':r?.count?'count':'never',until:r?.until||schoolYearEnd(start),count:String(r?.count||10)};
@@ -163,7 +163,7 @@ function checks(){
  const f=form;let url=true;
  if(f.url.trim())try{url=['http:','https:'].includes(new URL(f.url.trim()).protocol);}catch{url=false;}
  return {title:Boolean(f.titleZh.trim()||f.titleEn.trim()),
-  time:Boolean(f.start)&&(f.mode==='multi'?f.end>=f.start:f.mode==='timed'?Boolean(f.time&&f.endTime&&f.endTime>=f.time):f.mode==='deadline'?Boolean(f.time):true),
+  time:Boolean(f.start)&&(f.mode==='multi'?f.end>=f.start:f.mode==='timed'?Boolean(f.time&&f.endTime&&f.endTime>=f.time):f.mode==='deadline'?Boolean(f.dueAllDay||f.time):true),
   scope:f.scope.length>0,url,repeat:!$('#rep-summary')||!repeatError()};
 }
 
@@ -210,6 +210,7 @@ export async function showEditor(main,id,date){
   if(b.dataset.type){form.type=b.dataset.type;form.mode=form.type==='deadline'?'deadline':form.mode==='deadline'?'timed':form.mode;}
   else if(b.dataset.mode){form.mode=b.dataset.mode;if(form.mode==='deadline')form.type='deadline';else if(form.type==='deadline')form.type='activity';}
   else if(b.dataset.scope){const k=b.dataset.scope,on=form.scope.includes(k);form.scope=on?form.scope.filter(x=>x!==k):k==='schoolwide'?['schoolwide']:[...form.scope.filter(x=>x!=='schoolwide'),k];}
+  else if(b.dataset.dueAllDay!==undefined)form.dueAllDay=!form.dueAllDay;
   else if(b.dataset.rep){
    // Custom starts from the quick choice it replaces, so switching never loses the current pattern.
    if(b.dataset.rep==='custom'&&form.rep!=='custom'){const rule=ruleOf();if(rule&&!rule.schoolDays)Object.assign(form,{freq:rule.freq,interval:String(rule.interval),weekdays:rule.weekdays||form.weekdays,monthDays:rule.monthDays||form.monthDays,monthMode:'each'});}
@@ -249,7 +250,8 @@ function renderTime({single}){
  <span class="label">${T('时间形式 *','Time format *')}</span>${seg('mode',[['timed',T('定时','Timed')],['allDay',T('全天','All day')],...(single?[]:[['multi',T('跨日（全天）','Multiple days')]]),['deadline',T('截止时间','Deadline')]],f.mode,Boolean(single))}
  <span class="label">${T('日期与时间 *','Date & time *')}</span><div class="inline"><input class="input" type="date" data-f="start" value="${esc(f.start)}" aria-label="${f.mode==='multi'?T('开始日期','Start date'):T('日期','Date')}">
   ${f.mode==='multi'?`<span class="muted">–</span><input class="input" type="date" data-f="end" value="${esc(f.end)}" min="${esc(f.start)}" aria-label="${T('结束日期','End date')}">`:''}
-  ${['timed','deadline'].includes(f.mode)?`<span style="width:10px"></span><input class="input" type="time" data-f="time" value="${esc(f.time)}" aria-label="${f.mode==='deadline'?T('截止时间','Due time'):T('开始时间','Start time')}">`:''}
+  ${f.mode==='timed'||(f.mode==='deadline'&&!f.dueAllDay)?`<span style="width:10px"></span><input class="input" type="time" data-f="time" value="${esc(f.time)}" aria-label="${f.mode==='deadline'?T('截止时间','Due time'):T('开始时间','Start time')}">`:''}
+  ${f.mode==='deadline'?`<button type="button" class="chip plain" data-due-all-day aria-pressed="${f.dueAllDay}">${T('全天（当天内截止）','All day (due by end of day)')}</button>`:''}
   ${f.mode==='timed'?`<span class="muted">–</span><input class="input" type="time" data-f="endTime" value="${esc(f.endTime)}" aria-label="${T('结束时间','End time')}">`:''}</div><p class="error" id="err-time"></p>
  ${single?'':f.mode==='multi'?`<span class="label">${T('重复','Repeat')}</span><p class="hint" style="margin:0">${T('跨日事件不能重复。','Multi-day events cannot repeat.')}</p>`:`<span class="label">${T('重复','Repeat')}</span><div class="chips" role="group" aria-label="${T('重复','Repeat')}">${PRESETS().map(([k,label])=>`<button type="button" class="chip plain" data-rep="${k}" aria-pressed="${f.rep===k}">${label}</button>`).join('')}</div>
  ${custom}${ending}<p class="hint repeat-summary" id="rep-summary"></p><p class="error" id="err-repeat"></p>`}
@@ -338,7 +340,7 @@ function updateChecks(){
 
 function toEvent(){
  const f=form,trim=(a,b)=>[f[a].trim(),f[b].trim()];
- return {title:trim('titleZh','titleEn'),type:f.type,timeMode:f.mode,start:f.start,end:f.mode==='multi'?f.end:undefined,time:['timed','deadline'].includes(f.mode)?f.time:undefined,endTime:f.mode==='timed'?f.endTime:undefined,
+ return {title:trim('titleZh','titleEn'),type:f.type,timeMode:f.mode,start:f.start,end:f.mode==='multi'?f.end:undefined,time:f.mode==='timed'||(f.mode==='deadline'&&!f.dueAllDay)?f.time:undefined,endTime:f.mode==='timed'?f.endTime:undefined,
   scope:f.scope,location:trim('locZh','locEn'),host:trim('hostZh','hostEn'),description:trim('descZh','descEn'),poster:f.poster,qr:f.qr,registrationUrl:f.url.trim(),repeat:ruleOf()};
 }
 async function save(action,{id,date,original,single}){
