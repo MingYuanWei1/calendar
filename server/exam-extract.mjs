@@ -37,10 +37,10 @@ export function installExamExtract(app,requireAdmin,config,subjects,quota,school
    let raw;
    try{raw=await streamJson(config,{model,messages:[{role:'system',content:instruction},{role:'user',content}]},120000,progress);}
    catch(error){throw salvage(error,error.items?.sessions);}
-   // Malformed sessions are dropped with a warning; the rest are kept.
-   const {list,warnings}=lenientList(raw,'sessions',item,100);
+   // Malformed sessions are set aside and listed after the rest.
+   const {list,warnings,invalid}=lenientList(raw,'sessions',item,100);
    progress.stage('validating');
-   return {sessions:list.map(session),warnings};
+   return {sessions:list.map(session),warnings,invalid};
   },extractionFailure);
  });
 }

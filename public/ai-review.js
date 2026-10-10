@@ -157,6 +157,10 @@ const stageText=(stage,detail,count)=>({
  reconnecting:T(`LLM Worker 暂时不可用（${detail.status||'网络错误'}），正在第 ${detail.attempt}/${detail.of} 次重试…`,`The LLM Worker is unavailable (${detail.status||'network error'}); retry ${detail.attempt} of ${detail.of}…`)
 })[stage]||stage;
 
+/** A model output item that was not valid, shown instead of being silently dropped. */
+const invalidReason=({reason,detail})=>reason==='cut'?T('回答在此处中断','The answer broke off here'):reason==='json'?T('JSON 格式错误','Malformed JSON'):T(`字段不符合要求：${detail||''}`,`Invalid fields: ${detail||''}`);
+const invalidCard=entry=>`<div class="ai-card ai-invalid"><span class="ai-card-title">${T('格式不正确 · 未导入','Malformed · not imported')}</span><span class="muted">${esc(invalidReason(entry))}</span><pre>${esc(entry.text)}</pre></div>`;
+
 /**
  * Opens the review view. `sourceOf(index)` returns the source of result `index`, used when a
  * [data-pick] element is clicked. Returns controls for streaming progress and final results.
@@ -203,12 +207,16 @@ export function reviewView({title,sourceOf=()=>null,onClose=()=>{}}){
    if(message.type==='stage'){stage=message.stage;detail=message;updateStage();}
    if(message.type==='item'){count++;stage='generating';updateStage();this.count(T(`已识别 ${count} 条`,`${count} found`));}
    if(message.type==='reset'){count=0;q('[data-list]').innerHTML='';this.count('');}
+   if(message.type==='invalid')this.append(invalidCard(message));
   },
   /** Appends a provisional result card while streaming. */
   append(html){q('[data-list]').insertAdjacentHTML('beforeend',html);const last=q('[data-list]').lastElementChild;last?.classList.add('ai-new');last?.scrollIntoView({block:'nearest'});},
   count(text){q('[data-count]').textContent=text;},
-  /** Replaces the results with their final, editable form and stops the timer. */
-  results(html,{notes=[],elapsed=null,preset=false,total=null}={}){
+  /**
+   * Replaces the results with their final, editable form and stops the timer. `invalid` lists the model's
+   * malformed items ({text, reason, detail}), shown after the results so they can be added by hand.
+   */
+  results(html,{notes=[],elapsed=null,preset=false,total=null,invalid=[]}={}){
    finished=true;window.clearInterval(timer);this.alert('');
    dialog.classList.remove('ai-failed');
    const seconds=((elapsed??(performance.now()-started))/1000).toFixed(1);
@@ -217,7 +225,7 @@ export function reviewView({title,sourceOf=()=>null,onClose=()=>{}}){
    q('[data-timer]').hidden=true;
    if(total!=null)this.count(T(`共 ${total} 条 · 点击任意一条查看原文位置`,`${total} results · click one to see where it came from`));
    q('[data-notes]').innerHTML=(preset?[`<p class="callout">${T('以下为预设结果，未调用 LLM。','These are preset results; the LLM was not called.')}</p>`]:[]).concat(notes.length?[`<div class="callout ai-warnings"><strong>${T('AI 提示','AI notes')}</strong><ul>${notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul></div>`]:[]).join('');
-   q('[data-list]').innerHTML=html;
+   q('[data-list]').innerHTML=html+(invalid.length?`<section class="ai-invalid-list"><p class="callout">${T(`以下 ${invalid.length} 段模型输出格式不正确，未导入；其余结果不受影响。请对照原文手动补充。`,`${invalid.length} part(s) of the model’s answer were malformed and were not imported; the other results are unaffected. Add them by hand from the source.`)}</p>${invalid.map(invalidCard).join('')}</section>`:'');
   },
   actions(html){q('[data-actions]').innerHTML=html;return q('[data-actions]');},
   /** Shows an inline problem (e.g. a failed save) without ending the review. */

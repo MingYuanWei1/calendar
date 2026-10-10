@@ -107,11 +107,11 @@ export function installNoticeExtract(app,db,{requireAdmin,llm,timeZone,quota}){
     ?[{type:'text',text:`Material ${i+1} (pasted text):\n${part.text}`}]
     :[{type:'text',text:`Material ${i+1} (image${part.text?`; embedded PDF text: ${part.text}`:''}):`},{type:'image_url',image_url:{url:part.image}}]);
    progress.stage('reading',{pages:parts.length});
-   // Malformed items are dropped with a warning; the rest are kept.
+   // Malformed items are set aside and listed after the rest.
    const result=lenientList(await streamJson(llm,{model:'flash',messages:[{role:'system',content:noticeInstruction({today,refs,plans,catalog:{exam:'考试',competition:'比赛',activity:'活动',deadline:'截止日'}})},{role:'user',content}]},120000,progress),'items',itemSchema,60);
    progress.stage('validating');
    const resolved=resolveNotice(result.list,refs);
-   return {items:resolved.items,warnings:[...result.warnings,...resolved.warnings]};
+   return {items:resolved.items,warnings:[...result.warnings,...resolved.warnings],invalid:result.invalid};
   },error=>error.name==='TimeoutError'?'识别超时，请减少材料后重试。':error instanceof z.ZodError||error instanceof SyntaxError?'模型返回格式不正确，请重试。':/^(LLM Worker|请配置|模型)/.test(error.message||'')?error.message:'无法连接 LLM Worker，请检查环境配置或稍后重试。');
  });
 }

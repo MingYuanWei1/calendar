@@ -92,23 +92,34 @@ export async function requireFlash(config){
 
 /**
  * Emits each complete object inside top-level JSON arrays (e.g. {"sessions":[{…},{…}]}) as the text streams in.
- * The returned feed's `closed` set names the arrays whose closing "]" has arrived, i.e. that are complete.
+ * An object that is not valid JSON goes to onInvalid(key, text, 'json') and scanning carries on with the next one;
+ * a quote the model forgot to escape (one not followed by : , } or ]) is kept inside its string so the scan stays
+ * in step. Call `end()` once the text is complete: an object still open then goes to onInvalid(key, text, 'cut').
+ * `closed` names the arrays whose "]" arrived; `strings` collects top-level string arrays (e.g. warnings).
  */
-export function jsonItems(onItem){
- let inString=false,escaped=false,key='',lastString='',arrayKey='',start=-1,text='',position=0,capturing=false;
- const stack=[],closed=new Set();
- return Object.assign(chunk=>{
+export function jsonItems(onItem,onInvalid=()=>{}){
+ let inString=false,escaped=false,key='',lastString='',arrayKey='',start=-1,stringStart=-1,text='',position=0,capturing=false,ended=false;
+ const stack=[],closed=new Set(),strings={};
+ const topLevel=()=>stack.length===2&&stack[0]==='{'&&stack[1]==='[';
+ const feed=chunk=>{
   text+=chunk;
   for(;position<text.length;position++){
    const c=text[position];
    if(inString){
     if(escaped)escaped=false;
     else if(c==='\\')escaped=true;
-    else if(c==='"'){inString=false;if(!capturing)lastString=key;}
+    else if(c==='"'){
+     let next=position+1;while(next<text.length&&/\s/.test(text[next]))next++;
+     if(next===text.length&&!ended)return;// wait for the character that tells whether the string ends here
+     if(next<text.length&&!':,}]'.includes(text[next])){if(!capturing)key+=c;continue;}
+     inString=false;
+     if(stringStart>=0){try{(strings[arrayKey]||=[]).push(JSON.parse(text.slice(stringStart,position+1)));}catch{}stringStart=-1;}
+     if(!capturing)lastString=key;
+    }
     else if(!capturing)key+=c;
     continue;
    }
-   if(c==='"'){inString=true;if(!capturing)key='';continue;}
+   if(c==='"'){inString=true;if(!capturing){key='';if(topLevel())stringStart=position;}continue;}
    if(c==='{'||c==='['){
     if(c==='['&&stack.length===1&&stack[0]==='{')arrayKey=lastString;
     stack.push(c);
@@ -119,12 +130,18 @@ export function jsonItems(onItem){
     stack.pop();
     if(capturing&&stack.length===2){
      capturing=false;
-     try{onItem(arrayKey,JSON.parse(text.slice(start,position+1)));}catch{}
+     const item=text.slice(start,position+1);
+     let value;try{value=JSON.parse(item);}catch{onInvalid(arrayKey,item,'json');continue;}
+     onItem(arrayKey,value);
     }
     if(c===']'&&stack.length===1)closed.add(arrayKey);
    }
   }
- },{closed});
+ };
+ return Object.assign(feed,{closed,strings,end(){
+  ended=true;feed('');
+  if(capturing){capturing=false;onInvalid(arrayKey,text.slice(start),'cut');}
+ }});
 }
 export const stripFence=raw=>raw.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');
 /** Parses the model's JSON object, ignoring any prose or code fence the model wrote before or after it. */
@@ -165,6 +182,7 @@ export async function respond(req,res,task,failure,status=502){
   item:(key,index,item)=>send?.({type:'item',key,index,item}),
   text:delta=>send?.({type:'text',delta}),
   source:data=>send?.({type:'source',...data}),
+  invalid:entry=>send?.({type:'invalid',...entry}),
   reset:()=>send?.({type:'reset'})
  };
  // While the model thinks silently, a keep-alive line stops proxies (e.g. the nginx relay) from closing the stream.
@@ -182,13 +200,17 @@ export async function respond(req,res,task,failure,status=502){
 }
 
 /** Streams a JSON-returning completion, reporting each finished array item, and returns the parsed object. */
-// Malformed JSON (a truncated or chatty answer) keeps the array items that were complete before the fault and,
-// when an array was cut off, notes the possible loss in `warnings`; only an answer with nothing usable is regenerated once (the client is told to reset).
+// Malformed JSON (a truncated or chatty answer) keeps every array item that parsed, and lists the broken ones under
+// [INVALID] ({key, text, reason}) so the visitor can see what was left out; each is also streamed as it is found.
+// An answer without a single usable item is regenerated once (the client is told to reset).
 // A thrown error carries `items` ({key: [item…]}): the array items that were complete when it failed.
+export const INVALID=Symbol('invalid items');
 export async function streamJson(config,body,timeout,progress,idle){
  for(let tries=0;;tries++){
-  const items={};
-  const feed=jsonItems((key,item)=>{(items[key]||=[]).push(item);progress.item(key,items[key].length-1,item);});
+  const items={},invalid=[];
+  const feed=jsonItems(
+   (key,item)=>{(items[key]||=[]).push(item);progress.item(key,items[key].length-1,item);},
+   (key,text,reason)=>{const entry={key,text:text.slice(0,4000),reason};invalid.push(entry);progress.invalid?.(entry);});
   let first=true,raw;
   const retry=(attempt,status)=>progress.stage('reconnecting',{attempt,of:RETRY.times,status});
   try{raw=await streamChat(config,body,timeout,delta=>{if(first){first=false;progress.stage('generating');}feed(delta);},idle,retry);}
@@ -197,24 +219,28 @@ export async function streamJson(config,body,timeout,progress,idle){
   catch(error){
    // Log the end of the answer so the cause (cut off, or stray text) can be told apart in the server log.
    console.error('LLM answer is not valid JSON:',raw.length,'chars, ends with',JSON.stringify(raw.slice(-200)));
-   // Arrays that closed lost nothing (the fault lies after them, e.g. in warnings); only a cut-off array is flagged.
-   if(Object.keys(items).length)return {...items,warnings:Object.keys(items).every(key=>feed.closed.has(key))?[]:[MALFORMED_TAIL]};
+   feed.end();
+   if(Object.keys(items).length||(tries&&invalid.length))return {...feed.strings,...items,[INVALID]:invalid};
    if(tries)throw Object.assign(error,{items});
    progress.reset();progress.stage('retrying');
   }
  }
 }
-export const MALFORMED_TAIL='模型返回的内容有一部分格式不正确，已删除出错部分并保留其余结果，请核对是否有遗漏。';
 
 /**
- * Validates the answer's `key` array item by item: a malformed item is dropped with a warning instead of
- * failing the whole extraction. Returns {list, warnings}; an answer without the array throws a SyntaxError.
+ * Validates the answer's `key` array item by item: a malformed item is set aside instead of failing the whole
+ * extraction. Returns {list, warnings, invalid}, where `invalid` ([{text, reason:'cut'|'json'|'schema', detail?}])
+ * holds the items that were left out; an answer with neither the array nor any broken item throws a SyntaxError.
  */
 export function lenientList(raw,key,schema,max){
- if(!Array.isArray(raw?.[key]))throw new SyntaxError(`model answer has no ${key} array`);
- const list=[];let dropped=0;
- for(const value of raw[key].slice(0,max)){const r=schema.safeParse(value);if(r.success)list.push(r.data);else dropped++;}
+ const broken=(raw?.[INVALID]||[]).filter(entry=>entry.key===key).map(({text,reason})=>({text,reason}));
+ if(!Array.isArray(raw?.[key])&&!broken.length)throw new SyntaxError(`model answer has no ${key} array`);
+ const list=[],invalid=[...broken];
+ for(const value of (raw[key]||[]).slice(0,max)){
+  const r=schema.safeParse(value);
+  if(r.success)list.push(r.data);
+  else invalid.push({text:JSON.stringify(value).slice(0,4000),reason:'schema',detail:r.error.issues.slice(0,3).map(i=>`${i.path.join('.')}: ${i.message}`).join('；')});
+ }
  const warnings=(Array.isArray(raw.warnings)?raw.warnings:[]).filter(w=>typeof w==='string'&&w).map(w=>w.slice(0,1000)).slice(0,100);
- if(dropped)warnings.push(`模型返回的 ${dropped} 条结果格式不正确，已删除；其余结果已保留，请核对是否有遗漏。`);
- return {list,warnings};
+ return {list,warnings,invalid};
 }

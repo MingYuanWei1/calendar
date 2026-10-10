@@ -72,16 +72,17 @@ test('exam extraction streams NDJSON stages and items, then the normalised resul
   llm.state.rejectEffort=true;llm.state.calls.length=0;
   response=await extract('application/json');assert.equal(response.status,200);
   assert.deepEqual(llm.state.calls.map(c=>'reasoning_effort' in c),[true,false]);
-  // Malformed output ends the stream with an error line.
+  // An answer cut off before its first item (even after the retry) ends normally, listing the broken text.
   llm.state.content='{"sessions":[{"title":';
   response=await extract('application/x-ndjson');
-  const last=JSON.parse((await response.text()).trim().split('\n').at(-1));
-  assert.equal(last.type,'error');assert.match(last.error,/格式不正确/);
+  const lines2=(await response.text()).trim().split('\n').map(line=>JSON.parse(line)),last=lines2.at(-1);
+  assert.deepEqual(lines2.filter(l=>l.type==='invalid').map(l=>l.reason),['cut','cut']);assert.ok(lines2.some(l=>l.type==='reset'));
+  assert.equal(last.type,'done');assert.deepEqual(last.result.sessions,[]);assert.deepEqual(last.result.invalid,[{text:'{"title":',reason:'cut'}]);
  }finally{await new Promise(r=>server.close(r));await new Promise(r=>llm.server.close(r));instance.close();await rm(directory,{recursive:true,force:true});}
 });
 
 test('a failing gateway is retried up to RETRY.times, and a broken answer keeps its finished items or is regenerated once with a reset',async()=>{
- const {streamJson,RETRY,MALFORMED_TAIL}=await import('../../server/llm-stream.mjs');
+ const {streamJson,RETRY,INVALID}=await import('../../server/llm-stream.mjs');
  const pause=RETRY.pause;RETRY.pause=()=>5;
  const replies=[];let calls=0;
  const server=http.createServer(async(req,res)=>{
@@ -93,7 +94,7 @@ test('a failing gateway is retried up to RETRY.times, and a broken answer keeps 
  });
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const config={url:`http://127.0.0.1:${server.address().port}`,token:'t'};
- const events=[],progress={stage:s=>events.push('stage:'+s),item:(k,i)=>events.push(`item:${i}`),reset:()=>events.push('reset'),text(){},source(){}};
+ const events=[],progress={stage:s=>events.push('stage:'+s),item:(k,i)=>events.push(`item:${i}`),invalid:e=>events.push(`invalid:${e.reason}`),reset:()=>events.push('reset'),text(){},source(){}};
  try{
   replies.push({status:503},{status:503},{status:503},{content:'{"sessions":[{"title":"A"}]}'});
   assert.deepEqual(await streamJson(config,{model:'flash',messages:[]},5000,progress),{sessions:[{title:'A'}]});
@@ -106,17 +107,25 @@ test('a failing gateway is retried up to RETRY.times, and a broken answer keeps 
   assert.deepEqual(await streamJson(config,{model:'flash',messages:[]},5000,progress),{sessions:[{title:'A }'}]});
   assert.equal(calls,1);
   replies.length=0;calls=0;events.length=0;
-  // A fault after a complete array (here in warnings) loses no items, so no warning is added.
+  // A fault after a complete array (here in warnings) loses no items and lists nothing.
   replies.push({content:'{"sessions":[{"title":"A"},{"title":"B"}],"warnings":["unclosed]}'});
-  assert.deepEqual(await streamJson(config,{model:'flash',messages:[]},5000,progress),{sessions:[{title:'A'},{title:'B'}],warnings:[]});
+  let answer=await streamJson(config,{model:'flash',messages:[]},5000,progress);
+  assert.deepEqual(answer.sessions,[{title:'A'},{title:'B'}]);assert.deepEqual(answer[INVALID],[]);
   replies.length=0;calls=0;events.length=0;
-  // A broken tail is dropped; the finished items are kept without a retry.
-  replies.push({content:'{"sessions":[{"title":"A"},{"tit'},{content:'{"sessions":[{"title":"B"}]}'});
-  assert.deepEqual(await streamJson(config,{model:'flash',messages:[]},5000,progress),{sessions:[{title:'A'}],warnings:[MALFORMED_TAIL]});
-  assert.equal(calls,1);assert.deepEqual(events,['stage:generating','item:0']);
+  // A broken item is marked and skipped, later items still arrive, and a cut-off tail is marked too — without a retry.
+  replies.push({content:'{"sessions":[{"title":"A"},{"title":"B",,},{"title":"他说"好"了"},{"title":"D"},{"tit'});
+  answer=await streamJson(config,{model:'flash',messages:[]},5000,progress);
+  assert.deepEqual(answer.sessions,[{title:'A'},{title:'D'}]);
+  assert.deepEqual(answer[INVALID].map(e=>[e.reason,e.text]),[['json','{"title":"B",,}'],['json','{"title":"他说"好"了"}'],['cut','{"tit']]);
+  assert.equal(calls,1);assert.deepEqual(events,['stage:generating','item:0','invalid:json','invalid:json','item:1','invalid:cut']);
+  // Warnings written before the break are kept.
+  replies.length=0;calls=0;events.length=0;
+  replies.push({content:'{"warnings":["check rooms"],"sessions":[{"title":"A"},{"tit'});
+  answer=await streamJson(config,{model:'flash',messages:[]},5000,progress);
+  assert.deepEqual(answer.warnings,['check rooms']);assert.deepEqual(answer.sessions,[{title:'A'}]);
   // An answer with nothing usable is regenerated once, and the client is told to reset.
   replies.length=0;calls=0;events.length=0;
-  replies.push({content:'{"sessions":[{"tit'},{content:'{"sessions":[{"title":"B"}]}'});
+  replies.push({content:'not json'},{content:'{"sessions":[{"title":"B"}]}'});
   assert.deepEqual(await streamJson(config,{model:'flash',messages:[]},5000,progress),{sessions:[{title:'B'}]});
   assert.deepEqual(events,['stage:generating','reset','stage:retrying','stage:generating','item:0']);
   // A second failure is reported rather than retried forever.

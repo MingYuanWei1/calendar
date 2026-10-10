@@ -25,13 +25,13 @@ test('Worker extraction authenticates, routes purpose aliases, validates preview
   assert.equal((await call('/admin/exam-extract','POST',{...input,images:[]},cookie)).status,422);
   flashEnabled=false;const count=calls.length;assert.equal((await call('/admin/exam-extract','POST',input,cookie)).status,502);assert.equal(calls.length,count);flashEnabled=true;
   malformed=true;assert.equal((await call('/admin/exam-extract','POST',input,cookie)).status,502);
-  // When the answer breaks off, the broken tail is dropped and the finished sessions are kept as a normal result.
+  // When the answer breaks off, the finished sessions are kept as a normal result and the broken tail is listed.
   malformed='{"sessions":[{"title":"数学 HL","subject":"数学","level":"HL","division":"high","grades":["G12"],"date":"2026-09-21","start":"08:10","end":"09:40","rooms":["101"]},{"title":';
   response=await call('/admin/exam-extract','POST',input,cookie);assert.equal(response.status,200);const kept=await response.json();
-  assert.equal(kept.sessions.length,1);assert.ok(kept.sessions[0].id);assert.deepEqual(kept.sessions[0].grades,[12]);assert.match(kept.warnings.join(),/删除出错部分/);
-  // A session with a wrongly typed field is dropped on its own; the others survive.
+  assert.equal(kept.sessions.length,1);assert.ok(kept.sessions[0].id);assert.deepEqual(kept.sessions[0].grades,[12]);assert.deepEqual(kept.invalid,[{text:'{"title":',reason:'cut'}]);
+  // A session with a wrongly typed field is set aside on its own and listed; the others survive.
   malformed='{"sessions":[{"title":"数学 HL","date":"2026-09-21","rooms":["101"]},{"title":"物理","rooms":"101"}],"warnings":[]}';
   response=await call('/admin/exam-extract','POST',input,cookie);assert.equal(response.status,200);const filtered=await response.json();
-  assert.deepEqual(filtered.sessions.map(s=>s.title),['数学 HL']);assert.match(filtered.warnings.join(),/1 条结果格式不正确/);
+  assert.deepEqual(filtered.sessions.map(s=>s.title),['数学 HL']);assert.equal(filtered.invalid.length,1);assert.equal(filtered.invalid[0].reason,'schema');assert.match(filtered.invalid[0].detail,/rooms/);
  }finally{await new Promise(r=>server.close(r));await new Promise(r=>gateway.close(r));instance.close();await rm(directory,{recursive:true,force:true});}
 });

@@ -385,6 +385,10 @@ dialog.dialog::backdrop{background:color-mix(in srgb,var(--color-neutral-900) 50
 .ai-card .ai-card-title{font-weight:600;font-size:14px}
 .ai-card:hover,[data-pick]:hover{border-color:color-mix(in srgb,var(--color-accent) 60%,transparent)}
 [data-pick].picked{outline:2px solid var(--color-accent);outline-offset:-1px;background:var(--color-accent-100)}
+.ai-invalid{cursor:default;border-color:color-mix(in srgb,#b42318 45%,transparent);background:color-mix(in srgb,#b42318 6%,var(--color-surface))}
+.ai-invalid .ai-card-title{color:#b42318}
+.ai-invalid pre{margin:0;max-height:120px;overflow:auto;white-space:pre-wrap;word-break:break-all;font-size:12px}
+.ai-invalid-list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
 .ai-new{animation:ai-in .35s ease-out}
 @keyframes ai-in{from{opacity:0;transform:translateY(6px)}}
 .ai-results .review-table tr[data-pick]{cursor:pointer}

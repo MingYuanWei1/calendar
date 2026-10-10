@@ -132,7 +132,7 @@ function card(item,i){
 
 function showResults(result,review,{elapsed=null}={}){
  const items=result.items;
- review.results(items.length?items.map(card).join(''):`<p class="muted">${T('通知中没有识别到日程变化。','No calendar changes were found in this notice.')}</p>`,{notes:result.warnings||[],elapsed,total:items.length});
+ review.results(items.length?items.map(card).join(''):`<p class="muted">${T('通知中没有识别到日程变化。','No calendar changes were found in this notice.')}</p>`,{notes:result.warnings||[],elapsed,total:items.length,invalid:result.invalid||[]});
  const bar=review.actions(`<button type="button" class="btn btn-secondary" data-dismiss>${T('返回','Go back')}</button><button type="button" class="btn btn-secondary" data-apply="draft"${items.length?'':' disabled'}>${T('应用，新事件存为草稿','Apply, new events as drafts')}</button><button type="button" class="btn btn-primary" data-apply="publish"${items.length?'':' disabled'}>${T('核对无误，应用并发布','Apply and publish')}</button>`);
  bar.querySelector('[data-dismiss]').onclick=review.close;
  bar.querySelectorAll('[data-apply]').forEach(button=>button.onclick=()=>apply(items,review,button.dataset.apply==='publish'));

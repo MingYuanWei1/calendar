@@ -22,7 +22,7 @@ export async function seatingWorkbook(buffer){
  if(!sheets.some(s=>s.cells.length))throw new Error('工作簿没有可提取的文字座位数据。');
  return {sheets,text};
 }
-const silent={stage(){},item(){},text(){},source(){}};
+const silent={stage(){},item(){},invalid(){},text(){},source(){}};
 // A large seating workbook makes the model think long before and between seats, so wait longer than for other tasks.
 export const SEAT_TIMEOUT=180000;
 export async function extractSeats(buffer,batch,config,progress=silent){
@@ -40,9 +40,9 @@ export async function extractSeats(buffer,batch,config,progress=silent){
  let raw;
  try{raw=await streamJson(config,{model:'flash',messages:[{role:'system',content:instruction},{role:'user',content:workbook}]},SEAT_TIMEOUT,progress,SEAT_TIMEOUT);}
  catch(error){throw salvage(error instanceof SyntaxError?malformed():error,error.items?.seats);}
- // Malformed seats are dropped with a warning; the rest are kept.
+ // Malformed seats are set aside and listed after the rest.
  let result;
  try{result=lenientList(raw,'seats',seat,20000);}catch{throw malformed();}
  progress.stage('validating');
- return finish(result.list,result.warnings);
+ return {...finish(result.list,result.warnings),invalid:result.invalid};
 }
