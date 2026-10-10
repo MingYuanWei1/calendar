@@ -6,13 +6,13 @@ const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const copy = {
   brand:['日历','Calendar'], calendarNav:['校历','Calendar'], examsNav:['考试安排','Exams'],
-  publicCalendar:['属于每一位同学的校园日程','A calendar for every student'], searchLabel:['搜索','Search'], september:['2026 年 9 月','September 2026'], autumn:['秋季学期','Autumn term'], scope:['适用学部','School division'], reset:['重置','Reset'], types:['事件类型','Event types'], scopeNote:['选择学部时，同时显示全校事件。','School-wide events are included in every division.'], publicNote:['公开校历 · 无需登录','Public calendar · No sign-in'], schoolLife:['校园生活 / SCHOOL LIFE','SCHOOL LIFE'], term:['2026—2027 学年 · 秋季学期','2026–2027 · Autumn term'], today:['今天','Today'], monthView:['月历','Month'], weekView:['周历','Week'], listView:['日程','Agenda'], emptyTitle:['没有符合条件的事件','No matching events'], emptyHelp:['试试其他关键词，或重置筛选。','Try another search or reset your filters.'], dayEvents:['当天事件','EVENTS ON THIS DAY'], registrationPreview:['报名入口示意','Registration preview'], registrationNotice:['正式发布时，此处打开管理员填写的外部报名表。当前设计稿未连接真实表单。','In the published calendar, this opens the external form provided by an administrator. This design is not connected to a real form.'], understood:['知道了','Got it'], detail:['事件详情','EVENT DETAILS'], close:['关闭详情','Close details'], when:['时间','When'], where:['地点','Where'], for:['适用','For'], host:['主办','Host'], about:['事件说明','About this event'], allDay:['全天','All day'], till:['截止','Due'], cancelled:['已取消','Cancelled'], cancelledOnce:['本次取消','Cancelled this time'], repeats:['重复','Repeats'], changed:['已改期','Rescheduled'], registration:['查看报名表','Open registration form'], external:['通过外部表单报名，本平台仅展示信息。','Registration is handled by an external form.'], updated:['更新于 9 月 18 日 16:30','Updated 18 Sep, 16:30'], chooseEvent:['选择一项事件查看详情','Select an event to see the details'], missingLocation:['未设置地点','No location specified'], allSchools:['全部学部','All divisions'], schoolwide:['全校','School-wide'], primary:['小学部','Primary'], middle:['初中部','Middle'], high:['高中部','High'], noDayEvents:['当天没有符合条件的事件','No matching events on this day'], searchPlaceholder:['搜索事件','Search events'], previous:['上个月','Previous month'], next:['下个月','Next month'], closeDay:['关闭当天事件','Close day events']
+  publicCalendar:['属于每一位同学的校园日程','A calendar for every student'], searchLabel:['搜索','Search'], september:['2026 年 9 月','September 2026'], autumn:['秋季学期','Autumn term'], scope:['适用学部','School division'], reset:['重置','Reset'], types:['事件类型','Event types'], scopeNote:['选择学部时，同时显示全校事件。','School-wide events are included in every division.'], publicNote:['公开校历 · 无需登录','Public calendar · No sign-in'], schoolLife:['校园生活 / SCHOOL LIFE','SCHOOL LIFE'], term:['2026—2027 学年 · 秋季学期','2026–2027 · Autumn term'], today:['今天','Today'], monthView:['月历','Month'], weekView:['周历','Week'], listView:['日程','Agenda'], emptyTitle:['没有符合条件的事件','No matching events'], emptyHelp:['试试其他关键词，或重置筛选。','Try another search or reset your filters.'], dayEvents:['当天事件','EVENTS ON THIS DAY'], registrationPreview:['报名入口示意','Registration preview'], registrationNotice:['正式发布时，此处打开管理员填写的外部报名表。当前设计稿未连接真实表单。','In the published calendar, this opens the external form provided by an administrator. This design is not connected to a real form.'], understood:['知道了','Got it'], detail:['事件详情','EVENT DETAILS'], close:['关闭详情','Close details'], when:['时间','When'], where:['地点','Where'], for:['适用','For'], host:['主办','Host'], about:['事件说明','About this event'], allDay:['全天','All day'], till:['截止','Due'], cancelled:['已取消','Cancelled'], cancelledOnce:['本次取消','Cancelled this time'], repeats:['重复','Repeats'], changed:['已改期','Rescheduled'], registration:['查看报名表','Open registration form'], external:['通过外部表单报名，本平台仅展示信息。','Registration is handled by an external form.'], updated:['更新于 9 月 18 日 16:30','Updated 18 Sep, 16:30'], chooseEvent:['选择一项事件查看详情','Select an event to see the details'], missingLocation:['未设置地点','No location specified'], allSchools:['全部学部','All divisions'], schoolwide:['全校','School-wide'], primary:['小学部','Primary'], middle:['初中部','Middle'], high:['高中部','High'], noDayEvents:['当天没有符合条件的事件','No matching events on this day'], searchPlaceholder:['搜索事件','Search events'], previous:['上个月','Previous month'], next:['下个月','Next month'], closeDay:['关闭当天事件','Close day events'], grades:['年级','Grades']
 };
 const types = {
   exam:{label:['考试','Exams'],color:'var(--exam)'}, competition:{label:['比赛','Competitions'],color:'var(--competition)'}, activity:{label:['活动','Activities'],color:'var(--activity)'}, deadline:{label:['截止日','Deadlines'],color:'var(--deadline)'}
 };
-const schools = ['allSchools','primary','middle','high'];
-const state = {lang:Number(localStorage.getItem('exam-language')||0),year:new Date().getFullYear(),month:new Date().getMonth(),school:'allSchools',types:new Set(Object.keys(types)),query:'',view:'month',anchor:'',selected:null};
+const divisions = ['primary','middle','high'];
+const state = {lang:Number(localStorage.getItem('exam-language')||0),year:new Date().getFullYear(),month:new Date().getMonth(),divisions:new Set(),hiddenGrades:new Set(),types:new Set(Object.keys(types)),query:'',view:'month',anchor:'',selected:null};
 const mobileQuery = matchMedia('(max-width:760px)');
 /** Events as published: a repeating event appears once, with its 重复规则. */
 /** @type {SchoolEvent[]} */
@@ -26,6 +26,8 @@ let repeatSummary=rule=>'';
 let detailReturnDay=null;
 let detailScrollY=0;
 let calendarSlots=4;
+/** Set once grades.mjs loads: which grades a division covers and how an audience reads. */
+let gradeTools=null;
 let resolveDayPlan=iso=>null;
 function dayPlan(iso){return resolveDayPlan(iso);}
 function dayBadge(plan){return plan?`<span class="day-badge ${plan.kind}">${plan.kind==='off'?(state.lang?'Off':'休'):plan.kind==='half'?(state.lang?'Half day':'上半天'):(state.lang?'All day class':'上全天')}</span>`:'';}
@@ -46,26 +48,44 @@ function dateValue(iso){return new Date(iso+'T12:00:00');}
 function isoDate(date){return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;}
 function formatDate(iso,weekday=false){return new Intl.DateTimeFormat(state.lang?'en-GB':'zh-CN',{month:state.lang?'short':'long',day:'numeric',year:'numeric',...(weekday?{weekday:'long'}:{})}).format(dateValue(iso));}
 function isMulti(event){return event.end && event.end!==event.start;}
-function matches(event){return event.status!=='draft' && state.types.has(event.type) && (state.school==='allSchools'||event.scope.includes('schoolwide')||event.scope.includes(state.school)) && (state.view!=='list'||!state.query||event.title.join(' ').toLocaleLowerCase().includes(state.query.toLocaleLowerCase()));}
+/** Grades the division filter shows: every grade of each ticked division that has not been unticked. */
+function shownGrades(){return gradeTools?[...state.divisions].flatMap(d=>gradeTools.DIVISION_GRADES[d]).filter(g=>!state.hiddenGrades.has(g)):[];}
+/** No ticked division shows everything; school-wide events always pass. */
+function audienceMatches(event){
+  if(!state.divisions.size||event.scope.includes('schoolwide'))return true;
+  if(!gradeTools)return event.scope.some(s=>state.divisions.has(s));
+  const shown=shownGrades();
+  return gradeTools.audienceGrades(event.scope,event.grades).some(g=>shown.includes(g));
+}
+function matches(event){return event.status!=='draft' && state.types.has(event.type) && audienceMatches(event) && (state.view!=='list'||!state.query||event.title.join(' ').toLocaleLowerCase().includes(state.query.toLocaleLowerCase()));}
 function onDate(event,iso){return event.start<=iso && (event.end||event.start)>=iso;}
 function sortEvents(a,b){return (isMulti(a)?0:1)-(isMulti(b)?0:1) || (a.time||'00:00').localeCompare(b.time||'00:00') || a.id.localeCompare(b.id);}
 function timeText(event){if(!event.time)return event.type==='deadline'?t('till')+' · '+t('allDay'):t('allDay');return (event.type==='deadline'?t('till')+' ':'')+event.time+(event.endTime?'–'+event.endTime:'');}
-function scopeText(event){return event.scope.map(t).join(state.lang?' / ':'、');}
+function scopeParts(event){return gradeTools?gradeTools.audienceParts(event.scope,event.grades,t,state.lang):event.scope.map(t);}
+function scopeText(event){return scopeParts(event).join(state.lang?' / ':'、');}
 function cancelText(event){return t(event.cancelledOnce?'cancelledOnce':'cancelled');}
 function label(event){return `${text(event.title)} · ${formatDate(event.start)} · ${timeText(event)}`;}
 function eventButton(event){return `<button class="event ${event.type}${event.cancelled?' cancelled':''}${state.selected===event.id?' selected':''}" data-event="${event.id}" title="${esc(label(event))}" aria-label="${esc(label(event))}"><span class="dot"></span><span class="event-text">${event.cancelled?esc(cancelText(event))+' · ':''}${event.oldDate?esc(t('changed'))+' · ':''}${event.type==='deadline'?esc(t('till'))+' ':''}${event.time?`<time>${event.time}</time> `:''}${esc(text(event.title))}</span></button>`;}
 function agendaButton(event){return `<button class="agenda-event ${event.type}${event.cancelled?' cancelled':''}${state.selected===event.id?' selected':''}" data-event="${event.id}"><span class="dot"></span><span><strong>${event.cancelled?esc(cancelText(event))+' · ':''}${event.oldDate?esc(t('changed'))+' · ':''}${esc(text(event.title))}</strong><small>${esc(timeText(event))} · ${esc(scopeText(event))}${event.location?' · '+esc(text(event.location)):''}</small></span></button>`;}
-function setSchool(school){state.school=school;state.selected=null;render();}
+function toggleDivision(division){
+  if(state.divisions.has(division)){state.divisions.delete(division);gradeTools?.DIVISION_GRADES[division].forEach(g=>state.hiddenGrades.delete(g));}
+  else state.divisions.add(division);
+  state.selected=null;render();
+}
+function toggleGrade(grade){state.hiddenGrades.has(grade)?state.hiddenGrades.delete(grade):state.hiddenGrades.add(grade);state.selected=null;render();}
 function toggleType(type){state.types.has(type)?state.types.delete(type):state.types.add(type);state.selected=null;render();}
-function resetFilters(){state.school='allSchools';state.types=new Set(Object.keys(types));state.query='';$('#search').value='';state.selected=null;render();}
+function resetFilters(){state.divisions=new Set();state.hiddenGrades=new Set();state.types=new Set(Object.keys(types));state.query='';$('#search').value='';state.selected=null;render();}
 function renderFilters(){
-  $('#school-filter').innerHTML=schools.map(s=>`<button class="school-option" data-school="${s}" aria-pressed="${s===state.school}">${esc(t(s))}</button>`).join('');
-  $('#school-tabs').innerHTML=schools.map(s=>`<button class="school-tab" data-school="${s}" aria-pressed="${s===state.school}">${esc(t(s))}</button>`).join('')+`<span class="tab-note">${esc(t('scopeNote'))}</span>`;
-  $('#school-select').innerHTML=schools.map(s=>`<option value="${s}" ${s===state.school?'selected':''}>${esc(t(s))}</option>`).join('');
-  $('#type-filter').innerHTML=Object.entries(types).map(([key,value])=>`<label class="type-option" style="--type-color:${value.color}"><input type="checkbox" data-type="${key}" ${state.types.has(key)?'checked':''}>${esc(text(value.label))}</label>`).join('');
-  $('#inline-types').innerHTML=Object.entries(types).map(([key,value])=>`<button class="type-chip ${key}" data-type="${key}" aria-pressed="${state.types.has(key)}"><span class="dot"></span>${esc(text(value.label))}</button>`).join('');
-  $$('[data-school]').forEach(b=>b.onclick=()=>setSchool(b.dataset.school));
-  $$('[data-type]').forEach(b=>b.tagName==='INPUT'?b.onchange=()=>toggleType(b.dataset.type):b.onclick=()=>toggleType(b.dataset.type));
+  // 适用学部: tick any divisions; each ticked division lists its grades, all ticked until a student unticks one.
+  const gradesOf=d=>gradeTools?.DIVISION_GRADES[d]||[];
+  const gradeName=g=>gradeTools?gradeTools.gradeLabel(g,state.lang):String(g);
+  $('#school-filter').innerHTML=divisions.map(d=>`<label class="type-option division-option"><input type="checkbox" data-division="${d}" ${state.divisions.has(d)?'checked':''}>${esc(t(d))}</label>${state.divisions.has(d)?`<div class="grade-options" role="group" aria-label="${esc(t(d))} · ${esc(t('grades'))}">${gradesOf(d).map(g=>`<label class="type-option grade-option"><input type="checkbox" data-grade="${g}" ${state.hiddenGrades.has(g)?'':'checked'}>${esc(gradeName(g))}</label>`).join('')}</div>`:''}`).join('')+`<p class="filter-note">${esc(t('scopeNote'))}</p>`;
+  $('#school-tabs').innerHTML='';
+  $('#inline-divisions').innerHTML=divisions.map(d=>`<button class="division-chip" data-division="${d}" aria-pressed="${state.divisions.has(d)}">${esc(t(d))}</button>${state.divisions.has(d)?gradesOf(d).map(g=>`<button class="grade-chip" data-grade="${g}" aria-pressed="${!state.hiddenGrades.has(g)}">${esc(gradeName(g))}</button>`).join(''):''}`).join('');
+  const bind=(selector,action)=>$$(selector).forEach(b=>b.tagName==='INPUT'?b.onchange=()=>action(b):b.onclick=()=>action(b));
+  bind('[data-division]',b=>toggleDivision(b.dataset.division));
+  bind('[data-grade]',b=>toggleGrade(Number(b.dataset.grade)));
+  bind('[data-type]',b=>toggleType(b.dataset.type));
 }
 function bindEvents(root){root.querySelectorAll('[data-event]').forEach(b=>b.onclick=()=>selectEvent(b.dataset.event));}
 function syncDetailMode(){const modal=mobileQuery.matches&&document.body.classList.contains('mobile-detail');$$('.app-header,.school-tabs,.sidebar,.main-calendar').forEach(el=>el.inert=modal);if(modal){$('#details').setAttribute('role','dialog');$('#details').setAttribute('aria-modal','true');}else{$('#details').removeAttribute('role');$('#details').removeAttribute('aria-modal');}}
@@ -180,14 +200,13 @@ function render(){
   document.documentElement.lang=state.lang?'en':'zh-CN';document.title=state.lang?'Keydion Calendar - School calendar':'Keydion日历 - 校历';$$('[data-i18n]').forEach(el=>el.textContent=t(el.dataset.i18n));
   $('#language').textContent=state.lang?'中文':'EN';$('#language').setAttribute('aria-label',state.lang?'切换为中文':'Switch to English');
   $('#search').placeholder=t('searchPlaceholder');$('#search').setAttribute('aria-label',t('searchPlaceholder'));
-  $('#previous').setAttribute('aria-label',t('previous'));$('#next').setAttribute('aria-label',t('next'));$('#school-select').setAttribute('aria-label',t('scope'));$('#details').setAttribute('aria-label',t('detail'));$('#close-day').setAttribute('aria-label',t('closeDay'));$('#close-registration').setAttribute('aria-label',state.lang?'Close':'关闭');
+  $('#previous').setAttribute('aria-label',t('previous'));$('#next').setAttribute('aria-label',t('next'));$('#details').setAttribute('aria-label',t('detail'));$('#close-day').setAttribute('aria-label',t('closeDay'));$('#close-registration').setAttribute('aria-label',state.lang?'Close':'关闭');
   $('#day-legend').innerHTML=`<span class="legend-weekday">${state.lang?'Weekday':'工作日'}</span><span class="legend-weekend">${state.lang?'Weekend':'周末'}</span><span class="legend-half">${state.lang?'Half day':'上半天'}</span><span class="legend-off">${state.lang?'Holiday':'放假'}</span><span>${dayBadge({kind:'school'})} ${state.lang?'Full school day':'全天上课'}</span>`;
   renderFilters();renderCalendar();renderDetail();
   document.dispatchEvent(new CustomEvent('calendar-language'));
 }
 $('#search').oninput=e=>{state.query=e.target.value;state.selected=null;renderCalendar();renderDetail();};
 $('#language').onclick=()=>{state.lang=1-state.lang;localStorage.setItem('exam-language',String(state.lang));render();};
-$('#school-select').onchange=e=>setSchool(e.target.value);
 $$('.reset').forEach(b=>b.onclick=resetFilters);
 function changeView(view){state.view=view;renderCalendar();}
 $('#month-view').onclick=()=>changeView('month');$('#list-view').onclick=()=>changeView('list');$('#week-view').onclick=()=>{

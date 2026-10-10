@@ -1,13 +1,14 @@
 import {$,$$,esc,corners,icon,app,T,tx,TYPES,SCOPES,api,toast,modal,closeModal,busy,errorLine,go,refreshNav,md,mdw,dateRange,monthLabel,statusOf,statusTag,statusLabel,loadEvents,loadPlans} from './console-core.js';
 import {describeRepeat,isLastOfMonth,lastDate,occurrence,ordinalOf,repeatProblem,schoolYearEnd,seriesDates,weekdayOf} from './recurrence.mjs';
 import {noticeDialog} from './console-notice.js';
+import {DIVISION_GRADES,audienceParts,gradeLabel,normalizeGrades} from './grades.mjs';
 
 const view={tab:'all',q:'',type:'all',div:'all',desc:false,menu:null};
 const isMulti=e=>Boolean(e.end&&e.end!==e.start);
 const dateLine=e=>isMulti(e)?dateRange(e.start,e.end):e.repeat?T(`${mdw(e.start)} 起`,`From ${mdw(e.start)}`):mdw(e.start);
 const repeatTag=e=>e.repeat?`<span class="tag tag-outline small" title="${esc(describeRepeat(e.repeat,app.lang))}">↻ ${esc(describeRepeat({...e.repeat,until:undefined,count:undefined},app.lang))}</span>`:'';
 const timeLine=e=>e.time?(e.type==='deadline'?T('截止 ','Due '):'')+e.time+(e.endTime?'–'+e.endTime:''):isMulti(e)?T('跨日 · 全天','Multiple days · all day'):e.type==='deadline'?T('截止 · 全天','Due · all day'):T('全天','All day');
-const scopeLine=e=>e.scope.map(s=>tx(SCOPES[s])).join(app.lang?' / ':'、');
+const scopeLine=e=>audienceParts(e.scope,e.grades,s=>tx(SCOPES[s]),app.lang).join(app.lang?' / ':'、');
 const movedLine=e=>e.oldDate?T(`改期 · 原 ${md(e.oldDate)}`,`Moved from ${md(e.oldDate)}`):'';
 const whenOf=e=>`${dateLine(e)} · ${timeLine(e)}`;
 
@@ -132,7 +133,7 @@ function formFrom(e){
  const pair=(value,i)=>(value||['',''])[i]||'';
  const start=e?.start||app.today,r=e?.repeat;
  return {titleZh:pair(e?.title,0),titleEn:pair(e?.title,1),locZh:pair(e?.location,0),locEn:pair(e?.location,1),hostZh:pair(e?.host,0),hostEn:pair(e?.host,1),descZh:pair(e?.description,0),descEn:pair(e?.description,1),
-  type:e?.type||'activity',mode,start,end:e?.end||e?.start||app.today,time:e?.time||'14:00',endTime:e?.endTime||'15:00',scope:[...(e?.scope||['schoolwide'])],dueAllDay:mode==='deadline'&&Boolean(e)&&!e.time,url:e?.registrationUrl||'',poster:e?.poster||'',qr:e?.qr||'',tried:false,
+  type:e?.type||'activity',mode,start,end:e?.end||e?.start||app.today,time:e?.time||'14:00',endTime:e?.endTime||'15:00',scope:[...(e?.scope||['schoolwide'])],grades:[...(e?.grades||[])],dueAllDay:mode==='deadline'&&Boolean(e)&&!e.time,url:e?.registrationUrl||'',poster:e?.poster||'',qr:e?.qr||'',tried:false,
   rep:presetOf(r,start),freq:r?.freq||'weekly',interval:String(r?.interval||1),weekdays:r?.weekdays||[weekdayOf(start)],monthMode:r?.ordinal?'on':'each',monthDays:r?.monthDays||[Number(start.slice(8))],
   ordinal:String(r?.ordinal||(isLastOfMonth(start)?-1:Math.min(4,ordinalOf(start)))),weekday:String(r?.weekday||weekdayOf(start)),
   endMode:r?.until?'until':r?.count?'count':'never',until:r?.until||schoolYearEnd(start),count:String(r?.count||10)};
@@ -209,7 +210,14 @@ export async function showEditor(main,id,date){
   const toggle=(list,value)=>list.includes(value)?list.filter(x=>x!==value):[...list,value];
   if(b.dataset.type){form.type=b.dataset.type;form.mode=form.type==='deadline'?'deadline':form.mode==='deadline'?'timed':form.mode;}
   else if(b.dataset.mode){form.mode=b.dataset.mode;if(form.mode==='deadline')form.type='deadline';else if(form.type==='deadline')form.type='activity';}
-  else if(b.dataset.scope){const k=b.dataset.scope,on=form.scope.includes(k);form.scope=on?form.scope.filter(x=>x!==k):k==='schoolwide'?['schoolwide']:[...form.scope.filter(x=>x!=='schoolwide'),k];}
+  else if(b.dataset.scope){const k=b.dataset.scope,on=form.scope.includes(k);form.scope=on?form.scope.filter(x=>x!==k):k==='schoolwide'?['schoolwide']:[...form.scope.filter(x=>x!=='schoolwide'),k];form.grades=normalizeGrades(form.scope,form.grades);}
+  else if(b.dataset.grade){
+   // No grades listed means the whole division; at least one grade of a chosen division stays on.
+   const g=Number(b.dataset.grade),all=DIVISION_GRADES[b.dataset.division],chosen=all.filter(x=>form.grades.includes(x)),on=chosen.length?chosen:all;
+   const next=on.includes(g)?on.filter(x=>x!==g):[...on,g];
+   if(!next.length)return;
+   form.grades=normalizeGrades(form.scope,[...form.grades.filter(x=>!all.includes(x)),...next]);
+  }
   else if(b.dataset.dueAllDay!==undefined)form.dueAllDay=!form.dueAllDay;
   else if(b.dataset.rep){
    // Custom starts from the quick choice it replaces, so switching never loses the current pattern.
@@ -255,7 +263,9 @@ function renderTime({single}){
   ${f.mode==='timed'?`<span class="muted">–</span><input class="input" type="time" data-f="endTime" value="${esc(f.endTime)}" aria-label="${T('结束时间','End time')}">`:''}</div><p class="error" id="err-time"></p>
  ${single?'':f.mode==='multi'?`<span class="label">${T('重复','Repeat')}</span><p class="hint" style="margin:0">${T('跨日事件不能重复。','Multi-day events cannot repeat.')}</p>`:`<span class="label">${T('重复','Repeat')}</span><div class="chips" role="group" aria-label="${T('重复','Repeat')}">${PRESETS().map(([k,label])=>`<button type="button" class="chip plain" data-rep="${k}" aria-pressed="${f.rep===k}">${label}</button>`).join('')}</div>
  ${custom}${ending}<p class="hint repeat-summary" id="rep-summary"></p><p class="error" id="err-repeat"></p>`}
- <span class="label">${T('适用范围 *','Audience *')}</span><div class="chips">${Object.keys(SCOPES).map(k=>`<button type="button" class="chip" data-scope="${k}" aria-pressed="${f.scope.includes(k)}"${single?' disabled':''}>${tx(SCOPES[k])}</button>`).join('')}</div><p class="error" id="err-scope"></p>`;
+ <span class="label">${T('适用范围 *','Audience *')}</span><div class="audience-pick"><div class="chips">${Object.keys(SCOPES).map(k=>`<button type="button" class="chip" data-scope="${k}" aria-pressed="${f.scope.includes(k)}"${single?' disabled':''}>${tx(SCOPES[k])}</button>`).join('')}</div>
+ ${f.scope.filter(k=>DIVISION_GRADES[k]).map(k=>{const all=DIVISION_GRADES[k],chosen=all.filter(g=>f.grades.includes(g));return `<div class="chips grade-chips" role="group" aria-label="${esc(tx(SCOPES[k]))} · ${T('年级','Grades')}"><span class="muted grade-chips-label">${esc(tx(SCOPES[k]))}</span>${all.map(g=>`<button type="button" class="chip plain" data-grade="${g}" data-division="${k}" aria-pressed="${!chosen.length||chosen.includes(g)}"${single?' disabled':''}>${gradeLabel(g,app.lang)}</button>`).join('')}</div>`;}).join('')}
+ ${f.scope.some(k=>DIVISION_GRADES[k])?`<p class="hint" style="margin:0">${T('默认面向整个学部；取消勾选某年级即不面向该年级。','The whole division by default; untick a grade to leave it out.')}</p>`:''}</div><p class="error" id="err-scope"></p>`;
 }
 
 /** The series' dates with their own state; past dates stay folded away until asked for. */
@@ -341,7 +351,7 @@ function updateChecks(){
 function toEvent(){
  const f=form,trim=(a,b)=>[f[a].trim(),f[b].trim()];
  return {title:trim('titleZh','titleEn'),type:f.type,timeMode:f.mode,start:f.start,end:f.mode==='multi'?f.end:undefined,time:f.mode==='timed'||(f.mode==='deadline'&&!f.dueAllDay)?f.time:undefined,endTime:f.mode==='timed'?f.endTime:undefined,
-  scope:f.scope,location:trim('locZh','locEn'),host:trim('hostZh','hostEn'),description:trim('descZh','descEn'),poster:f.poster,qr:f.qr,registrationUrl:f.url.trim(),repeat:ruleOf()};
+  scope:f.scope,grades:normalizeGrades(f.scope,f.grades),location:trim('locZh','locEn'),host:trim('hostZh','hostEn'),description:trim('descZh','descEn'),poster:f.poster,qr:f.qr,registrationUrl:f.url.trim(),repeat:ruleOf()};
 }
 async function save(action,{id,date,original,single}){
  if(saving)return;

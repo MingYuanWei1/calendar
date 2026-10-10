@@ -7,7 +7,7 @@ import {installSubjects} from './exam-subjects.mjs';
 import {installSchoolRules} from './school-rules.mjs';
 import express from 'express';
 import {randomUUID} from 'node:crypto';
-import {batchSchema,seatErrors,schedule,scheduleKey} from './exam-model.mjs';
+import {batchSchema,numberGrades,seatErrors,schedule,scheduleKey} from './exam-model.mjs';
 import {seatTemplate,parseSeats,makeSchedulePdf} from './exam-files.mjs';
 export function installExams(app,db,{requireAdmin,isAdmin,user,origin,timeZone,quota,sso={},llm={}}){
  db.exec(`CREATE TABLE IF NOT EXISTS exam_batches(id TEXT PRIMARY KEY,version INTEGER NOT NULL,draft TEXT NOT NULL,published TEXT,seating TEXT);
@@ -17,6 +17,12 @@ export function installExams(app,db,{requireAdmin,isAdmin,user,origin,timeZone,q
  const subjects=installSubjects(app,db,requireAdmin);
  const schoolRules=installSchoolRules(app,db,{requireAdmin,subjects});
  installExamExtract(app,requireAdmin,llm,subjects.list,quota,schoolRules);
+ // Grades used to be free-text labels; store them as numbers 1–12 (see numberGrades).
+ for(const r of db.prepare('SELECT id,draft,published FROM exam_batches').all()){
+  const draft=numberGrades(JSON.parse(r.draft)),published=r.published&&numberGrades(JSON.parse(r.published));
+  if(draft)db.prepare('UPDATE exam_batches SET draft=? WHERE id=?').run(JSON.stringify(draft),r.id);
+  if(published)db.prepare('UPDATE exam_batches SET published=? WHERE id=?').run(JSON.stringify(published),r.id);
+ }
  for(const r of db.prepare('SELECT draft FROM exam_batches').all())subjects.register(JSON.parse(r.draft).sessions);
  const signedIn=(req,res,next)=>{if(!user(req)&&!isAdmin(req))return res.status(401).json({error:'请使用学校 Microsoft 账号登录后查看。'});next();};
  const row=id=>db.prepare('SELECT * FROM exam_batches WHERE id=?').get(id);
@@ -41,7 +47,7 @@ export function installExams(app,db,{requireAdmin,isAdmin,user,origin,timeZone,q
   const b=publicBatch(row(req.params.id));if(!b)return res.status(404).json({error:'考试批次不存在。'});
   let sessions=b.sessions,scope;
   if(req.query.mine==='1'){if(!user(req))return res.status(401).json({error:'请先登录。'});const ids=choices(req,b.id);sessions=sessions.filter(s=>ids.includes(s.id));scope='我的考试 / My exams';}
-  else{if(!['primary','middle','high'].includes(req.query.division))return fail(res,'请选择学部。');sessions=sessions.filter(s=>s.division===req.query.division&&(!req.query.grade||s.grades.includes(req.query.grade)));scope=`${{primary:'小学部',middle:'初中部',high:'高中部'}[req.query.division]}${req.query.grade?' · '+req.query.grade:''}`;}
+  else{if(!['primary','middle','high'].includes(req.query.division))return fail(res,'请选择学部。');sessions=sessions.filter(s=>s.division===req.query.division&&(!req.query.grade||s.grades.includes(Number(req.query.grade))));scope=`${{primary:'小学部',middle:'初中部',high:'高中部'}[req.query.division]}${req.query.grade?` · ${req.query.lang==='en'?'G'+Number(req.query.grade):Number(req.query.grade)+'年级'}`:''}`;}
   sessions.sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start));
   const pdf=await makeSchedulePdf(b,sessions,{timeZone,scope,english:req.query.lang==='en'});
   res.set({'Content-Type':'application/pdf','Content-Disposition':'attachment; filename="exam-schedule.pdf"'}).send(pdf);

@@ -26,7 +26,7 @@ test('subject management requires admin and persists custom subjects with distin
   const first=await response.json();assert.equal(new Set(first.map(s=>s.hue)).size,presetSubjects.length+1);
   assert.equal((await call('/admin/exam-subjects','POST',{name:'艺术'},cookie)).status,409);
   assert.equal((await call('/admin/exam-subjects','PUT',{name:'艺术',english:'Visual Arts'},cookie)).status,200);
-  const batch={title:'自定义学科',start:'2026-09-21',end:'2026-09-21',rooms:[{name:'A',rows:1,columns:1}],seats:[],sessions:[{id:'one',title:'设计',subject:'设计',division:'high',grades:['G12'],date:'2026-09-21',start:'08:10',end:'09:40',rooms:['A']}]};
+  const batch={title:'自定义学科',start:'2026-09-21',end:'2026-09-21',rooms:[{name:'A',rows:1,columns:1}],seats:[],sessions:[{id:'one',title:'设计',subject:'设计',division:'high',grades:[12],date:'2026-09-21',start:'08:10',end:'09:40',rooms:['A']}]};
   response=await call('/admin/exams','POST',batch,cookie);assert.equal(response.status,201);const saved=await response.json();
   const subjects=await (await call('/exam-subjects')).json();assert.equal(subjects.length,presetSubjects.length+2);assert.equal(new Set(subjects.map(s=>s.hue)).size,presetSubjects.length+2);
   assert.equal(subjects.find(s=>s.name==='艺术').hue,first.find(s=>s.name==='艺术').hue);
@@ -36,8 +36,8 @@ test('subject management requires admin and persists custom subjects with distin
 });
 
 test('numbered courses inherit canonical subjects and keep course numbers as levels',()=>{
- const a=normalizeCourse({title:'Biology 1',subject:'Biology 1',level:'',grades:['G10']});
- assert.equal(a.subject,'生物');assert.equal(a.level,'Biology 1');assert.deepEqual(a.grades,['G10']);
+ const a=normalizeCourse({title:'Biology 1',subject:'Biology 1',level:'',grades:[10]});
+ assert.equal(a.subject,'生物');assert.equal(a.level,'Biology 1');assert.deepEqual(a.grades,[10]);
  const b=normalizeCourse({title:'2',subject:'生物',level:''});assert.equal(b.title,'Biology 2');assert.equal(b.subject,'生物');
  assert.equal(normalizeCourse({title:'Biology Honor',subject:'生物',level:'Honor'}).level,'Honor');
  assert.equal(normalizeCourse({title:'Biology Paper 1',subject:'生物',level:''}).level,'');

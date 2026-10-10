@@ -19,7 +19,7 @@ function eventDetails(event) {
       ${row('when', `${esc(when)}<small>${esc(timeText(event))} · ${state.lang ? 'School local time' : '学校当地时间'}</small>`)}
       ${event.repeat ? row('repeats', esc(repeatSummary(event.repeat))) : ''}
       ${row('where', esc(text(event.location)))}
-      ${row('for', event.scope.map(s => `<span class="scope-badge">${esc(t(s))}</span>`).join(''))}
+      ${row('for', scopeParts(event).map(s => `<span class="scope-badge">${esc(s)}</span>`).join(''))}
       ${row('host', esc(text(event.host)))}
     </div>
     ${text(event.description) ? `<section class="detail-section"><h3>${esc(t('about'))}</h3><p>${esc(text(event.description))}</p>${text(event.extra) ? `<p class="detail-extra">${esc(text(event.extra))}</p>` : ''}</section>` : ''}

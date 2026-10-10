@@ -9,6 +9,7 @@ interface SchoolEvent {
   endTime?: string;
   timeMode?: string;
   scope: string[];
+  grades?: number[];
   location?: string[];
   host?: string[];
   description?: string[];

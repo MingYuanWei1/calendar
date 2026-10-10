@@ -1,3 +1,4 @@
+import {parseGrade} from './grades.mjs';
 export const presetSubjects=[
  ['数学','Mathematics'],['中文','Chinese'],['英语','English'],['哲学','Philosophy'],['心理','Psychology'],['历史','History'],['物理','Physics'],['化学','Chemistry'],['生物','Biology'],['计算机','Computer Science'],['经济','Economics'],['商管','Business Management'],
  ['中文 A','Chinese A'],['中文 B','Chinese B'],['中文 ab initio','Chinese ab initio'],['英语 A','English A'],['英语 B','English B'],['中文 Non-DP','Chinese Non-DP']
@@ -29,7 +30,7 @@ export function subjectColors(sessions,subjects){
 export function normalizeCourse(exam,subjects=presetSubjects,curriculum='ib'){
  const clean=value=>(value||'').trim().replace(/^\[[^\]]*\]\s*/,'');
  const raw=[exam.title,exam.titleEn,exam.subject,exam.subjectEn,exam.level].filter(Boolean).join(' ').replace(/[_–—]/g,'-');
- const grade=(exam.grades||[]).length===1?exam.grades[0]:'';
+ const only=(exam.grades||[]).length===1?parseGrade(exam.grades[0]):null,grade=only?'G'+only:'';
  const named=(name,english,level,title)=>({...exam,subject:name,subjectEn:english,level,title,titleEn:title});
  if(curriculum==='ib'){
   const chineseNonDPLevel={G11:'Advanced',G12:'Extended'}[grade];

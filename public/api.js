@@ -16,11 +16,12 @@ async function api(path,options={}){
 function schoolToday(){return new Intl.DateTimeFormat('en-CA',{timeZone:settings.timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}
 function setLoadMessage(message,error=false){const el=$('#load-status');el.textContent=message;el.classList.toggle('request-error',error);}
 async function loadEvents(){
-  const [list,plans,{createDayPlanResolver},recurrence]=await Promise.all([api('/events'),api('/day-plans'),import('./day-plans.mjs'),import('./recurrence.mjs')]);
+  const [list,plans,{createDayPlanResolver},recurrence,grades]=await Promise.all([api('/events'),api('/day-plans'),import('./day-plans.mjs'),import('./recurrence.mjs'),import('./grades.mjs')]);
   const byDate=Object.fromEntries(plans.map(plan=>[plan.date,plan]));
   resolveDayPlan=createDayPlanResolver(byDate);
   expandSeries=(items,from,to)=>recurrence.expandEvents(items,byDate,from,to);
   repeatSummary=rule=>recurrence.describeRepeat(rule,state.lang);
+  gradeTools=grades;
   series.splice(0,series.length,...list);
   refreshOccurrences();
   if(!events.some(e=>e.id===state.selected&&matches(e)))state.selected=null;

@@ -4,6 +4,7 @@ import {subjectName} from './exam-subjects.mjs';
 import {defaultExamSlots} from './exam-times.mjs';
 import {importPreview} from './exam-import-preview.js';
 import {readExamPdf} from './exam-pdf-input.js';
+import {DIVISION_GRADES,gradeLabel,parseGrade} from './grades.mjs';
 import {streamApi,reviewView,pagePane,sheetPane} from './ai-review.js';
 
 const view={id:'',tab:'sessions',room:0,exam:'',time:''};
@@ -90,7 +91,7 @@ function sessionsTab(b){
  const rows=sorted(b.sessions);
  return `<div class="tab-actions"><button type="button" class="btn btn-secondary" data-act="extract">${T('从 PDF 提取','Extract from PDF')}</button><button type="button" class="btn btn-secondary" data-act="add-exam">+ ${T('新增考试','Add exam')}</button></div>
  ${rows.length?`<div class="grid-scroll"><div class="sessions-grid"><div class="grid-head"><span>${T('日期','Date')}</span><span>${T('考试','Exam')}</span><span>${T('学部 / 年级','Division / grade')}</span><span>${T('教室','Rooms')}</span><span>${T('状态','Status')}</span><span></span></div>
- ${rows.map(s=>`<div class="grid-row"><div class="num"><div class="cell-main">${esc(mdw(s.date))}</div><div class="cell-sub">${s.start}–${s.end}</div></div><div class="cell-main${s.cancelled?' struck':''}">${esc(sName(s))}</div><span style="font-size:13px">${esc(tx(SCOPES[s.division]))} · ${esc(s.grades.join(' / '))}</span><span style="font-size:13px">${esc(s.rooms.join(' / '))}</span><span>${s.cancelled?`<span class="tag tag-outline">${T('已取消','Cancelled')}</span>`:''}</span><button type="button" class="btn btn-ghost" style="justify-self:end" data-exam="${esc(s.id)}">${T('编辑','Edit')}</button></div>`).join('')}</div></div>`
+ ${rows.map(s=>`<div class="grid-row"><div class="num"><div class="cell-main">${esc(mdw(s.date))}</div><div class="cell-sub">${s.start}–${s.end}</div></div><div class="cell-main${s.cancelled?' struck':''}">${esc(sName(s))}</div><span style="font-size:13px">${esc(tx(SCOPES[s.division]))} · ${esc(s.grades.map(g=>gradeLabel(g,app.lang)).join(' / '))}${s.gradesUnverified?` <span class="tag tag-outline small">${T('年级待核实','Check grades')}</span>`:''}</span><span style="font-size:13px">${esc(s.rooms.join(' / '))}</span><span>${s.cancelled?`<span class="tag tag-outline">${T('已取消','Cancelled')}</span>`:''}</span><button type="button" class="btn btn-ghost" style="justify-self:end" data-exam="${esc(s.id)}">${T('编辑','Edit')}</button></div>`).join('')}</div></div>`
  :`<p class="empty"><span class="muted" style="font-size:14px">${T('暂无考试。新增考试，或从 PDF 提取。','No exams yet. Add one, or extract from a PDF.')}</span></p>`}`;
 }
 
@@ -216,13 +217,16 @@ function examDialog(s){
  const current=s?.subject?subjectName(s,subjects):'';
  const options=subjects.map(x=>[x.name,x.english]);if(current&&!subjects.some(x=>x.name===current))options.push([current,s.subjectEn||'']);
  const d={subject:current,subjectEn:s?.subjectEn||subjects.find(x=>x.name===current)?.english||'',division:s?.division||b.division||'high',rooms:[...(s?.rooms||(b.rooms[0]?[b.rooms[0].name]:[]))],cancelled:Boolean(s?.cancelled)};
+ // A new session covers the whole division until grades are unticked.
+ d.grades=s?.grades?.length&&!s.gradesUnverified?[...s.grades]:[...DIVISION_GRADES[d.division]];
+ const gradeChips=()=>DIVISION_GRADES[d.division].map(g=>`<button type="button" class="chip plain" data-grade-pick="${g}" aria-pressed="${d.grades.includes(g)}">${gradeLabel(g,app.lang)}</button>`).join('');
  const slot0=slotsOf(b)[0];
  const body=modal(s?T('编辑考试场次','Edit exam session'):T('新增考试场次','New exam session'),`<div class="dialog-grid">
  ${field(T('考试名称','Exam name'),input('title',s?.title,'maxlength="180"'),'span2')}${field(T('Level（可选）','Level (optional)'),input('level',s?.level,'maxlength="40" placeholder="HL / SL"'))}
  ${field(T('英文名称（可选）','English name (optional)'),input('titleEn',s?.titleEn,'maxlength="180"'),'all')}
  <div class="field all"><span class="label">${T('学科','Subject')}</span><div class="chips">${options.map(([name,english])=>`<button type="button" class="chip" data-subject="${esc(name)}" data-en="${esc(english)}" aria-pressed="${d.subject===name}">${esc(tx([name,english]))}</button>`).join('')}</div></div>
  <div class="field"><span class="label">${T('学部','Division')}</span>${segHtml('division',divisions.map(k=>[k,tx(SCOPES[k])]),d.division)}</div>
- ${field(T('适用年级（逗号分隔）*','Grades (comma-separated) *'),input('grades',s?.grades.join(', '),'placeholder="G10, G11"'))}${field(T('日期 *','Date *'),input('date',s?.date||b.start,`type="date" min="${b.start}" max="${b.end}"`))}
+ <div class="field"><span class="label">${T('适用年级 *','Grades *')}${s?.gradesUnverified?` <span class="tag tag-outline small">${T('原年级无法识别，请核实','Check: original grades unreadable')}</span>`:''}</span><div class="chips" id="grade-picks">${gradeChips()}</div></div>${field(T('日期 *','Date *'),input('date',s?.date||b.start,`type="date" min="${b.start}" max="${b.end}"`))}
  <div class="field all"><span class="label">${T('时间 · 可套用时间段 *','Time · apply a slot *')}</span><div class="inline">${input('start',s?.start||slot0?.start,'type="time" style="width:120px"')}<span>–</span>${input('end',s?.end||slot0?.end,'type="time" style="width:120px"')}<span style="width:6px"></span>${slotsOf(b).map(x=>`<button type="button" class="btn btn-ghost" style="font-size:13px" data-slot="${x.start}-${x.end}">${x.start}–${x.end}</button>`).join('')}</div></div>
  <div class="field all"><span class="label">${T('教室（可多选）*','Rooms (select any) *')}</span>${b.rooms.length?`<div class="chips">${b.rooms.map(r=>`<button type="button" class="chip" data-room-pick="${esc(r.name)}" aria-pressed="${d.rooms.includes(r.name)}">${esc(r.name)}</button>`).join('')}</div>`:`<span class="muted" style="font-size:12px">${T('暂无教室，请先在“教室”页新增。','No rooms yet. Add one on the Rooms tab first.')}</span>`}</div>
  <div class="field all"><label>${T('说明','Description')}</label><textarea class="input" name="note" maxlength="1000" style="min-height:60px">${esc(s?.note)}</textarea></div>
@@ -230,17 +234,19 @@ function examDialog(s){
  <p class="muted" style="font-size:12px">${s?T(`编号 ${s.id}。如需保留记录和个人勾选，可标记取消而非删除。`,`ID ${s.id}. To keep the record and students' selections, mark it cancelled instead of deleting.`):T('保存后分配编号。同学部、同年级、同科目、同一天及同时间段自动合并显示，各 Level 独立勾选。','An ID is assigned on save. Sessions with the same division, grade, subject, date and slot are shown merged; each Level is selected separately.')}</p>
  ${actions({left:s?`<button type="button" class="btn btn-ghost btn-danger left" data-del>${T('删除考试','Delete exam')}</button>`:''})}`,{size:'wide'});
  $$('[data-subject]',body).forEach(el=>el.onclick=()=>{const on=d.subject!==el.dataset.subject;d.subject=on?el.dataset.subject:'';d.subjectEn=on?el.dataset.en:'';$$('[data-subject]',body).forEach(x=>x.setAttribute('aria-pressed',String(on&&x===el)));});
- pickOne(body,'division',k=>d.division=k);
+ const bindGrades=()=>$$('[data-grade-pick]',body).forEach(el=>el.onclick=()=>{const g=Number(el.dataset.gradePick),on=!d.grades.includes(g);d.grades=on?[...d.grades,g].sort((a,z)=>a-z):d.grades.filter(x=>x!==g);el.setAttribute('aria-pressed',String(on));});
+ bindGrades();
+ pickOne(body,'division',k=>{d.division=k;d.grades=[...DIVISION_GRADES[k]];body.querySelector('#grade-picks').innerHTML=gradeChips();bindGrades();});
  $$('[data-slot]',body).forEach(el=>el.onclick=()=>{const [a,z]=el.dataset.slot.split('-');body.querySelector('[name=start]').value=a;body.querySelector('[name=end]').value=z;});
  $$('[data-room-pick]',body).forEach(el=>el.onclick=()=>{const name=el.dataset.roomPick,on=!d.rooms.includes(name);d.rooms=on?[...d.rooms,name]:d.rooms.filter(x=>x!==name);el.setAttribute('aria-pressed',String(on));});
  body.querySelector('[data-cancelled]').onclick=e=>{d.cancelled=!d.cancelled;e.currentTarget.setAttribute('aria-pressed',String(d.cancelled));};
  confirmButton(body,'[data-del]',T('删除考试','Delete exam'),async()=>{await update(next=>{next.sessions=next.sessions.filter(x=>x.id!==s.id);next.seats=next.seats.filter(x=>x.examId!==s.id);},T('已从草稿删除考试及其座位。','Exam and its seats removed from draft.'));closeModal();});
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
-  const v=values(body),grades=[...new Set(v.grades.split(/[,，]/).map(x=>x.trim()).filter(Boolean))];
+  const v=values(body),grades=d.grades.filter(g=>DIVISION_GRADES[d.division].includes(g));
   const title=v.title||[d.subject,v.level].filter(Boolean).join(' ');
   if(!title)fail(T('请填写考试名称或选择学科。','Enter an exam name or choose a subject.'));
   if(v.level&&!d.subject)fail(T('填写 Level 时请选择学科。','Choose a subject when setting a Level.'));
-  if(!grades.length)fail(T('请填写适用年级。','Enter at least one grade.'));
+  if(!grades.length)fail(T('请至少勾选一个年级。','Select at least one grade.'));
   if(!v.date||v.date<b.start||v.date>b.end)fail(T('日期须在批次日期范围内。','The date must fall within the batch dates.'));
   if(!v.start||!v.end||v.end<=v.start)fail(T('结束时间必须晚于开始。','End must be later than start.'));
   if(!d.rooms.length)fail(T('请至少勾选一个教室。','Select at least one room.'));
@@ -328,7 +334,7 @@ function publishDialog(b,seating){
  const body=modal(seating?T('座位表发布预览','Seating publish preview'):T('考试安排发布预览','Schedule publish preview'),seating
   ?`<p style="font-size:14px">${T(`共 ${b.sessions.length} 场考试、${b.rooms.length} 间教室、${b.seats.length} 个座位。发布前请在“教室”页逐间核对。`,`${b.sessions.length} sessions across ${b.rooms.length} rooms, ${b.seats.length} seats. Check each room on the Rooms tab before publishing.`)}</p>
    <div class="list-box rooms">${b.rooms.map(r=>`<div><span style="font-weight:500">${esc(r.name)}</span><span class="muted">${r.rows} × ${r.columns} · ${count(b.sessions.filter(s=>s.rooms.includes(r.name)).length,'场','sessions')} · ${count(b.seats.filter(s=>s.room===r.name).length,'座','seats')}</span></div>`).join('')}</div>`
-  :`<div class="list-box publish">${rows.map(s=>`<div><span class="num">${esc(md(s.date))} · ${s.start}–${s.end}</span><span class="${s.cancelled?'struck':''}">${esc(sName(s))} · ${esc(s.grades.join(' / '))}</span><span>${esc(s.rooms.join(' / '))}</span></div>`).join('')||`<div class="muted">${T('暂无考试','No sessions')}</div>`}</div>`
+  :`<div class="list-box publish">${rows.map(s=>`<div><span class="num">${esc(md(s.date))} · ${s.start}–${s.end}</span><span class="${s.cancelled?'struck':''}">${esc(sName(s))} · ${esc(s.grades.map(g=>gradeLabel(g,app.lang)).join(' / '))}</span><span>${esc(s.rooms.join(' / '))}</span></div>`).join('')||`<div class="muted">${T('暂无考试','No sessions')}</div>`}</div>`
  +`<p class="callout">${seating?T('使用学校 Microsoft 账号登录的学生可查看全部已发布座位表。','Students signed in with a school Microsoft account can view all published seating.'):T('时间、教室或取消状态发生变化时，已发布座位表将撤下，需核对后重新发布。','If times, rooms or cancellations change later, published seating is withdrawn and must be re-published.')}</p>
  ${actions({saveLabel:seating?T('确认发布座位表','Publish seating'):T('确认发布考试安排','Publish schedule')})}`,{size:'wide'});
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
@@ -394,7 +400,7 @@ function reviewExtracted(b,result,review,{preset=false,elapsed=null}={}){
  const cell=(i,name,value,attrs='')=>`<input class="input" name="${name}" data-i="${i}" value="${esc(value??'')}" aria-label="${name} ${i+1}" ${attrs}>`;
  review.results(`<p style="font-size:14px">${T(`提取到 ${rows.length} 场考试。请核对日期、时间、学部、年级及教室；取消勾选可跳过某行。`,`Found ${rows.length} sessions. Check dates, times, divisions, grades and rooms; untick a row to skip it.`)}</p>
  <div style="overflow:auto"><table class="review-table"><thead><tr><th>${T('加入','Add')}</th><th>${T('考试名称','Exam')}</th><th>${T('学科 / Level','Subject / Level')}</th><th>${T('学部 / 年级','Division / grades')}</th><th>${T('日期','Date')}</th><th>${T('开始 / 结束','Start / end')}</th><th>${T('教室（逗号分隔）','Rooms (comma-separated)')}</th></tr></thead><tbody>
- ${rows.map((s,i)=>`<tr data-row="${i}" data-pick="${i}"><td><input type="checkbox" name="include" checked aria-label="${T(`加入第 ${i+1} 场`,`Add row ${i+1}`)}"></td><td>${cell(i,'title',s.title)}</td><td>${cell(i,'subject',s.subject)}${cell(i,'level',s.level)}</td><td><select class="input" name="division" aria-label="division ${i+1}"><option value="">${T('请选择','Choose')}</option>${divisions.map(k=>`<option value="${k}"${s.division===k?' selected':''}>${tx(SCOPES[k])}</option>`).join('')}</select>${cell(i,'grades',s.grades.join(','))}</td><td>${cell(i,'date',s.date,'type="date"')}</td><td>${cell(i,'start',s.start,'type="time"')}${cell(i,'end',s.end,'type="time"')}</td><td>${cell(i,'rooms',s.rooms.join(','))}</td></tr>`).join('')}</tbody></table></div>
+ ${rows.map((s,i)=>`<tr data-row="${i}" data-pick="${i}"><td><input type="checkbox" name="include" checked aria-label="${T(`加入第 ${i+1} 场`,`Add row ${i+1}`)}"></td><td>${cell(i,'title',s.title)}</td><td>${cell(i,'subject',s.subject)}${cell(i,'level',s.level)}</td><td><select class="input" name="division" aria-label="division ${i+1}"><option value="">${T('请选择','Choose')}</option>${divisions.map(k=>`<option value="${k}"${s.division===k?' selected':''}>${tx(SCOPES[k])}</option>`).join('')}</select>${cell(i,'grades',s.grades.join(', '))}</td><td>${cell(i,'date',s.date,'type="date"')}</td><td>${cell(i,'start',s.start,'type="time"')}${cell(i,'end',s.end,'type="time"')}</td><td>${cell(i,'rooms',s.rooms.join(','))}</td></tr>`).join('')}</tbody></table></div>
  <p class="muted" style="font-size:12px">${T('仅追加选中场次。新教室会以 5 排 × 5 列加入草稿，可在教室设置中调整；不会生成学生座位数据。','Only ticked rows are added. New rooms are added as 5 × 5 and can be adjusted later; no seats are created.')}</p>`,{notes:result.warnings||[],elapsed,preset,total:rows.length});
  const bar=review.actions(`<button type="button" class="btn btn-secondary" data-dismiss>${T('返回','Go back')}</button><button type="button" class="btn btn-primary" data-save${rows.length?'':' disabled'}>${T('确认加入草稿','Add to draft')}</button>`);
  bar.querySelector('[data-dismiss]').onclick=review.close;
@@ -406,6 +412,8 @@ function reviewExtracted(b,result,review,{preset=false,elapsed=null}={}){
     const {source,...item}=rows[Number(tr.dataset.row)],get=name=>tr.querySelector(`[name=${name}]`).value.trim();
     for(const name of ['title','subject','level','division','date','start','end'])item[name]=get(name);
     for(const name of ['grades','rooms'])item[name]=[...new Set(get(name).split(/[,，]/).map(x=>x.trim()).filter(Boolean))];
+    // Grades are typed as numbers (10) or the school's labels (G10, 高一); unreadable ones are dropped.
+    item.grades=[...new Set(item.grades.map(parseGrade).filter(Boolean))].sort((a,z)=>a-z);
     return item;
    });
    if(!picked.length)fail(T('请至少选择一场考试。','Select at least one session.'));

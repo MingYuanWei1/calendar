@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import {getFontData} from './font-data.mjs';
 import {seatSchema,seatErrors,divisionNames} from './exam-model.mjs';
+import {gradeLabel} from '../public/grades.mjs';
 import unzipper from 'unzipper';
 const columns=['考试编号','教室','排','列','班级','中文名','英文名'];
 export async function seatTemplate(batch){
@@ -46,7 +47,7 @@ export async function makeSchedulePdf(batch,sessions,{timeZone,scope,english=fal
  for(const s of sessions){
   const title=(s.cancelled?(english?'[Cancelled] ':'[已取消] '):s.changed?(english?'[Updated] ':'[已变更] '):'')+(english?(s.titleEn||s.title):s.title);
   const examTitle=title+[s.level].filter(value=>value&&!title.includes(value)).map(value=>' · '+value).join('');
-  const values=[s.date,`${s.start}–${s.end}`,examTitle,`${english?s.division:divisionNames[s.division]}\n${s.grades.join(' / ')}`,s.rooms.join(' / ')];
+  const values=[s.date,`${s.start}–${s.end}`,examTitle,`${english?s.division:divisionNames[s.division]}\n${s.grades.map(g=>gradeLabel(g,english?1:0)).join(' / ')}`,s.rooms.join(' / ')];
   doc.fontSize(10);const height=Math.max(36,...values.map((value,i)=>doc.heightOfString(value,{width:widths[i]-10})+16));
   if(doc.y+height>doc.page.height-45){doc.addPage();header();}
   const y=doc.y;let x=40;doc.fillColor('#243746').fontSize(10);

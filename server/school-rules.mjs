@@ -23,7 +23,7 @@ export const templates={
   name:['普通高中（新高考）','Public high school (gaokao)'],
   curriculum:null,
   subjects:[['语文','Chinese'],['思想政治','Politics'],['地理','Geography']],
-  rules:`- Every exam belongs to division high. Grades are 高一 / 高二 / 高三; write G10 / G11 / G12 or 高2027级-style labels as the matching 高一 / 高二 / 高三 when the source makes it clear.
+  rules:`- Every exam belongs to division high. 高一 / 高二 / 高三 (also written G10 / G11 / G12, or 高2027级-style labels when the source makes it clear) are grades 10 / 11 / 12.
 - Subjects: 语文 (Chinese), 数学 (Mathematics), 英语 (English), 物理 (Physics), 化学 (Chemistry), 生物 (Biology), 思想政治 (Politics), 历史 (History), 地理 (Geography). 政治 means 思想政治; 语文 is never 中文.
 - A course marked 选考 or 等级考 has level 选考 (English: Elective); marked 学考 or 合格考 has level 学考 (English: Proficiency); otherwise leave level empty. Title is the subject followed by the level in full-width brackets when there is one, e.g. 物理（选考）; titleEn likewise, e.g. Physics (Elective).
 - 物理类 / 历史类 streams are not subjects: mention the stream in note when the source limits a session to one stream.

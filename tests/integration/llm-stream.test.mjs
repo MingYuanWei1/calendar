@@ -35,7 +35,7 @@ async function gateway(){
 
 test('exam extraction streams NDJSON stages and items, then the normalised result',async()=>{
  const llm=await gateway();
- llm.state.content=JSON.stringify({sessions:[{title:'Biology 1',subject:'Biology',grades:['G10'],date:'2026-09-21',start:'08:10',end:'09:40',rooms:['101'],source:{page:1,quote:'Biology 1'}},{title:'Physics HL',subject:'Physics',level:'HL',grades:['G11'],date:'2026-09-22',start:'08:10',end:'09:40',rooms:['102'],source:{page:2,quote:'Physics HL'}}],warnings:['check rooms']});
+ llm.state.content=JSON.stringify({sessions:[{title:'Biology 1',subject:'Biology',grades:[10],date:'2026-09-21',start:'08:10',end:'09:40',rooms:['101'],source:{page:1,quote:'Biology 1'}},{title:'Physics HL',subject:'Physics',level:'HL',grades:[11],date:'2026-09-22',start:'08:10',end:'09:40',rooms:['102'],source:{page:2,quote:'Physics HL'}}],warnings:['check rooms']});
  const directory=await mkdtemp(join(tmpdir(),'stream-test-')),instance=createApplication({dataDir:directory,origin:'http://calendar.test',llm:{url:llm.url,token:'fixture-token'}}),server=instance.app.listen(0,'127.0.0.1');
  await new Promise(r=>server.once('listening',r));
  const base=`http://127.0.0.1:${server.address().port}/api`;

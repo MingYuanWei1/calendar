@@ -20,7 +20,7 @@ test('XLSX seat extraction preserves grid context, validates matches and only pr
  const base=`http://127.0.0.1:${server.address().port}/api`;
  try{
   await setAdminPassword(instance.db,'admin','seat-extraction-password');const login=await fetch(base+'/login',{method:'POST',headers:{Origin:'http://calendar.test','Content-Type':'application/json'},body:JSON.stringify({username:'admin',password:'seat-extraction-password'})}),cookie=login.headers.get('set-cookie').split(';')[0];
-  const batch={title:'Seats',start:'2026-09-21',end:'2026-09-21',rooms:[{name:'101',rows:2,columns:2}],seats:[],sessions:['hl','sl'].map(id=>({id,title:`数学 ${id}`,division:'high',grades:['G12'],date:'2026-09-21',start:'08:10',end:'09:40',rooms:['101']}))};
+  const batch={title:'Seats',start:'2026-09-21',end:'2026-09-21',rooms:[{name:'101',rows:2,columns:2}],seats:[],sessions:['hl','sl'].map(id=>({id,title:`数学 ${id}`,division:'high',grades:[12],date:'2026-09-21',start:'08:10',end:'09:40',rooms:['101']}))};
   const created=await fetch(base+'/admin/exams',{method:'POST',headers:{Origin:'http://calendar.test','Content-Type':'application/json',Cookie:cookie},body:JSON.stringify(batch)});assert.equal(created.status,201);const saved=await created.json();
   const run=(name='seats.xlsx',version=saved.version,auth=cookie,data=buffer)=>fetch(`${base}/admin/exams/${saved.id}/seat-extract`,{method:'POST',headers:{Origin:'http://calendar.test','Content-Type':'application/octet-stream',Cookie:auth,'X-File-Name':name,'X-Draft-Version':String(version)},body:data});
   assert.equal((await run('seats.xlsx',saved.version,'')).status,401);

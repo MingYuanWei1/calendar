@@ -438,3 +438,8 @@ mark.src-hit{background:color-mix(in srgb,#f2c94c 55%,transparent);outline:1px s
 .date-tags{display:flex;flex-wrap:wrap;gap:6px}
 .struck-row .cell-main{text-decoration:line-through;color:var(--color-neutral-700)}
 @media (max-width:760px){.date-row{grid-template-columns:1fr}.date-row .row-actions{justify-content:flex-start}}
+
+/* 适用范围: a division's grades sit under the division chips. */
+.audience-pick{display:flex;flex-direction:column;gap:8px}
+.grade-chips{align-items:center}
+.grade-chips-label{font-size:12px;min-width:56px}

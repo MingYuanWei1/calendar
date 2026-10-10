@@ -3,6 +3,7 @@
 import {$$,esc,app,T,tx,TYPES,SCOPES,api,toast,modal,closeModal,busy,errorLine,fail,refreshNav,mdw,loadEvents,loadPlans} from './console-core.js';
 import {readExamPdf} from './exam-pdf-input.js';
 import {streamApi,reviewView,pagePane,textPane,stackPane} from './ai-review.js';
+import {divisionOf,gradeLabel} from './grades.mjs';
 
 const ACTIONS={create:['新增事件','New event'],reschedule:['改期','Reschedule'],cancel:['取消','Cancel'],dayPlan:['放假与调休','School day']};
 const KINDS={off:['放假','Day off'],school:['调休上课','Make-up school day'],half:['半天','Half day']};
@@ -108,7 +109,8 @@ function card(item,i){
   ${input('start',e.start,'type="date"',T('日期','Date'))}${input('end',e.end||'','type="date"',T('结束日期（跨日）','End date (multi-day)'))}
   ${input('time',e.time||'','type="time"',e.type==='deadline'?T('截止时间','Due time'):T('开始时间','Start'))}${input('endTime',e.endTime||'','type="time"',T('结束时间','End'))}
   ${input('locationZh',e.location[0],'',T('地点','Place'))}${input('locationEn',e.location[1],'',T('英文地点','Place (English)'))}
-  <fieldset class="notice-scope"><legend>${T('适用范围','Audience')}</legend>${Object.keys(SCOPES).map(k=>`<label><input type="checkbox" name="scope" value="${k}"${e.scope.includes(k)?' checked':''}> ${esc(tx(SCOPES[k]))}</label>`).join('')}</fieldset></div>
+  <fieldset class="notice-scope"><legend>${T('适用范围','Audience')}</legend>${Object.keys(SCOPES).map(k=>`<label><input type="checkbox" name="scope" value="${k}"${e.scope.includes(k)?' checked':''}> ${esc(tx(SCOPES[k]))}</label>`).join('')}</fieldset>
+  <fieldset class="notice-scope"><legend>${T('年级（不选即整个学部）','Grades (none = whole division)')}</legend>${Array.from({length:12},(_,i)=>i+1).map(g=>`<label><input type="checkbox" name="grade" value="${g}"${(e.grades||[]).includes(g)?' checked':''}> ${gradeLabel(g,app.lang)}</label>`).join('')}</fieldset></div>
   ${e.description[0]||e.description[1]?`<p class="muted notice-note">${esc(tx(e.description))}</p>`:''}`;
  }else if(item.action==='reschedule'){
   const t=item.target,c=item.change;
@@ -149,7 +151,7 @@ async function apply(items,review,publish){
    try{
     if(item.action==='create'){
      const scope=$$('[name=scope]:checked',el).map(box=>box.value),type=get('type'),start=get('start'),end=get('end'),time=get('time'),endTime=type==='deadline'?'':get('endTime');
-     const event={title:[get('titleZh'),get('titleEn')],type,start,end:end&&end!==start?end:undefined,time:time||undefined,endTime:endTime||undefined,scope:scope.includes('schoolwide')||!scope.length?['schoolwide']:scope,location:[get('locationZh'),get('locationEn')],host:['',''],description:item.event.description,status:publish?'published':'draft'};
+     const event={title:[get('titleZh'),get('titleEn')],type,start,end:end&&end!==start?end:undefined,time:time||undefined,endTime:endTime||undefined,scope:scope.includes('schoolwide')||!scope.length?['schoolwide']:scope,grades:$$('[name=grade]:checked',el).map(box=>Number(box.value)).filter(g=>scope.includes(divisionOf(g))),location:[get('locationZh'),get('locationEn')],host:['',''],description:item.event.description,status:publish?'published':'draft'};
      await api('/admin/events',{method:'POST',body:JSON.stringify({...event,timeMode:timeModeOf(event)})});
     }else if(item.action==='dayPlan'){
      const kind=get('kind');

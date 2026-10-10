@@ -1,5 +1,6 @@
 import {z} from 'zod';
 import {repeatProblem} from '../public/recurrence.mjs';
+import {divisionOf,normalizeGrades} from '../public/grades.mjs';
 const day=z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value=>{
   const date=new Date(value+'T12:00:00Z');
   return Number.isFinite(date.valueOf())&&date.toISOString().slice(0,10)===value&&value>='1900-01-01'&&value<='2200-12-31';
@@ -29,6 +30,7 @@ export const eventSchema=z.object({
   type:z.enum(['exam','competition','activity','deadline']),
   timeMode:z.enum(['timed','allDay','multi','deadline']),start:day,end:day.optional(),time:time.optional(),endTime:time.optional(),
   scope:z.array(z.enum(['schoolwide','primary','middle','high'])).min(1).max(3).refine(value=>new Set(value).size===value.length&&(!value.includes('schoolwide')||value.length===1),'Choose school-wide or specific divisions'),
+  grades:z.array(z.number().int().min(1).max(12)).max(12).default([]),
   status:z.enum(['draft','published','cancelled']),
   location:bilingual(300).default(['','']),host:bilingual(300).default(['','']),description:bilingual(15000).default(['','']),
   poster:media,qr:media,registrationUrl:optionalLink,
@@ -44,7 +46,8 @@ export const eventSchema=z.object({
   if(event.repeat&&event.timeMode==='multi')invalid('repeat','Multi-day events cannot repeat');
   const problem=event.repeat&&repeatProblem(event.repeat,event.start);
   if(problem)invalid('repeat',problem);
-}).transform(event=>({...event,end:event.timeMode==='multi'?event.end:undefined,time:['timed','deadline'].includes(event.timeMode)?event.time:undefined,endTime:event.timeMode==='timed'?event.endTime:undefined,repeat:event.repeat||undefined}));
+  if(event.grades.some(g=>!event.scope.includes(divisionOf(g))))invalid('grades','Grades must belong to the chosen divisions');
+}).transform(event=>{const grades=normalizeGrades(event.scope,event.grades);return {...event,end:event.timeMode==='multi'?event.end:undefined,time:['timed','deadline'].includes(event.timeMode)?event.time:undefined,endTime:event.timeMode==='timed'?event.endTime:undefined,repeat:event.repeat||undefined,grades:grades.length?grades:undefined};});
 
 export const dayPlanSchema=z.object({start:day,end:day.or(z.literal('')).optional(),kind:z.enum(['off','school','half','default']),title:bilingual(60).default(['','']),follows:z.number().int().min(1).max(5).nullable().default(null)})
   .transform(value=>({...value,end:value.end||value.start,follows:['school','half'].includes(value.kind)?value.follows:null}))

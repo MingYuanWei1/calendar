@@ -1,11 +1,12 @@
 import {z} from 'zod';
 import {defaultExamSlots} from '../public/exam-times.mjs';
+import {DIVISION_GRADES,parseGrade} from '../public/grades.mjs';
 const text=n=>z.string().trim().max(n);
 const required=n=>text(n).min(1);
 const id=z.string().regex(/^[A-Za-z0-9_-]{1,80}$/);
 const day=z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(v=>{const d=new Date(v+'T12:00:00Z');return !isNaN(+d)&&d.toISOString().slice(0,10)===v;});
 const time=z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-export const sessionSchema=z.object({id,title:required(180),titleEn:text(180).default(''),subject:text(100).default(''),subjectEn:text(100).default(''),level:text(40).default(''),division:z.enum(['primary','middle','high']),grades:z.array(required(30)).min(1).max(20),date:day,start:time,end:time,rooms:z.array(required(60)).min(1).max(30),cancelled:z.boolean().default(false),note:text(1000).default('')}).refine(s=>s.end>s.start,'考试结束必须晚于开始');
+export const sessionSchema=z.object({id,title:required(180),titleEn:text(180).default(''),subject:text(100).default(''),subjectEn:text(100).default(''),level:text(40).default(''),division:z.enum(['primary','middle','high']),grades:z.array(z.number().int().min(1).max(12)).min(1).max(12),gradesUnverified:z.boolean().optional(),date:day,start:time,end:time,rooms:z.array(required(60)).min(1).max(30),cancelled:z.boolean().default(false),note:text(1000).default('')}).refine(s=>s.end>s.start,'考试结束必须晚于开始').refine(s=>s.grades.every(g=>DIVISION_GRADES[s.division].includes(g)),'考试年级须属于所选学部').transform(s=>({...s,grades:[...new Set(s.grades)].sort((a,b)=>a-b)}));
 export const seatSchema=z.object({examId:id,room:required(60),row:z.number().int().min(1).max(40),column:z.number().int().min(1).max(40),className:required(60),name:text(80),englishName:text(120),grade:z.number().int().min(1).max(12).nullable().optional(),studentId:id.optional()}).refine(s=>s.name||s.englishName,'至少填写一种姓名');
 export const batchSchema=z.object({academicYear:z.number().int().min(2000).max(2199).optional(),division:z.enum(['primary','middle','high']).optional(),title:required(180),titleEn:text(180).default(''),start:day,end:day,version:z.number().int().min(1).optional(),timeSlots:z.array(z.object({start:time,end:time})).min(1).max(20).default(defaultExamSlots),sessions:z.array(sessionSchema).max(500),rooms:z.array(z.object({name:required(60),rows:z.number().int().min(1).max(40),columns:z.number().int().min(1).max(40)})).max(100),seats:z.array(seatSchema).max(20000)}).superRefine((b,ctx)=>{
  const fail=message=>ctx.addIssue({code:'custom',message});
@@ -32,3 +33,18 @@ export function seatErrors(batch,seats=batch.seats){
 export const scheduleKey=b=>JSON.stringify([b.title,b.titleEn,b.start,b.end,b.timeSlots||defaultExamSlots,b.sessions.map(({changed,...s})=>s),b.rooms]);
 export const schedule=b=>({id:b.id,title:b.title,titleEn:b.titleEn,start:b.start,end:b.end,timeSlots:b.timeSlots||defaultExamSlots,sessions:b.sessions,rooms:b.rooms,updatedAt:b.updatedAt});
 export const divisionNames={primary:'小学部',middle:'初中部',high:'高中部'};
+
+/**
+ * Earlier batches stored grades as the school's own labels ("高一", "G10"). Each becomes its number; a session
+ * whose labels cannot be read falls back to its whole division and is flagged for an administrator to check.
+ */
+export function numberGrades(batch){
+ let changed=false;
+ const sessions=(batch?.sessions||[]).map(s=>{
+  if(s.grades.every(Number.isInteger))return s;
+  changed=true;
+  const read=s.grades.map(parseGrade),own=read.filter(g=>g&&DIVISION_GRADES[s.division]?.includes(g));
+  return own.length===read.length&&own.length?{...s,grades:[...new Set(own)].sort((a,b)=>a-b)}:{...s,grades:DIVISION_GRADES[s.division]||[],gradesUnverified:true};
+ });
+ return changed?{...batch,sessions}:null;
+}

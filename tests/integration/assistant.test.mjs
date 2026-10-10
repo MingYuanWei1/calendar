@@ -44,7 +44,7 @@ async function seed(call){
  await call('/api/admin/day-plans','PUT',{start:'2026-10-01',end:'2026-10-07',kind:'off',title:['国庆节','National Day']});
  await call('/api/admin/students/settings','PUT',{domain:'school.edu.cn'});
  const exams={title:'期中考试',titleEn:'Midterms',start:'2026-09-21',end:'2026-10-04',academicYear:2026,rooms:[{name:'A',rows:3,columns:3},{name:'B',rows:3,columns:3}],
-  sessions:[{id:'math',title:'数学',titleEn:'Mathematics',division:'high',grades:['G10'],date:'2026-09-23',start:'08:00',end:'09:00',rooms:['A','B']}],
+  sessions:[{id:'math',title:'数学',titleEn:'Mathematics',division:'high',grades:[10],date:'2026-09-23',start:'08:00',end:'09:00',rooms:['A','B']}],
   seats:[{examId:'math',room:'B',row:1,column:2,className:'10.5',name:'王小明',englishName:'Ming'},{examId:'math',room:'A',row:2,column:1,className:'10.5',name:'李华',englishName:'Hua'}]};
  let b=await call('/api/admin/exams','POST',exams);
  b=await call(`/api/admin/exams/${b.id}/publish`,'POST',{version:b.version});

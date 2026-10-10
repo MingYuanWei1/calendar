@@ -8,7 +8,7 @@ import {join} from 'node:path';
 import {createApplication} from '../../server/app.mjs';
 import {setAdminPassword} from '../../server/passwords.mjs';
 
-const source=()=>({title:'学生关联考试',start:'2026-09-21',end:'2026-10-04',academicYear:2026,rooms:[{name:'A',rows:3,columns:3},{name:'B',rows:3,columns:3}],sessions:[{id:'math',title:'数学',division:'high',grades:['G10'],date:'2026-09-23',start:'08:00',end:'09:00',rooms:['A','B']}],seats:[{examId:'math',room:'B',row:1,column:2,className:'10.5',name:'王小明',englishName:'Ming'}]});
+const source=()=>({title:'学生关联考试',start:'2026-09-21',end:'2026-10-04',academicYear:2026,rooms:[{name:'A',rows:3,columns:3},{name:'B',rows:3,columns:3}],sessions:[{id:'math',title:'数学',division:'high',grades:[10],date:'2026-09-23',start:'08:00',end:'09:00',rooms:['A','B']}],seats:[{examId:'math',room:'B',row:1,column:2,className:'10.5',name:'王小明',englishName:'Ming'}]});
 async function setup(t,previewEmail='29wangxiaoming@school.edu.cn'){
  const directory=await mkdtemp(join(tmpdir(),'student-matching-')),origin='http://localhost:3000';
  const instance=createApplication({dataDir:directory,origin,sso:{preview:true,previewEmail}});
@@ -190,7 +190,7 @@ test('restoring seating does not report removal for a student who never had a se
 test('a student retains identity when progressing to the next academic year',async t=>{
  const {call}=await setup(t);await call('/admin/students/settings','PUT',{domain:'school.edu.cn'});
  const first=await call('/admin/exams','POST',source(),undefined,201);
- const next=source();next.academicYear=2027;next.start='2027-09-21';next.end='2027-10-04';next.sessions[0].date='2027-09-23';next.sessions[0].grades=['G11'];next.seats[0].className='11.5';
+ const next=source();next.academicYear=2027;next.start='2027-09-21';next.end='2027-10-04';next.sessions[0].date='2027-09-23';next.sessions[0].grades=[11];next.seats[0].className='11.5';
  const second=await call('/admin/exams','POST',next,undefined,201);assert.equal(second.seats[0].studentId,first.seats[0].studentId);
 });
 

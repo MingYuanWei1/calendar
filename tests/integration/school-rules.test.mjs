@@ -15,7 +15,7 @@ test('school rules choose the course naming that AI exam extraction follows',asy
   res.setHeader('Content-Type','application/json');
   if(req.url==='/v1/capabilities')return res.end(JSON.stringify({purposes:{flash:{enabled:true}}}));
   let body='';for await(const part of req)body+=part;calls.push(JSON.parse(body));
-  res.end(JSON.stringify({choices:[{message:{content:JSON.stringify({sessions:[{title:'Physics non-DP',subject:'物理',subjectEn:'Physics',level:'',division:'high',grades:['G11'],date:'2026-09-21',start:'08:10',end:'09:40',rooms:['101']}],warnings:[]})}}]}));
+  res.end(JSON.stringify({choices:[{message:{content:JSON.stringify({sessions:[{title:'Physics non-DP',subject:'物理',subjectEn:'Physics',level:'',division:'high',grades:[11],date:'2026-09-21',start:'08:10',end:'09:40',rooms:['101']}],warnings:[]})}}]}));
  });
  await new Promise(r=>gateway.listen(0,'127.0.0.1',r));
  const directory=await mkdtemp(join(tmpdir(),'school-rules-test-'));
