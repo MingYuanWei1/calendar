@@ -25,7 +25,7 @@ function render(main){
   const iso=addDays(start,d),plan=resolvePlan(iso),classes=['day'];
   if(dow(iso)>=5)classes.push('weekend');if(plan)classes.push(plan.kind);if(iso===app.today)classes.push('today');
   if(iso>=view.selA&&iso<=view.selB)classes.push('selected');
-  const badge=plan?(plan.kind==='off'?T('休','Off'):plan.kind==='half'?T('上半天','Half day'):T('全天','Full day')):'';
+  const badge=plan?(plan.kind==='off'?T('休','Off'):plan.kind==='half'?T('上半天','Half day'):T('上全天','All day class')):'';
   cells+=`<button type="button" class="${classes.join(' ')}" data-day="${iso}" aria-pressed="${iso>=view.selA&&iso<=view.selB}" aria-label="${esc(mdw(iso)+(plan?' · '+kinds()[plan.kind]+' '+tx(plan.title)+(plan.follows?' · '+followLabel(plan.follows):''):''))}"><span class="top"><span class="n">${d+1}</span>${badge?`<span class="badge">${badge}</span>`:''}</span><span class="name">${esc(plan?tx(plan.title):'')}</span>${plan?.follows?`<span class="follows">${esc(followLabel(plan.follows))}</span>`:''}</button>`;
  }
  cells+='<span class="day blank"></span>'.repeat((7-(dow(start)+count)%7)%7);

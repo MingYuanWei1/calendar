@@ -28,7 +28,7 @@ let detailScrollY=0;
 let calendarSlots=4;
 let resolveDayPlan=iso=>null;
 function dayPlan(iso){return resolveDayPlan(iso);}
-function dayBadge(plan){return plan?`<span class="day-badge ${plan.kind}">${plan.kind==='off'?(state.lang?'Off':'休'):plan.kind==='half'?(state.lang?'Half day':'上半天'):(state.lang?'Full day':'全天')}</span>`:'';}
+function dayBadge(plan){return plan?`<span class="day-badge ${plan.kind}">${plan.kind==='off'?(state.lang?'Off':'休'):plan.kind==='half'?(state.lang?'Half day':'上半天'):(state.lang?'All day class':'上全天')}</span>`:'';}
 function followsName(plan){const day=plan?.follows&&[['周一','Monday'],['周二','Tuesday'],['周三','Wednesday'],['周四','Thursday'],['周五','Friday']][plan.follows-1];return day?(state.lang?`${day[1]} schedule`:`按${day[0]}课表`):'';}
 function dayPlanTitle(plan){
   const title=text(plan.title);
