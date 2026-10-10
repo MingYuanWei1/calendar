@@ -132,6 +132,10 @@ test('a failing gateway is retried up to RETRY.times, and a broken answer keeps 
   replies.length=0;calls=0;replies.push({content:'not json'});
   await assert.rejects(()=>streamJson(config,{model:'flash',messages:[]},5000,progress),SyntaxError);
   assert.equal(calls,2);
+  // An empty answer is reported as such (with the gateway's reason), not as malformed output, and is not retried.
+  replies.length=0;calls=0;replies.push({content:''});
+  await assert.rejects(()=>streamJson(config,{model:'flash',messages:[]},5000,progress),/没有返回任何内容（连接提前结束）/);
+  assert.equal(calls,1);
   replies.length=0;calls=0;replies.push({status:502});
   await assert.rejects(()=>streamJson(config,{model:'flash',messages:[]},5000,progress),/502.*重试 10 次/);
   assert.equal(calls,RETRY.times+1);

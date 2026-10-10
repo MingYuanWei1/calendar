@@ -60,7 +60,7 @@ export async function streamChat(config,body,timeout,onText,idle=IDLE_TIMEOUT,on
  if(response.status===400&&!('reasoning_effort' in body)){await response.body?.cancel();response=await attempt(body);}
  if(!response.ok)throw failed(response.status);
  const reader=response.body.getReader(),decoder=new TextDecoder();
- let bytes=0,full='',buffer='';
+ let bytes=0,full='',buffer='',finish='',problem='',thought=0;
  const emit=text=>{if(typeof text==='string'&&text){full+=text;onText(text);}};
  const plain=!(response.headers.get('content-type')||'').includes('text/event-stream');
  while(true){
@@ -76,11 +76,21 @@ export async function streamChat(config,body,timeout,onText,idle=IDLE_TIMEOUT,on
    const line=buffer.slice(0,index).trim();buffer=buffer.slice(index+1);
    if(!line.startsWith('data:'))continue;
    const data=line.slice(5).trim();if(data==='[DONE]')continue;
-   try{emit(JSON.parse(data).choices?.[0]?.delta?.content);}catch{}
+   let chunk;try{chunk=JSON.parse(data);}catch{continue;}
+   const choice=chunk.choices?.[0];
+   if(chunk.error)problem=chunk.error.message||chunk.error.code||JSON.stringify(chunk.error).slice(0,200);
+   if(choice?.finish_reason)finish=choice.finish_reason;
+   if(choice?.delta?.reasoning_content)thought+=choice.delta.reasoning_content.length;
+   emit(choice?.delta?.content);
   }
  }
  if(plain){
   try{emit(JSON.parse(buffer).choices?.[0]?.message?.content);}catch{throw new Error('模型未返回可解析的结果，请重试。');}
+ }
+ // An empty answer is not a format problem: say why the gateway ended (an error event, a content filter, a length cap).
+ if(!full&&!plain){
+  console.error('LLM answer is empty:',JSON.stringify({finish,problem,reasoningChars:thought,bytes,tail:buffer.slice(-300)}));
+  throw new Error(`模型没有返回任何内容（${problem||(finish?`finish_reason: ${finish}`:'连接提前结束')}），请重试；如反复出现，请拆分材料后再提取。`);
  }
  return full;
  }
