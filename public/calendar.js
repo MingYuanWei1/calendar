@@ -1,5 +1,6 @@
 'use strict';
-document.body.className='airy';
+// The details panel stays closed until an event is selected.
+document.body.className='airy detail-closed';
 /** @returns {any} */
 const $ = selector => document.querySelector(selector);
 /** @returns {any[]} */
@@ -231,6 +232,8 @@ function renderCalendar(){
 }
 function renderDetail(){
   const event=events.find(e=>e.id===state.selected);
+  // Without a selected event the panel closes instead of showing an empty placeholder.
+  if(!event&&!document.body.classList.contains('detail-closed')){document.body.classList.remove('mobile-detail');document.body.classList.add('detail-closed');syncDetailMode();}
   $('#details').innerHTML=`<div class="detail-top"><span class="overline">${esc(t('detail'))}</span><button id="close-detail" class="close-button" aria-label="${esc(t('close'))}">×</button></div>`+(event?eventDetails(event):`<p class="no-detail">${esc(t('chooseEvent'))}</p>`);
   bindClose();bindDetailActions($('#details'));
 }
@@ -255,7 +258,7 @@ $('#month-view').onclick=()=>changeView('month');$('#list-view').onclick=()=>cha
   changeView('week');
 };
 function moveMonth(delta){const date=state.view==='week'?dateValue(state.anchor):new Date(state.year,state.month+delta,1,12);if(state.view==='week')date.setDate(date.getDate()+delta*7);state.anchor=state.view==='week'?isoDate(date):'';state.year=date.getFullYear();state.month=date.getMonth();state.selected=null;renderCalendar();renderDetail();}
-$('#previous').onclick=()=>moveMonth(-1);$('#next').onclick=()=>moveMonth(1);$('#today').onclick=()=>{state.anchor=schoolToday();const current=state.anchor.split('-').map(Number);state.year=current[0];state.month=current[1]-1;state.selected=null;document.body.classList.remove('detail-closed');render();};
+$('#previous').onclick=()=>moveMonth(-1);$('#next').onclick=()=>moveMonth(1);$('#today').onclick=()=>{state.anchor=schoolToday();const current=state.anchor.split('-').map(Number);state.year=current[0];state.month=current[1]-1;state.selected=null;render();};
 $('#close-day').onclick=()=>$('#day-dialog').close();$('#close-registration').onclick=()=>$('#registration-dialog').close();$('#registration-ok').onclick=()=>$('#registration-dialog').close();
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('dialog[open]')&&document.body.classList.contains('mobile-detail'))$('#close-detail')?.click();});
 document.addEventListener('keydown',e=>{if(e.key!=='Tab'||!mobileQuery.matches||!document.body.classList.contains('mobile-detail')||$('dialog[open]'))return;const buttons=[...$('#details').querySelectorAll('button,a[href]')].filter(el=>el.getClientRects().length);const first=buttons[0],last=buttons.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}});
