@@ -55,8 +55,9 @@ test('curriculum naming preserves language tracks, G10 levels and non-DP grade n
   ['English B HL','G12','英语','B HL'],
   ['Chinese Language and Literature','G10','中文','Honor'],
   ['Chinese Language and Literature Basic','G10','中文','Basic'],
-  ['Chinese Language and Literature Advanced','G11','中文 Non-DP','Advanced'],
-  ['Chinese Language and Literature Extended','G12','中文 Non-DP','Extended'],
+  ['Chinese Language and Literature Advanced','G11','中文','Language & Literature Advanced'],
+  ['Chinese Language and Literature Extended','G12','中文','Language & Literature Extended'],
+  ['语文Non-DP','G11','中文','Language & Literature Advanced'],
   ['Chinese B','G10','中文','Chinese B'],
   ['中文 B','G10','中文','Chinese B'],
   ...['Advanced','Intermediate','Standard'].map((x,i)=>[`${x} Comprehensive English`,'G10','英语',['ACE','ICE','SCE'][i]]),
@@ -71,5 +72,10 @@ test('curriculum naming preserves language tracks, G10 levels and non-DP grade n
   for(const key of ['grades','date','start','end','rooms'])assert.deepEqual(result[key],original[key]);
   assert.deepEqual(normalizeCourse(result),result,`idempotent: ${title}`);
  }
+ const economics=normalizeCourse({title:'Economics Honor',subject:'经济',subjectEn:'Economics',level:'Honor',grades:[10],note:'经管'});
+ assert.deepEqual([economics.level,economics.title,economics.note],['Honor 经管','Economics Honor 经管','']);assert.deepEqual(normalizeCourse(economics),economics);
+ assert.equal(normalizeCourse({title:'Economics Honor 经管',subject:'经济',level:'Honor',grades:[10]}).level,'Honor 经管');
+ assert.equal(normalizeCourse({title:'Mathematics AI SL',grades:[11],note:'经管'}).level,'AI经管 SL');
+ assert.equal(normalizeCourse({title:'Economics Honor',subject:'经济',level:'Honor',note:'经管'},presetSubjects,null).level,'Honor');
  const unknown={title:'Physics non-dp',grades:[]};assert.deepEqual(normalizeCourse(unknown),unknown);
 });

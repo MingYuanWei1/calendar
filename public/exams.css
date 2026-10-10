@@ -159,3 +159,6 @@
 #exam-updates .sync-intro{margin:0;color:var(--muted);font-size:13px}
 #exam-updates .import-exams-list{gap:.5rem;margin:.8rem 0}
 @media(max-width:640px){#exam-updates:not(:modal){inset:auto 8px 8px 8px;width:auto}}
+/* A paper that starts before its time slot keeps the slot's row but shows its real time in red. */
+.exam-time-grid time.early{color:#c0392b}
+.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}

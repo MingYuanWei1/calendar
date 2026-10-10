@@ -1,8 +1,8 @@
 import {parseGrade} from './grades.mjs';
 export const presetSubjects=[
- ['数学','Mathematics'],['中文','Chinese'],['英语','English'],['哲学','Philosophy'],['心理','Psychology'],['历史','History'],['物理','Physics'],['化学','Chemistry'],['生物','Biology'],['计算机','Computer Science'],['经济','Economics'],['商管','Business Management'],['中文 Non-DP','Chinese Non-DP']
+ ['数学','Mathematics'],['中文','Chinese'],['英语','English'],['哲学','Philosophy'],['心理','Psychology'],['历史','History'],['物理','Physics'],['化学','Chemistry'],['生物','Biology'],['计算机','Computer Science'],['经济','Economics'],['商管','Business Management']
 ].map(([name,english],i)=>({name,english,hue:i<12?i*30:(i-12)*30+15}));
-const aliases={'语文Non-DP':'中文 Non-DP','计算机科学':'计算机','商务管理':'商管','心理学':'心理'};
+const aliases={'语文Non-DP':'中文','中文 Non-DP':'中文','计算机科学':'计算机','商务管理':'商管','心理学':'心理'};
 export function subjectName(exam,subjects){
  const raw=exam.subject?.trim();
  const match=subjects.find(s=>s.name===raw||s.name===aliases[raw]||s.english.toLowerCase()===raw?.toLowerCase());
@@ -27,6 +27,17 @@ export function subjectColors(sessions,subjects){
 // Course numbers belong to a subject, never to the subject catalog itself. The IB curriculum (the
 // "ib" school rules template) also fixes its own course names; other schools keep only the generic rule.
 export function normalizeCourse(exam,subjects=presetSubjects,curriculum='ib'){
+ const result=courseName(exam,subjects,curriculum);
+ // An IB 经管 class sits beside the regular class of the same subject, so its name must say 经管
+ // even when the source (or the model) only mentions it in a note.
+ const names=[result.title,result.titleEn,result.subject,result.subjectEn,result.level].join(' ');
+ if(curriculum!=='ib'||!/经管/.test(names+' '+(result.note||'')))return result;
+ const add=value=>value&&!value.includes('经管')?`${value} 经管`:value;
+ const note=result.note?.trim()==='经管'?'':result.note;
+ if(/经管/.test(result.level||''))return {...result,note};
+ return {...result,level:add(result.level)||'经管',title:add(result.title),titleEn:add(result.titleEn),note};
+}
+function courseName(exam,subjects,curriculum){
  const clean=value=>(value||'').trim().replace(/^\[[^\]]*\]\s*/,'');
  const raw=[exam.title,exam.titleEn,exam.subject,exam.subjectEn,exam.level].filter(Boolean).join(' ').replace(/[_–—]/g,'-');
  const only=(exam.grades||[]).length===1?parseGrade(exam.grades[0]):null,grade=only?'G'+only:'';
@@ -34,7 +45,9 @@ export function normalizeCourse(exam,subjects=presetSubjects,curriculum='ib'){
  if(curriculum==='ib'){
   const chineseNonDPLevel={G11:'Advanced',G12:'Extended'}[grade];
   if(chineseNonDPLevel&&(/(?:语文|中文)\s*Non[ -]?DP|\bChinese\s+Non[ -]?DP\b/i.test(raw)||(/\bChinese\s+Language\s*(?:and|&)\s*Literature\b/i.test(raw)&&new RegExp(`\\b${chineseNonDPLevel}\\b`,'i').test(raw)))){
-   return {...named('中文 Non-DP','Chinese Non-DP',chineseNonDPLevel,'中文 Non-DP'),titleEn:'Chinese Non-DP'};
+   // The non-DP course is one more Chinese course, so it shares the 中文 card with the DP courses.
+   const level=`Language & Literature ${chineseNonDPLevel}`;
+   return named('中文','Chinese',level,`Chinese ${level}`);
   }
   if(/\bnon[ -]?dp\b/i.test(raw)){
    const number={G10:1,G11:2,G12:3}[grade];
@@ -57,7 +70,7 @@ export function normalizeCourse(exam,subjects=presetSubjects,curriculum='ib'){
    }
   }
   if(['G11','G12'].includes(grade)&&(/数学|\b(?:Maths?|Mathematics)\b/i.test(raw)||/^(?:AA|AI)(?:\s*经管)?(?:\s+(?:HL|SL))?$/i.test(clean(exam.title)))){
-   const track=/\bAI\s*经管/i.test(raw)?'AI经管':raw.match(/\b(AA|AI)\b/i)?.[1].toUpperCase();
+   const track=/\bAI\s*经管/i.test(raw)||/\bAI\b/i.test(raw)&&/经管/.test(exam.note||'')?'AI经管':raw.match(/\b(AA|AI)\b/i)?.[1].toUpperCase();
    if(track){const hlSl=raw.match(/\b(HL|SL)\b/i)?.[1].toUpperCase();const level=[track,hlSl].filter(Boolean).join(' ');return named('数学','Mathematics',level,`Mathematics ${level}`);}
   }
   const language=raw.match(/\b(Chinese|English)\s+(ab\s+initio|A|B)\b/i);

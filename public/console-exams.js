@@ -1,7 +1,7 @@
 import {$,$$,esc,corners,icon,app,T,tx,SCOPES,api,toast,modal,closeModal,busy,errorLine,fail,go,refreshNav,md,mdw,stamp,loadBatches,loadSubjects} from './console-core.js';
 import {moveSeat,roomExamsAt,seatViewTimes} from './exam-seats.mjs';
 import {subjectName} from './exam-subjects.mjs';
-import {defaultExamSlots} from './exam-times.mjs';
+import {defaultExamSlots,slotOf} from './exam-times.mjs';
 import {importPreview} from './exam-import-preview.js';
 import {readExamPdf} from './exam-pdf-input.js';
 import {DIVISION_GRADES,gradeLabel,parseGrade} from './grades.mjs';
@@ -129,8 +129,8 @@ function roomsTab(b){
 }
 
 function slotsTab(b){
- return `<div class="slot-list">${slotsOf(b).map(s=>`<div class="row"><span class="cell-main">${s.start}–${s.end}</span><span class="muted" style="font-size:13px">${count(b.sessions.filter(x=>x.start>=s.start&&x.start<s.end).length,'场','sessions')}</span></div>`).join('')}
- <p class="note">${T('按考试开始时间归入时间段；卡片保留实际起止时间。修改分组不会更改已有考试时间。','Sessions group by start time; cards keep their actual times. Changing slots never changes session times.')}</p><button type="button" class="btn btn-secondary" data-act="slots">${T('修改时间段','Edit time slots')}</button></div>`;
+ return `<div class="slot-list">${slotsOf(b).map((s,i)=>`<div class="row"><span class="cell-main">${s.start}–${s.end}</span><span class="muted" style="font-size:13px">${count(b.sessions.filter(x=>slotOf(slotsOf(b),x)?.index===i).length,'场','sessions')}</span></div>`).join('')}
+ <p class="note">${T('按考试开始时间归入时间段；提前开考的考试归入与之重叠的时间段，时间标红。卡片保留实际起止时间，修改分组不会更改已有考试时间。','Sessions group by start time; a session that starts early joins the slot it runs into, with its time in red. Cards keep their actual times, and changing slots never changes session times.')}</p><button type="button" class="btn btn-secondary" data-act="slots">${T('修改时间段','Edit time slots')}</button></div>`;
 }
 
 function onBatchClick(e,b){
@@ -308,7 +308,7 @@ function seatDialog(b,row,column,index){
 
 function slotsDialog(b){
  const body=modal(T('修改时间段','Edit time slots'),`${field(T('每行一个时间段（最多 20 个），例如 08:10-09:40','One slot per line (up to 20), e.g. 08:10-09:40'),`<textarea class="input" name="slots" style="min-height:140px;font-family:ui-monospace,Menlo,monospace;font-size:13px">${esc(slotsOf(b).map(s=>s.start+'-'+s.end).join('\n'))}</textarea>`)}
- <p class="muted" style="font-size:12px">${T('按考试开始时间归入时间段；卡片保留实际起止时间。修改分组不会更改已有考试时间。','Sessions group by start time; cards keep their actual times. Changing slots never changes session times.')}</p>${actions()}`);
+ <p class="muted" style="font-size:12px">${T('按考试开始时间归入时间段；提前开考的考试归入与之重叠的时间段，时间标红。卡片保留实际起止时间，修改分组不会更改已有考试时间。','Sessions group by start time; a session that starts early joins the slot it runs into, with its time in red. Cards keep their actual times, and changing slots never changes session times.')}</p>${actions()}`);
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
   const invalid=T('每行一个时间段，例如 08:10-09:40；时间段不能重叠。','One slot per line, e.g. 08:10-09:40. Slots must not overlap.');
   const slots=values(body).slots.split(/\n+/).filter(Boolean).map(line=>{const m=line.trim().replace(/：/g,':').match(/^(\d{1,2}:\d{2})\s*[-–—]\s*(\d{1,2}:\d{2})$/);if(!m)fail(invalid);return {start:m[1].padStart(5,'0'),end:m[2].padStart(5,'0')};}).sort((x,y)=>x.start.localeCompare(y.start));
