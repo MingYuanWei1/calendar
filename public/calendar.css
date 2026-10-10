@@ -232,6 +232,17 @@ body.detail-closed .workspace{grid-template-columns:180px minmax(0,1fr)}body.edi
   .airy .span-event{height:4px;padding:0;margin:0 2px;font-size:0;border-radius:2px;background:var(--event-color);pointer-events:none}
 }
 
+/* Days without a name (放假说明) give its line to events; a week without names starts bars right under the dates. */
+@media(min-width:761px){
+  .airy .day.no-plan-row .day-plan-name{display:none}
+  .airy .week.no-plans .spans{top:31px}
+  /* A title with free rows below it wraps onto up to three lines. */
+  .airy .day-event-slot.lines-2 .event,.airy .day-event-slot.lines-3 .event{height:100%;align-items:flex-start;padding-top:2px}
+  .day-event-slot.lines-2 .event-text,.day-event-slot.lines-3 .event-text{white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:17px}
+  .day-event-slot.lines-3 .event-text{-webkit-line-clamp:3}
+  .day-event-slot.lines-2 .event .dot,.day-event-slot.lines-3 .event .dot{margin-top:5px;flex:none}
+}
+
 /* 适用学部 and their grades. */
 .grade-options{display:flex;flex-wrap:wrap;gap:0 10px;margin:0 0 6px 22px}
 .grade-options .grade-option,.airy .grade-options .grade-option{padding:5px 2px;font-size:11px;gap:6px;white-space:nowrap}

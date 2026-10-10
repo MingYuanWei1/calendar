@@ -26,6 +26,8 @@ let repeatSummary=rule=>'';
 let detailReturnDay=null;
 let detailScrollY=0;
 let calendarSlots=4;
+/** Event rows a month cell fits once it needs no line for a day's name (放假说明). */
+let looseSlots=5;
 /** Set once grades.mjs loads: which grades a division covers and how an audience reads. */
 let gradeTools=null;
 /** Whether the visitor is signed in and so may keep 个人事件. */
@@ -70,6 +72,7 @@ function scopeParts(event){return event.personal?[t('personal')]:gradeTools?grad
 function scopeText(event){return scopeParts(event).join(state.lang?' / ':'、');}
 function cancelText(event){return t(event.cancelledOnce?'cancelledOnce':'cancelled');}
 function label(event){return `${text(event.title)} · ${formatDate(event.start)} · ${timeText(event)}`;}
+function eventLabelText(event){return `${event.cancelled?cancelText(event)+' · ':''}${event.oldDate?t('changed')+' · ':''}${event.type==='deadline'?t('till')+' ':''}${event.time?event.time+' ':''}${text(event.title)}`;}
 function eventButton(event){return `<button class="event ${event.type}${event.personal?' personal':''}${event.cancelled?' cancelled':''}${state.selected===event.id?' selected':''}" data-event="${event.id}" title="${esc(label(event))}" aria-label="${esc(label(event))}"><span class="dot"></span><span class="event-text">${event.cancelled?esc(cancelText(event))+' · ':''}${event.oldDate?esc(t('changed'))+' · ':''}${event.type==='deadline'?esc(t('till'))+' ':''}${event.time?`<time>${event.time}</time> `:''}${esc(text(event.title))}</span></button>`;}
 function agendaButton(event){return `<button class="agenda-event ${event.type}${event.personal?' personal':''}${event.cancelled?' cancelled':''}${state.selected===event.id?' selected':''}" data-event="${event.id}"><span class="dot"></span><span><strong>${event.cancelled?esc(cancelText(event))+' · ':''}${event.oldDate?esc(t('changed'))+' · ':''}${esc(text(event.title))}</strong><small>${esc(timeText(event))} · ${esc(scopeText(event))}${event.location?' · '+esc(text(event.location)):''}</small></span></button>`;}
 function toggleDivision(division){
@@ -123,6 +126,26 @@ function calendarFocus(id,date){
   render();selectEvent(target.id);return true;
 }
 window.calendarFocus=calendarFocus;
+// Titles wrap onto up to three lines when the cell has free rows below them; every event keeps at least one row.
+let measureContext=null;
+function linesWanted(event,width){
+  if(width<=0)return 1;
+  measureContext??=document.createElement('canvas').getContext('2d');
+  measureContext.font=`12px ${getComputedStyle(document.body).fontFamily}`;
+  return Math.min(3,Math.max(1,Math.ceil(measureContext.measureText(eventLabelText(event)).width/width)));
+}
+/** Gives each event a starting row and how many consecutive free rows it may fill. */
+function wrapRows(items,rows){
+  const width=($('#month-grid').clientWidth/7)-24;
+  const blocks=[];let next=0;
+  items.forEach((event,index)=>{
+    const want=linesWanted(event,width),row=rows[next++];let span=1;
+    // Extend only into the next free row, and only while every later event still has a row of its own.
+    while(span<want&&next<rows.length&&rows[next]===row+span&&rows.length-next>items.length-index-1){span++;next++;}
+    blocks.push({row,span});
+  });
+  return blocks;
+}
 function renderCalendar(){
   $('#agenda-search').hidden=state.view!=='list';
   document.body.classList.toggle('week-mode',state.view==='week');
@@ -150,6 +173,11 @@ function renderCalendar(){
     const weekStart=isoDate(dates[0]),weekEnd=isoDate(dates[6]);
     const shownStart=weekStart<monthStart?monthStart:weekStart,shownEnd=weekEnd>monthEnd?monthEnd:weekEnd;
     const multi=events.filter(matches).filter(isMulti).filter(e=>e.start<=shownEnd&&e.end>=shownStart).sort((a,b)=>a.start.localeCompare(b.start)||b.end.localeCompare(a.end));
+    // A day's name (e.g. 国庆假期) takes a line under the date. A week without any names starts its events
+    // right under the dates; with names but no cross-day bars, only the named days keep that line.
+    const plans=dates.map(date=>dayPlan(isoDate(date)));
+    const weekHasPlan=plans.some(Boolean),planRow=i=>Boolean(plans[i])||(weekHasPlan&&multi.length>0);
+    const weekSlots=weekHasPlan?calendarSlots:looseSlots;
     const lanes=[];const occupied=Array.from({length:7},()=>new Set());
     const placements=multi.map(e=>{
       const from=Math.max(0,dates.findIndex(d=>isoDate(d)>=(e.start>shownStart?e.start:shownStart)));
@@ -157,28 +185,30 @@ function renderCalendar(){
       let lane=lanes.findIndex(end=>end<=from);if(lane<0)lane=lanes.length;lanes[lane]=to;
       return {event:e,from,to,lane};
     });
-    const hiddenMulti=placements.filter(p=>p.lane>=calendarSlots).map(p=>p.event);
+    const hiddenMulti=placements.filter(p=>p.lane>=weekSlots).map(p=>p.event);
     const dailyCounts=dates.map(date=>events.filter(matches).filter(e=>shownOn(e,isoDate(date))).length);
     // Reserve the final row for expansion only on dates that really have overflow.
     for(const p of placements){
-      if(p.lane===calendarSlots-1&&dates.slice(p.from,p.to).some((date,index)=>dailyCounts[p.from+index]>calendarSlots||hiddenMulti.some(e=>shownOn(e,isoDate(date)))))hiddenMulti.push(p.event);
+      if(p.lane===weekSlots-1&&dates.slice(p.from,p.to).some((date,index)=>dailyCounts[p.from+index]>weekSlots||hiddenMulti.some(e=>shownOn(e,isoDate(date)))))hiddenMulti.push(p.event);
     }
     const bars=placements.filter(p=>!hiddenMulti.includes(p.event)).map(({event:e,from,to,lane})=>{
       for(let column=from;column<to;column++)occupied[column].add(lane);
       return `<button class="span-event ${e.type}${e.cancelled?' cancelled':''}${state.selected===e.id?' selected':''}${e.start<shownStart&&shownStart===weekStart?' continues-left':''}${e.end>shownEnd&&shownEnd===weekEnd?' continues-right':''}" data-event="${e.id}" style="grid-column:${from+1}/${to+1};grid-row:${lane+1}" aria-label="${esc(label(e))}" title="${esc(label(e))}">${e.cancelled?esc(cancelText(e))+' · ':''}${e.oldDate?esc(t('changed'))+' · ':''}${esc(text(e.title))} · ${esc(scopeText(e))}</button>`;
     }).join('');
-    html+=`<div class="week">`;
+    html+=`<div class="week${weekHasPlan?'':' no-plans'}">`;
     for(let i=0;i<7;i++){
-      const d=dates[i],iso=isoDate(d),plan=dayPlan(iso);const items=events.filter(matches).filter(e=>!isMulti(e)&&shownOn(e,iso)).sort(sortEvents);
+      const d=dates[i],iso=isoDate(d),plan=plans[i];const items=events.filter(matches).filter(e=>!isMulti(e)&&shownOn(e,iso)).sort(sortEvents);
+      const daySlots=planRow(i)?calendarSlots:looseSlots;
       // A cross-day bar occupies only the dates it actually covers. Fill gaps on each date.
-      const freeRows=Array.from({length:calendarSlots},(_,row)=>row).filter(row=>!occupied[i].has(row));
+      const freeRows=Array.from({length:daySlots},(_,row)=>row).filter(row=>!occupied[i].has(row));
       const hiddenSpans=hiddenMulti.filter(e=>shownOn(e,iso)).length;
       const needsMore=items.length>freeRows.length||hiddenSpans>0;
-      const eventRows=needsMore?freeRows.filter(row=>row<calendarSlots-1):freeRows;
+      const eventRows=needsMore?freeRows.filter(row=>row<daySlots-1):freeRows;
       const visibleItems=items.slice(0,eventRows.length);
       const hiddenCount=items.length-visibleItems.length+hiddenSpans;
-      const itemMarkup=visibleItems.map((event,index)=>`<div class="day-event-slot" style="grid-row:${eventRows[index]+1}">${eventButton(event)}</div>`).join('');
-      html+=`<div class="day${d.getMonth()!==state.month?' outside':''}${i>4?' weekend':''}${plan?' day-'+plan.kind:''}${iso===schoolToday()?' today':''}"><div class="day-date"><button class="day-number" data-day="${iso}" aria-label="${esc(formatDate(iso,true))}" ${iso===schoolToday()?'aria-current="date"':''}>${d.getDate()}</button>${dayBadge(plan)}</div><div class="day-plan-name" title="${esc(dayPlanName(plan))}">${dayPlanMarkup(plan)}</div><div class="day-items">${itemMarkup}${hiddenCount>0?`<button class="more" data-day="${iso}" style="grid-row:${Math.max(1,calendarSlots)}">${state.lang?`+${hiddenCount} more`:`还有 ${hiddenCount} 项`}</button>`:''}</div></div>`;
+      const blocks=wrapRows(visibleItems,eventRows);
+      const itemMarkup=visibleItems.map((event,index)=>`<div class="day-event-slot${blocks[index].span>1?' lines-'+blocks[index].span:''}" style="grid-row:${blocks[index].row+1}${blocks[index].span>1?' / span '+blocks[index].span:''}">${eventButton(event)}</div>`).join('');
+      html+=`<div class="day${d.getMonth()!==state.month?' outside':''}${i>4?' weekend':''}${plan?' day-'+plan.kind:''}${planRow(i)?'':' no-plan-row'}${iso===schoolToday()?' today':''}"><div class="day-date"><button class="day-number" data-day="${iso}" aria-label="${esc(formatDate(iso,true))}" ${iso===schoolToday()?'aria-current="date"':''}>${d.getDate()}</button>${dayBadge(plan)}</div><div class="day-plan-name" title="${esc(dayPlanName(plan))}">${dayPlanMarkup(plan)}</div><div class="day-items">${itemMarkup}${hiddenCount>0?`<button class="more" data-day="${iso}" style="grid-row:${Math.max(1,daySlots)}">${state.lang?`+${hiddenCount} more`:`还有 ${hiddenCount} 项`}</button>`:''}</div></div>`;
     }
     html+=`<div class="spans">${bars}</div></div>`;
   }
@@ -241,8 +271,8 @@ function fitMonthDensity(){
   if(mobileQuery.matches||!grid.getClientRects().length)return;
   const weeks=grid.querySelectorAll('.week').length;
   if(!weeks)return;
-  const slots=Math.max(0,Math.floor((grid.clientHeight/weeks-52)/23));
-  if(slots!==calendarSlots){calendarSlots=slots;renderCalendar();}
+  const height=grid.clientHeight/weeks,slots=Math.max(0,Math.floor((height-52)/23)),loose=Math.max(0,Math.floor((height-33)/23));
+  if(slots!==calendarSlots||loose!==looseSlots){calendarSlots=slots;looseSlots=loose;renderCalendar();}
 }
 const monthSizeObserver=new ResizeObserver(fitMonthDensity);
 monthSizeObserver.observe($('#month-grid'));
