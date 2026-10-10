@@ -17,12 +17,12 @@ export async function worker(config,path,body,timeout){
 // Streams a chat completion from the LLM Worker, calling onText with each text delta.
 // A Worker that ignores `stream` and answers with plain JSON is accepted as a single delta.
 // `timeout` bounds the wait for the first token; once the model is writing, only a silence longer than
-// IDLE_TIMEOUT aborts, so long but steady outputs are never cut off midway.
+// `idle` (IDLE_TIMEOUT by default) aborts, so long but steady outputs are never cut off midway.
 const IDLE_TIMEOUT=45000;
-export async function streamChat(config,body,timeout,onText){
+export async function streamChat(config,body,timeout,onText,idle=IDLE_TIMEOUT){
  const url=connection(config)+'/chat/completions',controller=new AbortController();
  let timer=setTimeout(()=>controller.abort(),timeout);
- const alive=()=>{clearTimeout(timer);timer=setTimeout(()=>controller.abort(),IDLE_TIMEOUT);};
+ const alive=()=>{clearTimeout(timer);timer=setTimeout(()=>controller.abort(),idle);};
  try{return await read();}
  catch(error){if(controller.signal.aborted){const timedOut=new Error('timeout');timedOut.name='TimeoutError';throw timedOut;}throw error;}
  finally{clearTimeout(timer);}
@@ -129,25 +129,27 @@ export async function respond(req,res,task,failure,status=502){
   source:data=>send?.({type:'source',...data}),
   reset:()=>send?.({type:'reset'})
  };
+ // While the model thinks silently, a keep-alive line stops proxies (e.g. the nginx relay) from closing the stream.
+ const heartbeat=send&&setInterval(()=>send({type:'ping',elapsed:Date.now()-started}),20000);
  try{
   const result=await task(progress);
   if(send){send({type:'done',result,elapsed:Date.now()-started});res.end();}else res.json(result);
  }catch(error){
   // Keep the real cause in the server log; the visitor only sees the friendly message.
-  console.error('AI request failed:',error?.name,error?.message);
+  console.error('AI request failed:',error?.name,error?.message,`after ${Math.round((Date.now()-started)/1000)} s`);
   const message=failure(error);
   if(send){send({type:'error',error:message});res.end();}else res.status(status).json({error:message});
- }
+ }finally{if(heartbeat)clearInterval(heartbeat);}
 }
 
 /** Streams a JSON-returning completion, reporting each finished array item, and returns the parsed object. */
 // Malformed JSON (a truncated or chatty answer) is retried once; the client is told to drop what it has shown.
-export async function streamJson(config,body,timeout,progress){
+export async function streamJson(config,body,timeout,progress,idle){
  for(let tries=0;;tries++){
   const counts={};
   const feed=jsonItems((key,item)=>{counts[key]=(counts[key]||0)+1;progress.item(key,counts[key]-1,item);});
   let first=true;
-  const raw=await streamChat(config,body,timeout,delta=>{if(first){first=false;progress.stage('generating');}feed(delta);});
+  const raw=await streamChat(config,body,timeout,delta=>{if(first){first=false;progress.stage('generating');}feed(delta);},idle);
   try{return JSON.parse(stripFence(raw));}
   catch(error){if(tries)throw error;progress.reset();progress.stage('retrying');}
  }
