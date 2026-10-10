@@ -1,7 +1,6 @@
 import {parseGrade} from './grades.mjs';
 export const presetSubjects=[
- ['数学','Mathematics'],['中文','Chinese'],['英语','English'],['哲学','Philosophy'],['心理','Psychology'],['历史','History'],['物理','Physics'],['化学','Chemistry'],['生物','Biology'],['计算机','Computer Science'],['经济','Economics'],['商管','Business Management'],
- ['中文 A','Chinese A'],['中文 B','Chinese B'],['中文 ab initio','Chinese ab initio'],['英语 A','English A'],['英语 B','English B'],['中文 Non-DP','Chinese Non-DP']
+ ['数学','Mathematics'],['中文','Chinese'],['英语','English'],['哲学','Philosophy'],['心理','Psychology'],['历史','History'],['物理','Physics'],['化学','Chemistry'],['生物','Biology'],['计算机','Computer Science'],['经济','Economics'],['商管','Business Management'],['中文 Non-DP','Chinese Non-DP']
 ].map(([name,english],i)=>({name,english,hue:i<12?i*30:(i-12)*30+15}));
 const aliases={'语文Non-DP':'中文 Non-DP','计算机科学':'计算机','商务管理':'商管','心理学':'心理'};
 export function subjectName(exam,subjects){
@@ -65,10 +64,11 @@ export function normalizeCourse(exam,subjects=presetSubjects,curriculum='ib'){
   if(language){
    const chinese=language[1].toLowerCase()==='chinese',track=/ab/i.test(language[2])?'ab initio':language[2].toUpperCase();
    if(!chinese&&track==='ab initio')return exam;
-   const english=`${chinese?'Chinese':'English'} ${track}`,name=`${chinese?'中文':'英语'} ${track}`;
+   // A/B/ab initio are courses within the one language subject, so they share its card.
    const hlSl=raw.match(/\b(HL|SL)\b/i)?.[1].toUpperCase()||'';
    const direction=chinese&&track==='A'?(/Language\s*(?:and|&)\s*Literature/i.test(raw)?'Language & Literature':/\bLiterature\b/i.test(raw)?'Literature':''):'';
-   return named(name,english,[direction,hlSl].filter(Boolean).join(' '),[english,direction,hlSl].filter(Boolean).join(' '));
+   const level=[track,direction,hlSl].filter(Boolean).join(' '),english=chinese?'Chinese':'English';
+   return named(chinese?'中文':'英语',english,level,`${english} ${level}`);
   }
  }
  const candidates=[clean(exam.title),clean(exam.titleEn),clean(exam.subject)];

@@ -46,12 +46,13 @@ test('numbered courses inherit canonical subjects and keep course numbers as lev
 
 test('curriculum naming preserves language tracks, G10 levels and non-DP grade numbers',()=>{
  const cases=[
-  ['Chinese A Literature HL','G12','中文 A','Literature HL'],
-  ['Chinese A Language & Literature SL','G11','中文 A','Language & Literature SL'],
-  ['Chinese B HL','G11','中文 B','HL'],
-  ['Chinese ab initio SL','G12','中文 ab initio','SL'],
-  ['English A SL','G11','英语 A','SL'],
-  ['English B HL','G12','英语 B','HL'],
+  ['Chinese A Literature HL','G12','中文','A Literature HL'],
+  ['Chinese A Language & Literature SL','G11','中文','A Language & Literature SL'],
+  ['Chinese B HL','G11','中文','B HL'],
+  ['Chinese ab initio SL','G12','中文','ab initio SL'],
+  ['Chinese B','G11','中文','B'],
+  ['English A SL','G11','英语','A SL'],
+  ['English B HL','G12','英语','B HL'],
   ['Chinese Language and Literature','G10','中文','Honor'],
   ['Chinese Language and Literature Basic','G10','中文','Basic'],
   ['Chinese Language and Literature Advanced','G11','中文 Non-DP','Advanced'],
