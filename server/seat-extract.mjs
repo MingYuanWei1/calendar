@@ -1,7 +1,6 @@
 import ExcelJS from 'exceljs';
 import unzipper from 'unzipper';
-import {z} from 'zod';
-import {streamJson,requireFlash} from './llm-stream.mjs';
+import {streamJson,requireFlash,lenientList} from './llm-stream.mjs';
 import {sourceSchema} from './exam-extract.mjs';
 import {seatSchema,seatErrors,adaptRooms} from './exam-model.mjs';
 
@@ -41,8 +40,9 @@ export async function extractSeats(buffer,batch,config,progress=silent){
  let raw;
  try{raw=await streamJson(config,{model:'flash',messages:[{role:'system',content:instruction},{role:'user',content:workbook}]},SEAT_TIMEOUT,progress,SEAT_TIMEOUT);}
  catch(error){throw salvage(error instanceof SyntaxError?malformed():error,error.items?.seats);}
- const parsed=z.object({seats:z.array(seat).max(20000),warnings:z.array(z.string().max(1000)).max(100).default([])}).safeParse(raw);
- if(!parsed.success)throw salvage(malformed(),raw?.seats);
+ // Malformed seats are dropped with a warning; the rest are kept.
+ let result;
+ try{result=lenientList(raw,'seats',seat,20000);}catch{throw malformed();}
  progress.stage('validating');
- return finish(parsed.data.seats,parsed.data.warnings);
+ return finish(result.list,result.warnings);
 }

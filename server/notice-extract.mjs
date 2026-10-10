@@ -1,7 +1,7 @@
 import {z} from 'zod';
 import {divisionOf} from '../public/grades.mjs';
 import {randomUUID} from 'node:crypto';
-import {connection,requireFlash,respond,streamJson} from './llm-stream.mjs';
+import {connection,requireFlash,respond,streamJson,lenientList} from './llm-stream.mjs';
 import {sourceSchema} from './exam-extract.mjs';
 import {eventSchema,dayPlanSchema} from './validation.mjs';
 
@@ -18,7 +18,6 @@ const itemSchema=z.object({
  source:sourceSchema,
  note:z.string().max(1000).nullish()
 });
-const resultSchema=z.object({items:z.array(itemSchema).max(60),warnings:z.array(z.string().max(1000)).max(50).default([])});
 const partSchema=z.discriminatedUnion('kind',[
  z.object({kind:z.literal('text'),text:z.string().trim().min(1).max(20000)}),
  z.object({kind:z.literal('image'),image:z.string().max(8000000).regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/),text:z.string().max(20000).default('')})
@@ -108,9 +107,10 @@ export function installNoticeExtract(app,db,{requireAdmin,llm,timeZone,quota}){
     ?[{type:'text',text:`Material ${i+1} (pasted text):\n${part.text}`}]
     :[{type:'text',text:`Material ${i+1} (image${part.text?`; embedded PDF text: ${part.text}`:''}):`},{type:'image_url',image_url:{url:part.image}}]);
    progress.stage('reading',{pages:parts.length});
-   const result=resultSchema.parse(await streamJson(llm,{model:'flash',messages:[{role:'system',content:noticeInstruction({today,refs,plans,catalog:{exam:'考试',competition:'比赛',activity:'活动',deadline:'截止日'}})},{role:'user',content}]},120000,progress));
+   // Malformed items are dropped with a warning; the rest are kept.
+   const result=lenientList(await streamJson(llm,{model:'flash',messages:[{role:'system',content:noticeInstruction({today,refs,plans,catalog:{exam:'考试',competition:'比赛',activity:'活动',deadline:'截止日'}})},{role:'user',content}]},120000,progress),'items',itemSchema,60);
    progress.stage('validating');
-   const resolved=resolveNotice(result.items,refs);
+   const resolved=resolveNotice(result.list,refs);
    return {items:resolved.items,warnings:[...result.warnings,...resolved.warnings]};
   },error=>error.name==='TimeoutError'?'识别超时，请减少材料后重试。':error instanceof z.ZodError||error instanceof SyntaxError?'模型返回格式不正确，请重试。':/^(LLM Worker|请配置|模型)/.test(error.message||'')?error.message:'无法连接 LLM Worker，请检查环境配置或稍后重试。');
  });

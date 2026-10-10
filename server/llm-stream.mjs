@@ -161,7 +161,8 @@ export async function respond(req,res,task,failure,status=502){
 }
 
 /** Streams a JSON-returning completion, reporting each finished array item, and returns the parsed object. */
-// Malformed JSON (a truncated or chatty answer) is retried once; the client is told to drop what it has shown.
+// Malformed JSON (a truncated or chatty answer) keeps the array items that were complete before the fault and
+// notes the loss in `warnings`; only an answer with nothing usable is regenerated once (the client is told to reset).
 // A thrown error carries `items` ({key: [item…]}): the array items that were complete when it failed.
 export async function streamJson(config,body,timeout,progress,idle){
  for(let tries=0;;tries++){
@@ -172,6 +173,24 @@ export async function streamJson(config,body,timeout,progress,idle){
   try{raw=await streamChat(config,body,timeout,delta=>{if(first){first=false;progress.stage('generating');}feed(delta);},idle,retry);}
   catch(error){throw Object.assign(error,{items});}
   try{return JSON.parse(stripFence(raw));}
-  catch(error){if(tries)throw Object.assign(error,{items});progress.reset();progress.stage('retrying');}
+  catch(error){
+   if(Object.keys(items).length)return {...items,warnings:[MALFORMED_TAIL]};
+   if(tries)throw Object.assign(error,{items});
+   progress.reset();progress.stage('retrying');
+  }
  }
+}
+export const MALFORMED_TAIL='模型返回的内容有一部分格式不正确，已删除出错部分并保留其余结果，请核对是否有遗漏。';
+
+/**
+ * Validates the answer's `key` array item by item: a malformed item is dropped with a warning instead of
+ * failing the whole extraction. Returns {list, warnings}; an answer without the array throws a SyntaxError.
+ */
+export function lenientList(raw,key,schema,max){
+ if(!Array.isArray(raw?.[key]))throw new SyntaxError(`model answer has no ${key} array`);
+ const list=[];let dropped=0;
+ for(const value of raw[key].slice(0,max)){const r=schema.safeParse(value);if(r.success)list.push(r.data);else dropped++;}
+ const warnings=(Array.isArray(raw.warnings)?raw.warnings:[]).filter(w=>typeof w==='string'&&w).map(w=>w.slice(0,1000)).slice(0,100);
+ if(dropped)warnings.push(`模型返回的 ${dropped} 条结果格式不正确，已删除；其余结果已保留，请核对是否有遗漏。`);
+ return {list,warnings};
 }

@@ -80,8 +80,8 @@ test('exam extraction streams NDJSON stages and items, then the normalised resul
  }finally{await new Promise(r=>server.close(r));await new Promise(r=>llm.server.close(r));instance.close();await rm(directory,{recursive:true,force:true});}
 });
 
-test('a failing gateway is retried up to RETRY.times, and malformed output is regenerated once with a reset',async()=>{
- const {streamJson,RETRY}=await import('../../server/llm-stream.mjs');
+test('a failing gateway is retried up to RETRY.times, and a broken answer keeps its finished items or is regenerated once with a reset',async()=>{
+ const {streamJson,RETRY,MALFORMED_TAIL}=await import('../../server/llm-stream.mjs');
  const pause=RETRY.pause;RETRY.pause=()=>5;
  const replies=[];let calls=0;
  const server=http.createServer(async(req,res)=>{
@@ -100,9 +100,15 @@ test('a failing gateway is retried up to RETRY.times, and malformed output is re
   assert.equal(calls,4);assert.ok(!events.includes('reset'));
   assert.deepEqual(events.filter(e=>e==='stage:reconnecting').length,3);
   replies.length=0;calls=0;events.length=0;
+  // A broken tail is dropped; the finished items are kept without a retry.
   replies.push({content:'{"sessions":[{"title":"A"},{"tit'},{content:'{"sessions":[{"title":"B"}]}'});
+  assert.deepEqual(await streamJson(config,{model:'flash',messages:[]},5000,progress),{sessions:[{title:'A'}],warnings:[MALFORMED_TAIL]});
+  assert.equal(calls,1);assert.deepEqual(events,['stage:generating','item:0']);
+  // An answer with nothing usable is regenerated once, and the client is told to reset.
+  replies.length=0;calls=0;events.length=0;
+  replies.push({content:'{"sessions":[{"tit'},{content:'{"sessions":[{"title":"B"}]}'});
   assert.deepEqual(await streamJson(config,{model:'flash',messages:[]},5000,progress),{sessions:[{title:'B'}]});
-  assert.deepEqual(events,['stage:generating','item:0','reset','stage:retrying','stage:generating','item:0']);
+  assert.deepEqual(events,['stage:generating','reset','stage:retrying','stage:generating','item:0']);
   // A second failure is reported rather than retried forever.
   replies.length=0;calls=0;replies.push({content:'not json'});
   await assert.rejects(()=>streamJson(config,{model:'flash',messages:[]},5000,progress),SyntaxError);
@@ -110,8 +116,5 @@ test('a failing gateway is retried up to RETRY.times, and malformed output is re
   replies.length=0;calls=0;replies.push({status:502});
   await assert.rejects(()=>streamJson(config,{model:'flash',messages:[]},5000,progress),/502.*重试 10 次/);
   assert.equal(calls,RETRY.times+1);
-  // The items finished before a failure travel on the error, so callers can offer them.
-  replies.length=0;calls=0;replies.push({content:'{"sessions":[{"title":"A"},{"title":"B"},{"tit'});
-  await assert.rejects(()=>streamJson(config,{model:'flash',messages:[]},5000,progress),error=>{assert.deepEqual(error.items,{sessions:[{title:'A'},{title:'B'}]});return true;});
  }finally{RETRY.pause=pause;await new Promise(r=>server.close(r));}
 });
