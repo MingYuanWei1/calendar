@@ -114,7 +114,8 @@ body.detail-closed .workspace{grid-template-columns:180px minmax(0,1fr)}body.edi
 }
 
 /* School day overrides remain visible independently of event filters. */
-.airy .day.weekend:not(.outside):not(.day-school):not(.day-half){background:#e4eaf0}.airy .day.weekend:not(.outside):not(.day-school):not(.day-half) .day-number{color:#3f5361;font-weight:600}
+/* A holiday (放假) wins over the weekend shade, so a holiday weekend reads as part of the holiday. */
+.airy .day.weekend:not(.outside):not(.day-school):not(.day-half):not(.day-off){background:#e4eaf0}.airy .day.weekend:not(.outside):not(.day-school):not(.day-half):not(.day-off) .day-number{color:#3f5361;font-weight:600}
 .airy .day.outside{background:var(--subtle)}
 .airy .weekdays span:nth-last-child(-n+2){color:#3f5361;font-weight:600}
 /* Calendar grid lines, darker than the general --line so the cells read clearly. */
