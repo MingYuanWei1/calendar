@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {defaultExamSlots} from '../public/exam-times.mjs';
-import {DIVISION_GRADES,parseGrade} from '../public/grades.mjs';
+import {DIVISION_GRADES,normalizeGrades,parseGrade} from '../public/grades.mjs';
 const text=n=>z.string().trim().max(n);
 const required=n=>text(n).min(1);
 const id=z.string().regex(/^[A-Za-z0-9_-]{1,80}$/);
@@ -47,4 +47,16 @@ export function numberGrades(batch){
   return own.length===read.length&&own.length?{...s,grades:[...new Set(own)].sort((a,b)=>a-b)}:{...s,grades:DIVISION_GRADES[s.division]||[],gradesUnverified:true};
  });
  return changed?{...batch,sessions}:null;
+}
+
+/** 考试批次事件: a published batch as one exam event spanning its dates, for the school calendar. */
+export function batchEvent(b){
+ const order=Object.keys(DIVISION_GRADES),sessions=b.sessions||[];
+ const divisions=order.filter(d=>sessions.some(s=>s.division===d));
+ const scope=divisions.length?divisions:[b.division||'schoolwide'];
+ const grades=scope.includes('schoolwide')?[]:normalizeGrades(scope,sessions.flatMap(s=>s.grades));
+ const multi=b.end&&b.end!==b.start;
+ return {id:`exam-batch-${b.id}`,examBatch:b.id,type:'exam',timeMode:multi?'multi':'allDay',start:b.start,end:multi?b.end:undefined,
+  title:[b.title,b.titleEn||''],scope,grades:grades.length?grades:undefined,status:'published',location:['',''],host:['',''],description:['',''],
+  version:1,updatedAt:b.publishedAt||b.updatedAt};
 }

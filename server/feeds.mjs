@@ -84,7 +84,7 @@ function recurrenceLines(e,plans,timeZone){
  return [`RRULE:${parts.join(';')}`,...[...new Set([...excluded,...deleted])].sort().map(date=>'EXDATE'+value(date)),...added.sort().map(date=>'RDATE'+value(date))];
 }
 
-export function installFeeds(app,db,{user,account,origin,timeZone,matching}){
+export function installFeeds(app,db,{user,account,origin,timeZone,matching,examEvents=()=>[]}){
  db.exec('CREATE TABLE IF NOT EXISTS feed_tokens(token TEXT PRIMARY KEY,user_id TEXT NOT NULL UNIQUE,created TEXT NOT NULL)');
  const L=(req,zh,en)=>req.query.lang==='en'?en:zh;
  const pick=(req,pair)=>(req.query.lang==='en'?(pair?.[1]||pair?.[0]):(pair?.[0]||pair?.[1]))||'';
@@ -102,10 +102,11 @@ export function installFeeds(app,db,{user,account,origin,timeZone,matching}){
    const moved=e.previousSchedule?L(req,`已改期，原定 ${e.previousSchedule.start}${e.previousSchedule.time?' '+e.previousSchedule.time:''}`,`Rescheduled from ${e.previousSchedule.start}${e.previousSchedule.time?' '+e.previousSchedule.time:''}`):'';
    const notes=[cancelled?L(req,`${e.cancelledOnce?'本次取消':'已取消'}：${e.cancelReason||''}`,`${e.cancelledOnce?'Cancelled this time':'Cancelled'}: ${e.cancelReason||''}`):'',moved,pick(req,e.description),e.registrationUrl?L(req,`报名：${e.registrationUrl}`,`Registration: ${e.registrationUrl}`):''].filter(Boolean);
    const tag=e.cancelledOnce?L(req,'[本次取消] ','[Cancelled this time] '):cancelled?L(req,'[已取消] ','[Cancelled] '):'';
-   return {uid:`event-${e.seriesId||e.id}@calendar`,when,summary:`${tag}${e.type==='deadline'?L(req,'截止：','Due: '):''}${pick(req,e.title)}`,location:pick(req,e.location),description:notes.join('\n\n'),url:`${origin}/?event=${encodeURIComponent(e.seriesId||e.id)}${e.occurrence?'&date='+e.occurrence:''}`,sequence:e.version,cancelled,transparent:e.type==='deadline'};
+   const url=e.examBatch?`${origin}/exams.html?batch=${encodeURIComponent(e.examBatch)}`:`${origin}/?event=${encodeURIComponent(e.seriesId||e.id)}${e.occurrence?'&date='+e.occurrence:''}`;
+   return {uid:`event-${e.seriesId||e.id}@calendar`,when,summary:`${tag}${e.type==='deadline'?L(req,'截止：','Due: '):''}${pick(req,e.title)}`,location:pick(req,e.location),description:notes.join('\n\n'),url,sequence:e.version,cancelled,transparent:e.type==='deadline'};
   };
-  for(const row of db.prepare("SELECT body FROM events WHERE status IN ('published','cancelled')").all()){
-   const e=JSON.parse(row.body);
+  const school=db.prepare("SELECT body FROM events WHERE status IN ('published','cancelled')").all().map(row=>JSON.parse(row.body));
+  for(const e of [...school,...examEvents()]){
    if(!e.repeat){items.push(entry(e));continue;}
    // A repeating event wears wall-clock times so its dates follow the school's clock.
    const local=(date,time)=>`;TZID=${timeZone}:${compact(date)}T${time.replace(':','')}00`;

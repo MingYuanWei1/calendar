@@ -10,6 +10,7 @@ interface SchoolEvent {
   timeMode?: string;
   scope: string[];
   grades?: number[];
+  examBatch?: string;
   location?: string[];
   host?: string[];
   description?: string[];

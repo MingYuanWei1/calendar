@@ -65,6 +65,12 @@ addEventListener('resize',closeMenu);
 document.addEventListener('scroll',closeMenu,true);
 function rowHtml(e){
  const status=statusOf(e),moved=movedLine(e),open=view.menu===e.id;
+ // 考试批次事件 mirror a published exam batch and are changed only on the exams page.
+ if(e.examBatch)return `<div class="grid-row">
+ <div class="num"><div class="cell-main">${esc(dateLine(e))}</div><div class="cell-sub">${esc(timeLine(e))}</div></div>
+ <div class="clip"><div style="display:flex;align-items:center;gap:8px;min-width:0"><span class="cell-main clip">${esc(tx(e.title))}</span><span class="tag tag-outline small">${T('来自考试安排','From exams')}</span></div><div class="cell-sub clip">${T('随考试批次发布自动更新','Follows the published exam batch')}</div></div>
+ <span style="font-size:13px">${esc(tx(TYPES[e.type]))}</span><span style="font-size:13px">${esc(scopeLine(e))}</span><span class="${statusTag(status)}">${statusLabel(status)}</span>
+ <div class="row-actions"><a class="btn btn-ghost" href="#exams/${encodeURIComponent(e.examBatch)}">${T('在考试页管理','Manage in Exams')}</a></div></div>`;
  return `<div class="grid-row">
  <div class="num"><div class="cell-main">${esc(dateLine(e))}</div><div class="cell-sub">${esc(timeLine(e))}</div></div>
  <div class="clip"><div style="display:flex;align-items:center;gap:8px;min-width:0"><span class="cell-main clip${status==='cancelled'?' struck':''}">${esc(tx(e.title))}</span>${moved?`<span class="tag tag-outline small">${esc(moved)}</span>`:''}${repeatTag(e)}</div><div class="cell-sub clip">${esc([e.title[1-app.lang],tx(e.location)].filter(Boolean).join(' · '))}</div></div>
@@ -174,6 +180,7 @@ export async function showEditor(main,id,date){
  const original=id==='new'?null:app.data.events.find(e=>e.id===id);
  const missing=message=>{main.innerHTML=`<div class="page"><a class="btn btn-ghost back" href="#events">← ${T('事件','Events')}</a><p class="load-error" style="padding:0">${message}</p></div>`;};
  if(id!=='new'&&!original)return missing(T('事件不存在或已被删除。','This event no longer exists.'));
+ if(original?.examBatch)return missing(T(`这是考试安排自动生成的事件，请<a href="#exams/${encodeURIComponent(original.examBatch)}">在考试页管理</a>。`,`This event comes from the exam schedule. <a href="#exams/${encodeURIComponent(original.examBatch)}">Manage it under Exams</a>.`));
  // A single date edits its own copy of the series fields; type, time format and audience stay with the series.
  const single=date&&original?.repeat&&seriesDates(original,app.data.plans,date).at(-1)===date?occurrence(original,date):null;
  if(date&&!single)return missing(T('这一天不在该重复事件的日期中。','This date is not part of the repeating event.'));

@@ -78,8 +78,11 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   });
   app.post('/api/logout',(req,res)=>{db.prepare('DELETE FROM sessions WHERE token=?').run(digest(tokenFrom(req)));clearCookie(res);schoolAuth.logout(req,res);});
   const rowsToEvents=rows=>rows.map(row=>JSON.parse(row.body));
-  app.get('/api/events',(req,res)=>res.json(rowsToEvents(db.prepare("SELECT body FROM events WHERE status IN ('published','cancelled') ORDER BY json_extract(body,'$.start'),id").all())));
-  app.get('/api/admin/events',requireAdmin,(req,res)=>res.json(rowsToEvents(db.prepare('SELECT body FROM events ORDER BY json_extract(body,\'$.start\'),id').all())));
+  // 考试批次事件 come from the exam batches, installed below; they are read-only here.
+  let examEvents=()=>[];
+  const byStart=(a,b)=>a.start.localeCompare(b.start)||a.id.localeCompare(b.id);
+  app.get('/api/events',(req,res)=>res.json([...rowsToEvents(db.prepare("SELECT body FROM events WHERE status IN ('published','cancelled')").all()),...examEvents()].sort(byStart)));
+  app.get('/api/admin/events',requireAdmin,(req,res)=>res.json([...rowsToEvents(db.prepare('SELECT body FROM events').all()),...examEvents()].sort(byStart)));
   app.get('/api/day-plans',(req,res)=>res.json(db.prepare('SELECT date,kind,title,follows FROM day_plans ORDER BY date').all().map(({follows,...row})=>({...row,title:JSON.parse(row.title),...(follows?{follows}:{})}))));
   app.put('/api/admin/day-plans',requireAdmin,(req,res)=>{
     const parsed=dayPlanSchema.safeParse(req.body);
@@ -223,7 +226,8 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   });
   installAccounts(app,db,{requireRole,currentUser:session});
   const exams=installExams(app,db,{requireAdmin,isAdmin:req=>session(req)?.role>=2,user:session,origin,timeZone,llm,quota});
-  installFeeds(app,db,{user:session,account:schoolAuth.account,origin,timeZone,matching:exams.matching});
+  examEvents=exams.events;
+  installFeeds(app,db,{user:session,account:schoolAuth.account,origin,timeZone,matching:exams.matching,examEvents});
   installNoticeExtract(app,db,{requireAdmin,llm,timeZone,quota});
   installAssistant(app,db,{session,llm,matching:exams.matching,timeZone,quota});
   app.use('/api',(req,res)=>res.status(404).json({error:'接口不存在。'}));

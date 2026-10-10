@@ -7,7 +7,7 @@ import {installSubjects} from './exam-subjects.mjs';
 import {installSchoolRules} from './school-rules.mjs';
 import express from 'express';
 import {randomUUID} from 'node:crypto';
-import {batchSchema,numberGrades,seatErrors,schedule,scheduleKey} from './exam-model.mjs';
+import {batchEvent,batchSchema,numberGrades,seatErrors,schedule,scheduleKey} from './exam-model.mjs';
 import {seatTemplate,parseSeats,makeSchedulePdf} from './exam-files.mjs';
 export function installExams(app,db,{requireAdmin,isAdmin,user,origin,timeZone,quota,sso={},llm={}}){
  db.exec(`CREATE TABLE IF NOT EXISTS exam_batches(id TEXT PRIMARY KEY,version INTEGER NOT NULL,draft TEXT NOT NULL,published TEXT,seating TEXT);
@@ -114,5 +114,7 @@ export function installExams(app,db,{requireAdmin,isAdmin,user,origin,timeZone,q
   const r=row(req.params.id);if(!r)return res.sendStatus(404);if(!Buffer.isBuffer(req.body))return fail(res,'请上传 Excel 文件。');
   try{const result=await parseSeats(req.body,JSON.parse(r.draft));res.json({...result,seats:students.organize({...JSON.parse(r.draft),seats:result.seats},false).seats});}catch(error){return fail(res,error.message||'无法读取 Excel 文件。');}
  });
- return {matching};
+ // 考试批次事件: every published batch also appears on the school calendar as one exam event.
+ const events=()=>db.prepare('SELECT published FROM exam_batches WHERE published IS NOT NULL').all().map(r=>batchEvent(JSON.parse(r.published)));
+ return {matching,events};
 }
