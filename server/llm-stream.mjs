@@ -30,7 +30,7 @@ export async function worker(config,path,body,timeout){
 // `timeout` bounds the wait for the first token; once the model is writing, only a silence longer than
 // `idle` (IDLE_TIMEOUT by default) aborts, so long but steady outputs are never cut off midway.
 // `onRetry(attempt, status)` reports each retry of a failing gateway; status is null for a network error.
-const IDLE_TIMEOUT=45000;
+const IDLE_TIMEOUT=45000,MAX_TEXT=2*1024*1024;
 export async function streamChat(config,body,timeout,onText,idle=IDLE_TIMEOUT,onRetry=()=>{}){
  const url=connection(config)+'/chat/completions',controller=new AbortController();
  let timer;
@@ -66,7 +66,9 @@ export async function streamChat(config,body,timeout,onText,idle=IDLE_TIMEOUT,on
  while(true){
   const {done,value}=await reader.read();if(done)break;
   alive();
-  bytes+=value.length;if(bytes>4*1024*1024){await reader.cancel();throw new Error('模型返回内容过大，请缩小提取范围。');}
+  // Each SSE token carries a few hundred bytes of envelope (and reasoning deltas), so the wire cap is loose;
+  // the real limit is on the answer text itself.
+  bytes+=value.length;if(bytes>64*1024*1024||full.length>MAX_TEXT){await reader.cancel();throw new Error('模型返回内容过大，请缩小提取范围。');}
   buffer+=decoder.decode(value,{stream:true});
   if(plain)continue;
   let index;

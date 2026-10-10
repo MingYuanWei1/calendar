@@ -6,7 +6,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createApplication} from '../../server/app.mjs';
 import {setAdminPassword} from '../../server/store.mjs';
-import {jsonItems} from '../../server/llm-stream.mjs';
+import {jsonItems,streamChat} from '../../server/llm-stream.mjs';
 
 test('jsonItems reports each finished array item, whatever the chunking',()=>{
  const text='```json\n{"sessions":[{"title":"A } { \\" ","rooms":["1",{"x":[2]}]},{"title":"B"}],"warnings":["w"]}\n```';
@@ -15,6 +15,18 @@ test('jsonItems reports each finished array item, whatever the chunking',()=>{
   for(let i=0;i<text.length;i+=size)feed(text.slice(i,i+size));
   assert.deepEqual(seen,[['sessions','A } { " '],['sessions','B']]);
  }
+});
+
+// Real gateways send one token per SSE event with a large envelope, so the wire size far exceeds the text.
+test('streamChat limits the answer text, not the SSE envelope around it',async()=>{
+ const pad='x'.repeat(400),server=http.createServer((req,res)=>{
+  res.setHeader('Content-Type','text/event-stream');
+  for(let i=0;i<12000;i++)res.write(`data: ${JSON.stringify({id:pad,choices:[{delta:{content:'ab'}}]})}\n\n`);
+  res.end('data: [DONE]\n\n');
+ });
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ try{assert.equal((await streamChat({url:`http://127.0.0.1:${server.address().port}`,token:'t'},{model:'flash',messages:[]},5000,()=>{})).length,24000);}
+ finally{server.close();}
 });
 
 // A gateway that streams SSE chunks, rejects reasoning_effort when asked to, and can fail mid-request.
