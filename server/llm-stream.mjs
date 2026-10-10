@@ -90,11 +90,14 @@ export async function requireFlash(config){
  if(!capabilities.purposes?.flash?.enabled)throw new Error('LLM Worker 尚未启用 flash 能力。');
 }
 
-/** Emits each complete object inside top-level JSON arrays (e.g. {"sessions":[{…},{…}]}) as the text streams in. */
+/**
+ * Emits each complete object inside top-level JSON arrays (e.g. {"sessions":[{…},{…}]}) as the text streams in.
+ * The returned feed's `closed` set names the arrays whose closing "]" has arrived, i.e. that are complete.
+ */
 export function jsonItems(onItem){
  let inString=false,escaped=false,key='',lastString='',arrayKey='',start=-1,text='',position=0,capturing=false;
- const stack=[];
- return chunk=>{
+ const stack=[],closed=new Set();
+ return Object.assign(chunk=>{
   text+=chunk;
   for(;position<text.length;position++){
    const c=text[position];
@@ -118,9 +121,10 @@ export function jsonItems(onItem){
      capturing=false;
      try{onItem(arrayKey,JSON.parse(text.slice(start,position+1)));}catch{}
     }
+    if(c===']'&&stack.length===1)closed.add(arrayKey);
    }
   }
- };
+ },{closed});
 }
 export const stripFence=raw=>raw.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');
 /** Parses the model's JSON object, ignoring any prose or code fence the model wrote before or after it. */
@@ -178,8 +182,8 @@ export async function respond(req,res,task,failure,status=502){
 }
 
 /** Streams a JSON-returning completion, reporting each finished array item, and returns the parsed object. */
-// Malformed JSON (a truncated or chatty answer) keeps the array items that were complete before the fault and
-// notes the loss in `warnings`; only an answer with nothing usable is regenerated once (the client is told to reset).
+// Malformed JSON (a truncated or chatty answer) keeps the array items that were complete before the fault and,
+// when an array was cut off, notes the possible loss in `warnings`; only an answer with nothing usable is regenerated once (the client is told to reset).
 // A thrown error carries `items` ({key: [item…]}): the array items that were complete when it failed.
 export async function streamJson(config,body,timeout,progress,idle){
  for(let tries=0;;tries++){
@@ -193,7 +197,8 @@ export async function streamJson(config,body,timeout,progress,idle){
   catch(error){
    // Log the end of the answer so the cause (cut off, or stray text) can be told apart in the server log.
    console.error('LLM answer is not valid JSON:',raw.length,'chars, ends with',JSON.stringify(raw.slice(-200)));
-   if(Object.keys(items).length)return {...items,warnings:[MALFORMED_TAIL]};
+   // Arrays that closed lost nothing (the fault lies after them, e.g. in warnings); only a cut-off array is flagged.
+   if(Object.keys(items).length)return {...items,warnings:Object.keys(items).every(key=>feed.closed.has(key))?[]:[MALFORMED_TAIL]};
    if(tries)throw Object.assign(error,{items});
    progress.reset();progress.stage('retrying');
   }

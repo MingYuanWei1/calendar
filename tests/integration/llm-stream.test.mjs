@@ -106,6 +106,10 @@ test('a failing gateway is retried up to RETRY.times, and a broken answer keeps 
   assert.deepEqual(await streamJson(config,{model:'flash',messages:[]},5000,progress),{sessions:[{title:'A }'}]});
   assert.equal(calls,1);
   replies.length=0;calls=0;events.length=0;
+  // A fault after a complete array (here in warnings) loses no items, so no warning is added.
+  replies.push({content:'{"sessions":[{"title":"A"},{"title":"B"}],"warnings":["unclosed]}'});
+  assert.deepEqual(await streamJson(config,{model:'flash',messages:[]},5000,progress),{sessions:[{title:'A'},{title:'B'}],warnings:[]});
+  replies.length=0;calls=0;events.length=0;
   // A broken tail is dropped; the finished items are kept without a retry.
   replies.push({content:'{"sessions":[{"title":"A"},{"tit'},{content:'{"sessions":[{"title":"B"}]}'});
   assert.deepEqual(await streamJson(config,{model:'flash',messages:[]},5000,progress),{sessions:[{title:'A'}],warnings:[MALFORMED_TAIL]});
