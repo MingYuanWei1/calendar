@@ -37,3 +37,23 @@ export function adaptRooms(batch,seats=batch.seats){
  });
  return {rooms,changes};
 }
+/**
+ * Merges imported seats into the draft instead of replacing it. Within one exam, an imported seat takes over the draft
+ * seats of the same student and any draft seat at the same position; seats the import does not mention are kept.
+ * Returns the merged list plus which imported seats were added, unchanged, or corrected (with the seats they replaced).
+ */
+export function mergeSeats(existing,incoming){
+ const who=s=>JSON.stringify([s.name||'',s.englishName||'',s.className||'']);
+ const sameStudent=(a,b)=>a.studentId&&b.studentId?a.studentId===b.studentId:who(a)===who(b);
+ const fields=['room','row','column','className','name','englishName'];
+ const same=(a,b)=>fields.every(f=>(a[f]??'')===(b[f]??''))&&(a.grade==null||b.grade==null||a.grade===b.grade);
+ const replaced=new Set(),added=[],changed=[];let unchanged=0;
+ for(const seat of incoming){
+  const before=existing.filter((s,i)=>!replaced.has(i)&&s.examId===seat.examId&&(sameStudent(s,seat)||(s.room===seat.room&&s.row===seat.row&&s.column===seat.column)));
+  before.forEach(s=>replaced.add(existing.indexOf(s)));
+  if(!before.length)added.push(seat);
+  else if(before.length===1&&same(before[0],seat))unchanged++;
+  else changed.push({before,after:seat});
+ }
+ return {seats:[...existing.filter((_,i)=>!replaced.has(i)),...incoming],added,changed,unchanged};
+}

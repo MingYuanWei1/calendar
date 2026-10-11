@@ -1,5 +1,5 @@
 import {$,$$,esc,corners,icon,app,T,tx,SCOPES,api,toast,modal,closeModal,busy,errorLine,fail,go,refreshNav,md,mdw,stamp,loadBatches,loadSubjects} from './console-core.js';
-import {adaptRooms,moveSeat,roomExamsAt,seatViewTimes} from './exam-seats.mjs';
+import {adaptRooms,mergeSeats,moveSeat,roomExamsAt,seatViewTimes} from './exam-seats.mjs';
 import {subjectName} from './exam-subjects.mjs';
 import {defaultExamSlots,slotOf} from './exam-times.mjs';
 import {importPreview} from './exam-import-preview.js';
@@ -481,7 +481,25 @@ function seatPreview(b,result,title){
  $('#close-preview').setAttribute('aria-label',T('关闭','Close'));
  importPreview(result,{title,batch:b,roomNotes:roomChangeNotes,accept:seats=>{
   if(batch().version!==b.version)throw new Error(T('草稿已修改，请重新导入。','The draft changed; import again.'));
-  $('#preview-dialog').close();
-  update(next=>{next.seats=seats;next.rooms=adaptRooms(next,seats).rooms;},T(`已导入 ${seats.length} 个座位到草稿。`,`Imported ${seats.length} seats into the draft.`)).catch(error=>toast(error.message,{bad:true}));
+  if(!b.seats.length){
+   $('#preview-dialog').close();
+   update(next=>{next.seats=seats;next.rooms=adaptRooms(next,seats).rooms;},T(`已导入 ${seats.length} 个座位到草稿。`,`Imported ${seats.length} seats into the draft.`)).catch(error=>toast(error.message,{bad:true}));
+  }else mergeDialog(b,seats);
  }});
+}
+const seatText=s=>`${s.room} · ${T(`第 ${s.row} 排 ${s.column} 列`,`Row ${s.row} · Col ${s.column}`)} · ${[s.className,s.name,s.englishName].filter(Boolean).join(' ')}`;
+/** The draft already has seats: show what the import adds and corrects, then merge it in or replace the draft. */
+function mergeDialog(b,seats){
+ const merge=mergeSeats(b.seats,seats);
+ const corrections=merge.changed.map(({before,after})=>`<div class="merge-change"><span class="muted">${esc(examName(b,after.examId))}</span>${before.map(s=>`<del>${esc(seatText(s))}</del>`).join('')}<ins>→ ${esc(seatText(after))}</ins></div>`).join('');
+ const body=modal(T('合并到草稿座位？','Merge into draft seats?'),`<p class="dialog-text">${T(`草稿已有 ${b.seats.length} 个座位。本次导入：新增 ${merge.added.length} 个，修正 ${merge.changed.length} 个，与草稿相同 ${merge.unchanged} 个。合并后未在本次导入中出现的草稿座位保持不变。`,`The draft already has ${b.seats.length} seats. This import adds ${merge.added.length}, corrects ${merge.changed.length} and repeats ${merge.unchanged} unchanged. Merging keeps draft seats this import does not mention.`)}</p>
+ ${corrections?`<h4 style="margin:12px 0 4px">${T('修正（修正前 → 修正后）','Corrections (before → after)')}</h4><div class="merge-changes">${corrections}</div>`:''}
+ ${actions({left:`<button type="button" class="btn btn-ghost btn-danger left" data-replace>${T('替换全部草稿座位','Replace all draft seats')}</button>`,saveLabel:T('合并到草稿','Merge into draft')})}`,{size:'wide'});
+ const save=async(list,message)=>{
+  if(batch().version!==b.version)fail(T('草稿已修改，请重新导入。','The draft changed; import again.'));
+  await update(next=>{next.seats=list;next.rooms=adaptRooms(next,list).rooms;},message);
+  closeModal();$('#preview-dialog').close();
+ };
+ body.querySelector('[data-save]').onclick=()=>busy(body,()=>save(merge.seats,T(`已合并：新增 ${merge.added.length} 个，修正 ${merge.changed.length} 个座位。`,`Merged: ${merge.added.length} seats added, ${merge.changed.length} corrected.`)));
+ confirmButton(body,'[data-replace]',T('替换全部草稿座位','Replace all draft seats'),()=>save(seats,T(`已用 ${seats.length} 个座位替换草稿座位。`,`Replaced the draft with ${seats.length} seats.`)));
 }

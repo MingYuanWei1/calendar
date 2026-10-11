@@ -449,3 +449,7 @@ mark.src-hit{background:color-mix(in srgb,#f2c94c 55%,transparent);outline:1px s
 .audience-pick{display:flex;flex-direction:column;gap:8px}
 .grade-chips{align-items:center}
 .grade-chips-label{font-size:12px;min-width:56px}
+.merge-changes{display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow:auto}
+.merge-change{display:flex;flex-direction:column;gap:2px;padding:6px 10px;border:1px solid var(--color-faint);background:var(--color-surface);font-size:13px}
+.merge-change del{color:var(--color-neutral-700)}
+.merge-change ins{text-decoration:none;font-weight:600}

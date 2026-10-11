@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {moveSeat,roomExamsAt,seatViewTimes} from '../../public/exam-seats.mjs';
+import {mergeSeats,moveSeat,roomExamsAt,seatViewTimes} from '../../public/exam-seats.mjs';
 import {seatingMarkup} from '../../public/exam-common.js';
 test('seat moves and swaps preserve identities and reject concurrent occupancy',()=>{
  const batch={rooms:[{name:'A',rows:3,columns:3}],sessions:[{id:'a',date:'2026-09-21',start:'08:10',end:'09:40'},{id:'b',date:'2026-09-21',start:'09:00',end:'10:00'}],seats:[{examId:'a',room:'A',row:1,column:1,name:'A'},{examId:'a',room:'A',row:1,column:2,name:'B'},{examId:'b',room:'A',row:3,column:3,name:'C'}]};
@@ -38,4 +38,22 @@ test('seat maps show the occupants at the selected time when a seat is reused',(
  const nextMap=seatingMarkup(batch,batch,long,'101','09:00');
  assert.match(nextMap,/Next student/);assert.match(nextMap,/Long student/);
  assert.doesNotMatch(nextMap,/Early student|Late student/);
+});
+
+test('imported seats merge into the draft: new seats append, moved or reassigned seats are corrections',()=>{
+ const draft=[
+  {examId:'a',room:'A',row:1,column:1,className:'10-1',name:'甲',studentId:'s1'},
+  {examId:'a',room:'A',row:1,column:2,className:'10-1',name:'乙',studentId:'s2'},
+  {examId:'a',room:'A',row:2,column:1,className:'10-1',name:'丙',studentId:'s3'},
+  {examId:'b',room:'A',row:1,column:1,className:'10-1',name:'甲',studentId:'s1'}];
+ const imported=[
+  {examId:'a',room:'A',row:1,column:1,className:'10-1',name:'甲',studentId:'s1'},
+  {examId:'a',room:'A',row:3,column:3,className:'10-1',name:'乙',studentId:'s2'},
+  {examId:'a',room:'A',row:2,column:1,className:'10-2',name:'丁',studentId:'s4'},
+  {examId:'a',room:'A',row:4,column:4,className:'10-2',name:'戊',studentId:'s5'}];
+ const result=mergeSeats(draft,imported);
+ assert.equal(result.unchanged,1);
+ assert.deepEqual(result.added.map(s=>s.name),['戊']);
+ assert.deepEqual(result.changed.map(c=>[c.before.map(s=>s.name),c.after.name]),[[['乙'],'乙'],[['丙'],'丁']]);
+ assert.deepEqual(result.seats.map(s=>s.examId+s.name+s.row+s.column),['b甲11','a甲11','a乙33','a丁21','a戊44']);
 });
