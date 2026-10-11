@@ -1,11 +1,11 @@
-import {$,$$,esc,corners,icon,app,T,tx,SCOPES,api,toast,modal,closeModal,busy,errorLine,fail,go,refreshNav,md,mdw,stamp,loadBatches,loadSubjects} from './console-core.js';
+import {$,$$,esc,corners,icon,app,T,tx,SCOPES,api,toast,modal,closeModal,busy,errorLine,fail,go,refreshNav,md,mdw,stamp,loadBatches,loadSubjects,loadJobs} from './console-core.js';
 import {adaptRooms,mergeSeats,moveSeat,roomExamsAt,seatViewTimes} from './exam-seats.mjs';
 import {subjectName} from './exam-subjects.mjs';
 import {defaultExamSlots,slotOf} from './exam-times.mjs';
 import {importPreview} from './exam-import-preview.js';
 import {readExamPdf} from './exam-pdf-input.js';
 import {DIVISION_GRADES,gradeLabel,parseGrade} from './grades.mjs';
-import {streamApi,reviewView,pagePane,sheetPane} from './ai-review.js';
+import {followJob,reviewView,pagePane,sheetPane} from './ai-review.js';
 
 const view={id:'',tab:'sessions',room:0,exam:'',time:''};
 const divisions=['primary','middle','high'];
@@ -23,7 +23,7 @@ let rerender=()=>{};
 async function ensureData(main){
  if(app.data.batches&&app.data.subjects)return;
  main.innerHTML=`<p class="loading">${T('正在加载考试…','Loading exams…')}</p>`;
- await Promise.all([app.data.batches||loadBatches(),app.data.subjects||loadSubjects()]);
+ await Promise.all([app.data.batches||loadBatches(),app.data.subjects||loadSubjects(),app.data.jobs||loadJobs()]);
 }
 
 /* — batch list — */
@@ -35,7 +35,7 @@ export async function showExams(main){
  <header class="page-head"><div><div class="kicker">${T('管理后台','Admin console')}</div><h1>${T('考试','Exams')}</h1><p class="sub">${T('按批次管理场次、教室与座位；考试安排与座位表分别发布。','Manage sessions, rooms and seats by batch; schedule and seating publish separately.')}</p></div>
  <div class="page-actions">${app.user.role===3?`<a class="btn btn-secondary" href="#students">${T('学生管理','Students')}</a>`:''}<button type="button" class="btn btn-secondary" data-act="subjects">${T('管理学科','Subjects')}</button><button type="button" class="btn btn-primary blueprint" data-act="new">${corners}${icon.plus}${T('新建考试批次','New batch')}</button></div></header>
  <div class="grid-scroll"><div class="batches-grid"><div class="grid-head"><span>${T('批次','Batch')}</span><span>${T('日期','Date')}</span><span>${T('场次','Sessions')}</span><span>${T('考试安排','Schedule')}</span><span>${T('座位表','Seating')}</span></div>
- ${batches.map(b=>`<button type="button" class="grid-row" data-open="${esc(b.id)}"><div class="clip"><div class="cell-main clip">${esc(bTitle(b))}</div><div class="cell-sub">${esc(bDivision(b))}</div></div><span class="num" style="font-size:13px">${b.start.slice(0,4)} · ${esc(md(b.start))} – ${esc(md(b.end))}</span><span class="num" style="font-size:13px">${b.sessions.length}</span>
+ ${batches.map(b=>`<button type="button" class="grid-row" data-open="${esc(b.id)}"><div class="clip"><div class="cell-main clip">${esc(bTitle(b))}</div><div class="cell-sub">${esc(bDivision(b))}${jobTag(jobOf(b))}</div></div><span class="num" style="font-size:13px">${b.start.slice(0,4)} · ${esc(md(b.start))} – ${esc(md(b.end))}</span><span class="num" style="font-size:13px">${b.sessions.length}</span>
  <span><span class="${pubTag(b.publishedAt)}">${b.publishedAt?T('已发布','Published')+(b.scheduleChanged?T(' · 有修改',' · edited'):''):T('草稿','Draft')}</span></span><span><span class="${pubTag(b.seatingPublishedAt)}">${b.seatingPublishedAt?T('已发布','Published'):T('未发布','Not published')}</span></span></button>`).join('')
  ||`<div class="empty"><strong>${T('暂无考试批次','No exam batches yet')}</strong><p>${T('新建批次后添加场次、教室与座位。','Create a batch, then add sessions, rooms and seats.')}</p></div>`}</div></div></div>`;
  main.querySelector('.page').onclick=e=>{
@@ -79,12 +79,14 @@ function renderBatch(main){
   <div class="status-card blueprint">${corners}<div><div class="title">${T('考试安排','Schedule')}<span class="${pubTag(b.publishedAt)}">${b.publishedAt?T('已发布','Published'):T('草稿','Draft')}</span></div><div class="note">${b.publishedAt?T(`上次发布 ${stamp(b.publishedAt)}`,`Last published ${stamp(b.publishedAt)}`)+(b.scheduleChanged?T(' · 有未发布修改',' · unpublished changes'):''):T('尚未发布','Not yet published')}</div></div><button type="button" class="btn btn-primary" data-act="pub-schedule">${T('预览并发布','Preview & publish')}</button></div>
   <div class="status-card blueprint">${corners}<div><div class="title">${T('座位表','Seating')}<span class="${pubTag(b.seatingPublishedAt)}">${b.seatingPublishedAt?T('已发布','Published'):T('未发布','Not published')}</span></div><div class="note">${b.seatingPublishedAt?T(`上次发布 ${stamp(b.seatingPublishedAt)}`,`Last published ${stamp(b.seatingPublishedAt)}`):T('学生暂不可见座位','Students cannot see seats yet')}</div></div><button type="button" class="btn btn-secondary" data-act="pub-seating">${T('预览并发布','Preview & publish')}</button></div>
  </div>
+${jobStrip(jobOf(b))}
  <div class="tabs" role="tablist">${tabs.map(([k,label,n])=>`<button type="button" role="tab" data-tab="${k}" aria-selected="${view.tab===k}">${label}<span class="count">${n}</span></button>`).join('')}</div>
  <div id="batch-tab">${view.tab==='sessions'?sessionsTab(b):view.tab==='rooms'?roomsTab(b):slotsTab(b)}</div></div>`;
  const page=main.querySelector('.page');
  page.onclick=e=>onBatchClick(e,b);
  if(view.tab==='rooms')bindSeats(b);
  $$('[data-import]').forEach(input=>input.onchange=()=>{importSeats(input.files[0],input.dataset.import==='llm');input.value='';});
+ watchJob(b);
 }
 
 function sessionsTab(b){
@@ -138,7 +140,8 @@ function slotsTab(b){
 function onBatchClick(e,b){
  const t=e.target.closest('button');if(!t)return;
  const d=t.dataset;
- if(d.tab){view.tab=d.tab;rerender();$(`[data-tab=${d.tab}]`)?.focus();}
+ if(d.jobAct)jobAction(jobOf(b),d.jobAct);
+ else if(d.tab){view.tab=d.tab;rerender();$(`[data-tab=${d.tab}]`)?.focus();}
  else if(d.exam)examDialog(b.sessions.find(s=>s.id===d.exam));
  else if(d.room){view.room=Number(d.room);view.exam='';view.time='';rerender();}
  else if(d.roomExam){view.exam=d.roomExam;view.time='';rerender();}
@@ -375,44 +378,24 @@ function extractDialog(b){
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
   if(!file)fail(T('请选择 PDF 文件。','Choose a PDF file.'));
   const pages=await readExamPdf(file,progress).finally(()=>progress(''));
+  const job=await startJob(b,'sessions',JSON.stringify({images:pages.images,text:pages.text,start:b.start,end:b.end,fileName:file.name,items:pages.pages.map(page=>page.items||[])}));
   closeModal();
-  await extractSessions(b,pages,file.name);
+  openJob(job,{pages:pages.pages});
  });
 }
 
 const sessionCard=(s,i)=>`<div class="ai-card" data-pick="${i}" tabindex="0"><span class="ai-card-title">${esc(s.title||s.subject||'—')}${s.level&&!String(s.title||'').includes(s.level)?' · '+esc(s.level):''}</span><span class="muted num">${esc(s.date||'?')} · ${esc(s.start||'?')}–${esc(s.end||'?')} · ${esc((s.grades||[]).join(' / '))} · ${esc((s.rooms||[]).join(' / '))}</span></div>`;
-const closeOnly=review=>{review.actions(`<button type="button" class="btn btn-secondary" data-dismiss>${T('关闭','Close')}</button>`).querySelector('[data-dismiss]').onclick=review.close;};
-/** Streams the PDF to the LLM, showing each session as soon as the model finishes it. */
-async function extractSessions(b,pages,name){
- const streamed=[];let final=null;
- const review=reviewView({title:T(`从 PDF 提取考试场次 · ${name}`,`Extract sessions from PDF · ${name}`),sourceOf:i=>(final||{sessions:streamed}).sessions[i]?.source});
- review.source(pagePane(pages.pages));
- closeOnly(review);
- try{
-  const done=await streamApi('/admin/exam-extract',{body:JSON.stringify({images:pages.images,text:pages.text,start:b.start,end:b.end}),signal:review.signal},message=>{
-   review.message(message);
-   if(message.type==='reset')streamed.length=0;
-   if(message.type==='item'&&message.key==='sessions'){streamed.push(message.item);review.append(sessionCard(message.item,streamed.length-1));}
-  });
-  final=done.result;
-  reviewExtracted(b,final,review,{elapsed:done.elapsed});
- }catch(error){
-  if(error.name==='AbortError')return;
-  // Retrying reuses the open dialog; the sessions finished before the failure can be added first.
-  const partial=error.partial;
-  review.error(error.message,{retry:()=>extractSessions(batch(),pages,name),partial:partial&&{count:partial.sessions.length,use:()=>{final=partial;reviewExtracted(batch(),{...partial,warnings:[interrupted(partial.sessions.length),...partial.warnings]},review);}}});
- }
-}
 const interrupted=n=>T(`提取中断：以下仅为中断前识别的 ${n} 条，其余内容请稍后重试提取或手动补充。`,`Extraction was interrupted: only the ${n} results found before then are shown. Retry later or add the rest by hand.`);
-function reviewExtracted(b,result,review,{preset=false,elapsed=null}={}){
+function reviewExtracted(b,result,review,{preset=false,elapsed=null,job=null}={}){
  const rows=result.sessions;
  const cell=(i,name,value,attrs='')=>`<input class="input" name="${name}" data-i="${i}" value="${esc(value??'')}" aria-label="${name} ${i+1}" ${attrs}>`;
  review.results(`<p style="font-size:14px">${T(`提取到 ${rows.length} 场考试。请核对日期、时间、学部、年级及教室；取消勾选可跳过某行。`,`Found ${rows.length} sessions. Check dates, times, divisions, grades and rooms; untick a row to skip it.`)}</p>
  <div style="overflow:auto"><table class="review-table"><thead><tr><th>${T('加入','Add')}</th><th>${T('考试名称','Exam')}</th><th>${T('学科 / Level','Subject / Level')}</th><th>${T('学部 / 年级','Division / grades')}</th><th>${T('日期','Date')}</th><th>${T('开始 / 结束','Start / end')}</th><th>${T('教室（逗号分隔）','Rooms (comma-separated)')}</th></tr></thead><tbody>
  ${rows.map((s,i)=>`<tr data-row="${i}" data-pick="${i}"><td><input type="checkbox" name="include" checked aria-label="${T(`加入第 ${i+1} 场`,`Add row ${i+1}`)}"></td><td>${cell(i,'title',s.title)}</td><td>${cell(i,'subject',s.subject)}${cell(i,'level',s.level)}</td><td><select class="input" name="division" aria-label="division ${i+1}"><option value="">${T('请选择','Choose')}</option>${divisions.map(k=>`<option value="${k}"${s.division===k?' selected':''}>${tx(SCOPES[k])}</option>`).join('')}</select>${cell(i,'grades',s.grades.join(', '))}</td><td>${cell(i,'date',s.date,'type="date"')}</td><td>${cell(i,'start',s.start,'type="time"')}${cell(i,'end',s.end,'type="time"')}</td><td>${cell(i,'rooms',s.rooms.join(','))}</td></tr>`).join('')}</tbody></table></div>
  <p class="muted" style="font-size:12px">${T('仅追加选中场次。新教室会以 5 排 × 5 列加入草稿，导入座位表时若座位超出会自动扩大（需人工确认），也可在教室设置中调整；不会生成学生座位数据。','Only ticked rows are added. New rooms are added as 5 × 5; importing seating grows a room that is too small (to be confirmed by hand), and sizes can be adjusted later. No seats are created.')}</p>`,{notes:result.warnings||[],elapsed,preset,total:rows.length,invalid:result.invalid||[]});
- const bar=review.actions(`<button type="button" class="btn btn-secondary" data-dismiss>${T('返回','Go back')}</button><button type="button" class="btn btn-primary" data-save${rows.length?'':' disabled'}>${T('确认加入草稿','Add to draft')}</button>`);
+ const bar=review.actions(`${discardButton(job)}<button type="button" class="btn btn-secondary" data-dismiss>${T('返回','Go back')}</button><button type="button" class="btn btn-primary" data-save${rows.length?'':' disabled'}>${T('确认加入草稿','Add to draft')}</button>`);
  bar.querySelector('[data-dismiss]').onclick=review.close;
+ bindDiscard(bar,job,review);
  const save=bar.querySelector('[data-save]');
  save.onclick=async()=>{
   save.disabled=true;review.alert('');
@@ -431,6 +414,7 @@ function reviewExtracted(b,result,review,{preset=false,elapsed=null}={}){
    const next={...structuredClone(current),rooms,sessions:[...current.sessions,...picked]};
    await api('/admin/exam-extract/validate',{method:'POST',body:JSON.stringify(payload(next))});
    await commit(next,T(`已加入 ${picked.length} 场考试。`,`Added ${picked.length} sessions.`));review.close();
+   if(job)discardJob(job).catch(()=>{});
   }catch(error){review.alert(error.message);save.disabled=false;}
  };
 }
@@ -438,8 +422,12 @@ function reviewExtracted(b,result,review,{preset=false,elapsed=null}={}){
 async function importSeats(file,llm){
  const b=batch();if(!file)return;
  if(!/\.xlsx$/i.test(file.name))return toast(T('仅支持 .xlsx 文件。','Only .xlsx files are supported.'),{bad:true});
- if(file.size>2*1024*1024)return toast(T('Excel 文件最大 2 MB。','Excel files must be at most 2 MB.'),{bad:true});
- if(llm)return extractSeats(b,file);
+ if(file.size>10*1024*1024)return toast(T('Excel 文件最大 10 MB。','Excel files must be at most 10 MB.'),{bad:true});
+ if(llm){
+  try{openJob(await startJob(b,'seats',file,{'Content-Type':'application/octet-stream','X-File-Name':encodeURIComponent(file.name)}));}
+  catch(error){toast(error.message,{bad:true});}
+  return;
+ }
  try{
   const result=await api(`/admin/exams/${encodeURIComponent(b.id)}/import-preview`,{method:'POST',body:file,headers:{'Content-Type':'application/octet-stream','X-File-Name':encodeURIComponent(file.name),'X-Draft-Version':String(b.version)}});
   $('#toast').hidden=true;
@@ -448,48 +436,34 @@ async function importSeats(file,llm){
 }
 const examName=(b,id)=>{const exam=b.sessions.find(s=>s.id===id);return exam?sName(exam):id;};
 const seatLine=(b,s,i)=>`<div class="seat-line" data-pick="${i}" tabindex="0"><span class="num">${esc(s.room)} · ${T(`第 ${s.row} 排 ${s.column} 列`,`Row ${s.row} · Col ${s.column}`)}</span><span>${esc([s.className,s.name,s.englishName].filter(Boolean).join(' '))}</span><span class="muted">${esc(examName(b,s.examId))}</span></div>`;
-/** Streams the workbook to the LLM; the grid appears on the left and seats fill in on the right. */
-async function extractSeats(b,file){
- const streamed=[];let final=null;
- const review=reviewView({title:T(`LLM 提取座位表 · ${file.name}`,`Extract seating with LLM · ${file.name}`),sourceOf:i=>(final||{seats:streamed}).seats[i]?.source});
- closeOnly(review);
- try{
-  const done=await streamApi(`/admin/exams/${encodeURIComponent(b.id)}/seat-extract`,{body:file,signal:review.signal,headers:{'Content-Type':'application/octet-stream','X-File-Name':encodeURIComponent(file.name),'X-Draft-Version':String(b.version)}},message=>{
-   review.message(message);
-   if(message.type==='source')review.source(sheetPane(message.sheets));
-   if(message.type==='reset')streamed.length=0;
-   if(message.type==='item'&&message.key==='seats'){streamed.push(message.item);review.append(seatLine(b,message.item,streamed.length-1));}
-  });
-  final=done.result;
-  seatResults(b,final,review,{elapsed:done.elapsed});
- }catch(error){
-  if(error.name==='AbortError')return;
-  const partial=error.partial;
-  review.error(error.message,{retry:()=>extractSeats(batch(),file),partial:partial&&{count:partial.seats.length,use:()=>{final=partial;seatResults(batch(),{...partial,warnings:[interrupted(partial.seats.length),...partial.warnings]},review);}}});
- }
-}
-function seatResults(b,result,review,{elapsed=null,preset=false}={}){
+function seatResults(b,result,review,{elapsed=null,preset=false,job=null}={}){
  const groups=new Map();
  result.seats.forEach((seat,i)=>{const key=`${seat.examId}\u0000${seat.room}`;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(i);});
  review.results([...groups.values()].map(indexes=>{const first=result.seats[indexes[0]];return `<div class="seat-group"><h4>${esc(examName(b,first.examId))} · ${esc(first.room)} <span class="muted num" style="font-size:13px">${T(`${indexes.length} 座`,`${indexes.length} seats`)}</span></h4>${indexes.map(i=>seatLine(b,result.seats[i],i)).join('')}</div>`;}).join('')||`<p class="muted">${T('未识别到座位。','No seats found.')}</p>`,
   {notes:[...roomChangeNotes(result.roomChanges),...(result.warnings||[]),...(result.errors||[])],elapsed,preset,total:result.seats.length,invalid:result.invalid||[]});
- const bar=review.actions(`<button type="button" class="btn btn-secondary" data-dismiss>${T('返回','Go back')}</button><button type="button" class="btn btn-primary" data-next${result.seats.length?'':' disabled'}>${T('下一步：核对身份并导入','Next: check identities and import')}</button>`);
+ const bar=review.actions(`${discardButton(job)}<button type="button" class="btn btn-secondary" data-dismiss>${T('返回','Go back')}</button><button type="button" class="btn btn-primary" data-next${result.seats.length?'':' disabled'}>${T('下一步：核对身份并导入','Next: check identities and import')}</button>`);
  bar.querySelector('[data-dismiss]').onclick=review.close;
- bar.querySelector('[data-next]').onclick=()=>{review.close();seatPreview(batch(),result,T('LLM 座位表提取预览','LLM seat extraction preview'));};
+ bindDiscard(bar,job,review);
+ // The draft may have changed while the job ran: identities are checked again against the current draft.
+ bar.querySelector('[data-next]').onclick=()=>{review.close();recheckSeats(batch(),result).then(checked=>seatPreview(batch(),checked,T('LLM 座位表提取预览','LLM seat extraction preview'),()=>{if(job)discardJob(job).catch(()=>{});})).catch(error=>toast(error.message,{bad:true}));};
 }
-function seatPreview(b,result,title){
+async function recheckSeats(b,result){
+ const checked=await api('/admin/exams/'+encodeURIComponent(b.id)+'/student-preview',{method:'POST',body:JSON.stringify({version:b.version,seats:result.seats.map(({source,student,identityIssues,...seat})=>seat)})});
+ return {...result,...checked,warnings:result.warnings};
+}
+function seatPreview(b,result,title,onImported=()=>{}){
  $('#close-preview').setAttribute('aria-label',T('关闭','Close'));
  importPreview(result,{title,batch:b,roomNotes:roomChangeNotes,accept:seats=>{
   if(batch().version!==b.version)throw new Error(T('草稿已修改，请重新导入。','The draft changed; import again.'));
   if(!b.seats.length){
    $('#preview-dialog').close();
-   update(next=>{next.seats=seats;next.rooms=adaptRooms(next,seats).rooms;},T(`已导入 ${seats.length} 个座位到草稿。`,`Imported ${seats.length} seats into the draft.`)).catch(error=>toast(error.message,{bad:true}));
-  }else mergeDialog(b,seats);
+   update(next=>{next.seats=seats;next.rooms=adaptRooms(next,seats).rooms;},T(`已导入 ${seats.length} 个座位到草稿。`,`Imported ${seats.length} seats into the draft.`)).then(onImported,error=>toast(error.message,{bad:true}));
+  }else mergeDialog(b,seats,onImported);
  }});
 }
 const seatText=s=>`${s.room} · ${T(`第 ${s.row} 排 ${s.column} 列`,`Row ${s.row} · Col ${s.column}`)} · ${[s.className,s.name,s.englishName].filter(Boolean).join(' ')}`;
 /** The draft already has seats: show what the import adds and corrects, then merge it in or replace the draft. */
-function mergeDialog(b,seats){
+function mergeDialog(b,seats,onImported){
  const merge=mergeSeats(b.seats,seats);
  const corrections=merge.changed.map(({before,after})=>`<div class="merge-change"><span class="muted">${esc(examName(b,after.examId))}</span>${before.map(s=>`<del>${esc(seatText(s))}</del>`).join('')}<ins>→ ${esc(seatText(after))}</ins></div>`).join('');
  const body=modal(T('合并到草稿座位？','Merge into draft seats?'),`<p class="dialog-text">${T(`草稿已有 ${b.seats.length} 个座位。本次导入：新增 ${merge.added.length} 个，修正 ${merge.changed.length} 个，与草稿相同 ${merge.unchanged} 个。合并后未在本次导入中出现的草稿座位保持不变。`,`The draft already has ${b.seats.length} seats. This import adds ${merge.added.length}, corrects ${merge.changed.length} and repeats ${merge.unchanged} unchanged. Merging keeps draft seats this import does not mention.`)}</p>
@@ -498,8 +472,102 @@ function mergeDialog(b,seats){
  const save=async(list,message)=>{
   if(batch().version!==b.version)fail(T('草稿已修改，请重新导入。','The draft changed; import again.'));
   await update(next=>{next.seats=list;next.rooms=adaptRooms(next,list).rooms;},message);
-  closeModal();$('#preview-dialog').close();
+  closeModal();$('#preview-dialog').close();onImported();
  };
  body.querySelector('[data-save]').onclick=()=>busy(body,()=>save(merge.seats,T(`已合并：新增 ${merge.added.length} 个，修正 ${merge.changed.length} 个座位。`,`Merged: ${merge.added.length} seats added, ${merge.changed.length} corrected.`)));
  confirmButton(body,'[data-replace]',T('替换全部草稿座位','Replace all draft seats'),()=>save(seats,T(`已用 ${seats.length} 个座位替换草稿座位。`,`Replaced the draft with ${seats.length} seats.`)));
+}
+
+/* — 提取任务: AI extractions run in the background; the batch page shows the job and reopens it — */
+const jobOf=b=>(app.data.jobs||[]).find(j=>j.batchId===b.id)||null;
+const jobName=job=>job.kind==='seats'?T('座位表提取','Seat extraction'):T('考试场次提取','Session extraction');
+function putJob(job){const list=app.data.jobs||(app.data.jobs=[]),i=list.findIndex(j=>j.id===job.id);if(i<0)list.unshift(job);else list[i]=job;refreshNav();}
+async function discardJob(job){await api('/admin/extract-jobs/'+encodeURIComponent(job.id),{method:'DELETE'});app.data.jobs=(app.data.jobs||[]).filter(j=>j.id!==job.id);refreshNav();rerender();}
+async function startJob(b,kind,body,headers={}){
+ const job=await api(`/admin/extract-jobs/${kind}?batch=${encodeURIComponent(b.id)}`,{method:'POST',body,headers});
+ app.data.jobs=(app.data.jobs||[]).filter(j=>j.batchId!==b.id);putJob(job);rerender();
+ return job;
+}
+const jobTag=job=>!job?'':` <span class="tag ${job.status==='running'?'tag-outline':'tag-accent'} small">${{running:T('提取中','Extracting'),done:T('提取完成 · 待核对','Extracted · review'),failed:T('提取失败','Extraction failed'),interrupted:T('提取中断','Extraction stopped'),cancelled:T('提取已取消','Extraction cancelled')}[job.status]}</span>`;
+function jobStrip(job){
+ if(!job)return '';
+ const by=job.createdBy?T(` · ${job.createdBy} 发起`,` · started by ${job.createdBy}`):'';
+ const text={
+  running:T(`${jobName(job)}进行中 · 已识别 ${job.items} 条`,`${jobName(job)} running · ${job.items} found`),
+  done:T(`${jobName(job)}完成 · ${job.items} 条待核对导入`,`${jobName(job)} finished · ${job.items} to review and import`),
+  failed:T(`${jobName(job)}失败：${job.error||''}`,`${jobName(job)} failed: ${job.error||''}`),
+  interrupted:T(`${jobName(job)}已中断（服务重启或连接丢失）`,`${jobName(job)} stopped (a restart or a lost connection)`),
+  cancelled:T(`${jobName(job)}已取消`,`${jobName(job)} cancelled`)
+ }[job.status];
+ const button=(act,label,cls='btn-secondary')=>`<button type="button" class="btn ${cls}" data-job-act="${act}">${label}</button>`;
+ const buttons={
+  running:button('open',T('查看进度','View progress'))+button('cancel',T('取消提取','Cancel'),'btn-ghost btn-danger'),
+  done:button('discard',T('丢弃','Discard'),'btn-ghost')+button('open',T('查看结果','View results'),'btn-primary'),
+ }[job.status]||button('discard',T('丢弃','Discard'),'btn-ghost')+button('open',T('查看','View'))+button('retry',T('重试','Retry'),'btn-primary');
+ return `<div class="job-strip ${job.status}" data-job-strip role="status"><i class="ai-pulse" aria-hidden="true"></i><div class="clip"><div class="cell-main clip">${esc(text)}</div><div class="cell-sub clip">${esc(job.fileName)} · ${esc(stamp(job.createdAt))}${esc(by)}</div></div><div class="row-actions">${buttons}</div></div>`;
+}
+/** While a job of the open batch runs, refresh its strip every few seconds. */
+function watchJob(b){
+ const job=jobOf(b);if(job?.status!=='running')return;
+ const visit=app.visit;
+ setTimeout(async()=>{
+  if(app.visit!==visit||view.id!==b.id)return;
+  try{await loadJobs();}catch{}
+  if(app.visit!==visit||view.id!==b.id)return;
+  const next=jobOf(b),strip=$('[data-job-strip]');
+  if(!next||next.status!==job.status)return rerender();
+  if(strip)strip.outerHTML=jobStrip(next);
+  watchJob(b);
+ },5000);
+}
+async function jobAction(job,act){
+ if(!job)return;
+ try{
+  if(act==='open')openJob(job);
+  else if(act==='cancel'){putJob(await api(`/admin/extract-jobs/${encodeURIComponent(job.id)}/cancel`,{method:'POST'}));rerender();toast(T('已取消提取。','Extraction cancelled.'));}
+  else if(act==='discard'){await discardJob(job);toast(T('已丢弃提取结果。','Extraction discarded.'));}
+  else if(act==='retry')retryJob(job);
+ }catch(error){toast(error.message,{bad:true});}
+}
+async function retryJob(job,review=null){
+ // The open review dialog is reused: closing it first would fire its close event on the new review.
+ try{const next=await api(`/admin/extract-jobs/${encodeURIComponent(job.id)}/retry`,{method:'POST'});putJob(next);rerender();openJob(next);}
+ catch(error){if(review)review.alert(error.message);else toast(error.message,{bad:true});}
+}
+const discardButton=job=>job?`<button type="button" class="btn btn-ghost btn-danger left" data-discard>${T('丢弃结果','Discard results')}</button>`:'';
+function bindDiscard(bar,job,review){const button=bar.querySelector('[data-discard]');if(button)button.onclick=async()=>{try{await discardJob(job);review.close();}catch(error){review.alert(error.message);}};}
+/**
+ * Opens the review of a job: replays its progress, then follows it until it ends. Closing only stops watching;
+ * the job keeps running on the server.
+ */
+async function openJob(job,{pages=null}={}){
+ const seats=job.kind==='seats',key=seats?'seats':'sessions',streamed=[];let final=null;
+ const review=reviewView({title:`${jobName(job)} · ${job.fileName}`,startedAt:job.startedAt,sourceOf:i=>(final||{[key]:streamed})[key][i]?.source,onClose:()=>{if(view.id===job.batchId)rerender();}});
+ const runningBar=()=>{
+  const bar=/** @type {any} */(review.actions(`<button type="button" class="btn btn-ghost btn-danger left" data-cancel>${T('取消提取','Cancel extraction')}</button><button type="button" class="btn btn-secondary" data-dismiss>${T('关闭（后台继续）','Close (keeps running)')}</button>`));
+  bar.querySelector('[data-dismiss]').onclick=review.close;
+  bar.querySelector('[data-cancel]').onclick=async()=>{try{putJob(await api(`/admin/extract-jobs/${encodeURIComponent(job.id)}/cancel`,{method:'POST'}));}catch(error){review.alert(error.message);}};
+ };
+ runningBar();
+ if(!seats){
+  if(!pages)try{const input=await api(`/admin/extract-jobs/${encodeURIComponent(job.id)}/input`);pages=input.images.map((image,i)=>({image,items:input.items?.[i]||[]}));}catch{}
+  if(pages)review.source(pagePane(pages));
+ }
+ try{
+  const done=await followJob(job.id,{signal:review.signal,onJob:putJob},message=>{
+   review.message(message);
+   if(message.type==='source'&&message.sheets)review.source(sheetPane(message.sheets));
+   if(message.type==='reset')streamed.length=0;
+   if(message.type==='item'&&message.key===key){streamed.push(message.item);review.append(seats?seatLine(batch(),message.item,streamed.length-1):sessionCard(message.item,streamed.length-1));}
+  });
+  final=done.result;
+  (seats?seatResults:reviewExtracted)(batch(),final,review,{elapsed:done.elapsed,job});
+ }catch(error){
+  if(error.name==='AbortError')return;
+  if(error.job)putJob(error.job);
+  const partial=error.partial;
+  const bar=/** @type {any} */(review.actions(`${discardButton(job)}<button type="button" class="btn btn-secondary" data-dismiss>${T('关闭','Close')}</button>`));
+  bar.querySelector('[data-dismiss]').onclick=review.close;bindDiscard(bar,job,review);
+  review.error(error.message,{retry:()=>retryJob(job,review),partial:partial&&{count:partial[key].length,use:()=>{final=partial;(seats?seatResults:reviewExtracted)(batch(),{...partial,warnings:[interrupted(partial[key].length),...(partial.warnings||[])]},review,{job});}}});
+ }
 }

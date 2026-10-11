@@ -57,3 +57,7 @@ The repeatable smoke test reads the local credential file and creates temporary 
 ```sh
 node --use-env-proxy scripts/smoke-cloudflare.mjs https://calendar.keydion.com
 ```
+
+## Background extraction jobs
+
+AI seat and timetable extractions run as the Workflow `calendar-extract-jobs` (binding `EXTRACT_JOBS`, class `ExtractJob`, declared in `wrangler.jsonc`), so they continue after the administrator closes the page. The Workflow reads and updates its job through the `SchoolCalendar` Durable Object; it uses the same `LLM_WORKER_URL` and `LLM_WORKER_TOKEN` secrets. Deploying creates the Workflow; no Durable Object migration is needed. See [ADR 0001](adr/0001-background-extraction-jobs.md).

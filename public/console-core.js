@@ -18,7 +18,7 @@ export const app={
  user:null,today:'',
  /** Set by a page that holds unsaved input; the router asks before leaving. */
  dirty:false,
- data:{events:null,plans:null,batches:null,subjects:null},
+ data:{events:null,plans:null,batches:null,subjects:null,jobs:null},
  rerender:()=>{},
  /** Incremented on every route change, so pages can drop state left from an earlier visit. */
  visit:0,
@@ -117,6 +117,8 @@ export const statusLabel=status=>({published:T('已发布','Published'),draft:T(
 export async function loadEvents(){app.data.events=await api('/admin/events');return app.data.events;}
 export async function loadPlans(){app.data.plans=Object.fromEntries((await api('/day-plans')).map(plan=>[plan.date,plan]));return app.data.plans;}
 export async function loadBatches(){app.data.batches=await api('/admin/exams');return app.data.batches;}
+/** Background AI extractions (提取任务) of every batch. */
+export async function loadJobs(){app.data.jobs=await api('/admin/extract-jobs');return app.data.jobs;}
 export async function loadSubjects(){app.data.subjects=await api('/exam-subjects');return app.data.subjects;}
 
 /** Group configured day plans into runs of consecutive days with the same setting. */

@@ -1,4 +1,4 @@
-import {$,$$,esc,app,T,api,toast,loadEvents,loadPlans,loadBatches,planRanges} from './console-core.js';
+import {$,$$,esc,app,T,api,toast,loadEvents,loadPlans,loadBatches,loadJobs,planRanges} from './console-core.js';
 import {showEvents,showEditor} from './console-events.js';
 import {showDays} from './console-days.js';
 import {showExams,showBatch} from './console-exams.js';
@@ -17,11 +17,13 @@ const navIcons={
 let route=['events'],current='';
 
 function renderNav(){
- const {events,plans,batches}=app.data;
+ const {events,plans,batches,jobs}=app.data;
+ // A finished or failed extraction waits for an administrator to review it.
+ const attention={exams:jobs?.some(j=>j.status!=='running'&&j.status!=='cancelled')};
  const counts={events:events?.length,days:plans&&planRanges(plans).length,exams:batches?.length,accounts:accountCount()};
  const labels={events:T('事件','Events'),days:T('放假与调休','School days'),exams:T('考试','Exams'),...(app.user?.role===3?{students:T('学生管理','Students'),accounts:T('账户','Accounts')}:{}),settings:T('设置','Settings')};
  $('#console-nav').innerHTML=`<a class="brand" href="/"><img src="/logo.png" alt=""><span><strong>${T('日历','Calendar')}</strong><span class="overline">${T('管理后台','Admin console')}</span></span></a>
- <nav class="nav-links">${Object.keys(labels).map(key=>`<a href="#${key}"${route[0]===key?' aria-current="page"':''}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${navIcons[key]}</svg><span>${labels[key]}</span>${counts[key]!==undefined?`<span class="count">${counts[key]}</span>`:''}</a>`).join('')}</nav>
+ <nav class="nav-links">${Object.keys(labels).map(key=>`<a href="#${key}"${route[0]===key?' aria-current="page"':''}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${navIcons[key]}</svg><span>${labels[key]}</span>${attention[key]?`<i class="nav-dot" title="${T('有待核对的 AI 提取','AI extraction to review')}"></i>`:''}${counts[key]!==undefined?`<span class="count">${counts[key]}</span>`:''}</a>`).join('')}</nav>
  <div class="nav-foot"><div class="seg" role="group" aria-label="${T('界面语言','Language')}"><button type="button" data-lang="0" aria-pressed="${!app.lang}">中文</button><button type="button" data-lang="1" aria-pressed="${!!app.lang}">EN</button></div><a href="/">← ${T('公共校历','Public calendar')}</a><div class="nav-user"><span title="${esc(app.user?.name)}">${esc(app.user?.name)}</span><button type="button" class="btn btn-ghost" data-sign-out style="font-size:13px">${T('退出登录','Sign out')}</button></div></div>`;
  $$('[data-lang]').forEach(button=>button.onclick=()=>setLanguage(Number(button.dataset.lang)));
  $('[data-sign-out]').onclick=signOut;
@@ -70,7 +72,7 @@ async function start(){
  setLanguage(app.lang);
  await navigate();
  // Sidebar counts for sections not yet visited.
- await Promise.allSettled([app.data.events||loadEvents(),app.data.plans||loadPlans(),app.data.batches||loadBatches(),app.user.role===3&&accountCount()===undefined?loadAccounts():null]);
+ await Promise.allSettled([app.data.events||loadEvents(),app.data.plans||loadPlans(),app.data.batches||loadBatches(),app.data.jobs||loadJobs(),app.user.role===3&&accountCount()===undefined?loadAccounts():null]);
  renderNav();
 }
 start().catch(error=>{$('#console-main').innerHTML=`<p class="load-error">${esc(error.message)}</p>`;});

@@ -33,6 +33,13 @@
       ]
     }
   ],
+  "workflows": [
+    {
+      "name": "calendar-extract-jobs",
+      "binding": "EXTRACT_JOBS",
+      "class_name": "ExtractJob"
+    }
+  ],
   "images": {
     "binding": "IMAGES"
   },

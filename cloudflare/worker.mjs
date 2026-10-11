@@ -1,8 +1,10 @@
-import {DurableObject} from 'cloudflare:workers';
+import {DurableObject,WorkflowEntrypoint} from 'cloudflare:workers';
 import {handleAsNodeRequest} from 'cloudflare:node';
 import {createServer} from 'node:http';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {createApi} from '../server/api.mjs';
+import {JOB_OPS} from '../server/extract-jobs.mjs';
+import {runExtraction} from '../server/extract-run.mjs';
 import {database} from './database.mjs';
 import pages from './pages.mjs';
 
@@ -57,10 +59,30 @@ export class SchoolCalendar extends DurableObject {
     };
     this.application=createApi({db,media,origin:env.APP_ORIGIN,timeZone:env.SCHOOL_TIMEZONE||'Asia/Shanghai',
       sso:{tenantId:env.MICROSOFT_TENANT_ID||'',clientId:env.MICROSOFT_CLIENT_ID||'',clientSecret:env.MICROSOFT_CLIENT_SECRET||'',loginUrl:env.MICROSOFT_LOGIN_URL||''},
-      llm:{url:env.LLM_WORKER_URL||'',token:env.LLM_WORKER_TOKEN||'',dailyLimit:Number(env.LLM_DAILY_LIMIT||1500)}});
+      llm:{url:env.LLM_WORKER_URL||'',token:env.LLM_WORKER_TOKEN||'',dailyLimit:Number(env.LLM_DAILY_LIMIT||1500)},
+      // 提取任务 run as Workflows, so they outlive the request (and the page) that started them.
+      extractRunner:()=>({
+        start:(jobId,run)=>env.EXTRACT_JOBS.create({id:`${jobId}-${run}`,params:{jobId,run}}),
+        cancel:async(jobId,run)=>{try{await (await env.EXTRACT_JOBS.get(`${jobId}-${run}`)).terminate();}catch{}}
+      })});
+  }
+  /** RPC for the extraction Workflow: reads and updates its job in this school's database. */
+  async extractJob(op,...args){
+    if(!JOB_OPS.includes(op))throw new Error('Unknown extraction job operation');
+    return this.application.jobs.ops[op](...args);
   }
   async handle(request){
     return applications.run({app:this.application.app,address:clientAddress(request,this.env)},()=>handleAsNodeRequest(8080,request));
+  }
+}
+/** One run of an extraction job; the job itself lives in the school's Durable Object. */
+export class ExtractJob extends WorkflowEntrypoint {
+  async run(event,step){
+    const {jobId,run}=event.payload;
+    const school=this.env.SCHOOLS.getByName(this.env.SCHOOL_ID||'calendar');
+    const ops=Object.fromEntries(JOB_OPS.map(op=>[op,(...args)=>school.extractJob(op,...args)]));
+    await runExtraction({jobId,run,ops,config:{url:this.env.LLM_WORKER_URL||'',token:this.env.LLM_WORKER_TOKEN||''},
+      step:(name,retries,fn)=>step.do(name,{retries:{limit:retries,delay:'10 seconds',backoff:'exponential'},timeout:'15 minutes'},fn)});
   }
 }
 const securityHeaders={

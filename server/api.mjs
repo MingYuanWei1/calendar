@@ -12,7 +12,7 @@ import {installQuota} from './llm-quota.mjs';
 import {installFeeds} from './feeds.mjs';
 import {installNoticeExtract} from './notice-extract.mjs';
 import {installAssistant} from './assistant.mjs';
-export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/Shanghai',trustProxy='',sso={},llm={}}){
+export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/Shanghai',trustProxy='',sso={},llm={},extractRunner}){
   new Intl.DateTimeFormat('en',{timeZone}).format();
   const base=new URL(origin);if(!['http:','https:'].includes(base.protocol)||base.origin!==origin)throw new Error('APP_ORIGIN must contain only scheme and host/port');
   // Retire the test-only holiday event category; day_plans remains authoritative.
@@ -40,6 +40,7 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   const clearCookie=res=>res.clearCookie('calendar_session',{path:'/',httpOnly:true,sameSite:'strict',secure:base.protocol==='https:'});
   app.use('/api/admin/exam-extract',express.json({limit:'20mb'}));
   app.use('/api/admin/notice-extract',express.json({limit:'20mb'}));
+  app.use('/api/admin/extract-jobs/sessions',express.json({limit:'20mb'}));
   app.use('/api/admin/exams',express.json({limit:'4mb'}));
   app.use('/api/exam-schedule-pdf',express.json({limit:'4mb'}));
   app.use('/api',express.json({limit:'128kb'}));
@@ -265,7 +266,7 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
     res.type('image/webp').send(bytes);
   });
   installAccounts(app,db,{requireRole,currentUser:session});
-  const exams=installExams(app,db,{requireAdmin,requireSystemAdmin:requireRole(3),isAdmin:req=>session(req)?.role>=2,user:session,origin,timeZone,llm,quota});
+  const exams=installExams(app,db,{requireAdmin,requireSystemAdmin:requireRole(3),isAdmin:req=>session(req)?.role>=2,user:session,origin,timeZone,llm,quota,extractRunner});
   examEvents=exams.events;
   installFeeds(app,db,{user:session,account:schoolAuth.account,origin,timeZone,matching:exams.matching,examEvents,personalEvents:listPersonal});
   installNoticeExtract(app,db,{requireAdmin,llm,timeZone,quota});
@@ -289,5 +290,5 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
     if(error instanceof SyntaxError)return res.status(400).json({error:'请求格式不正确。'});
     console.error('Request failed:',error.message);res.status(500).json({error:'服务暂时不可用，请稍后重试。'});
   });
-  return {app,db,close:()=>db.close()};
+  return {app,db,jobs:exams.jobs,close:()=>db.close()};
 }

@@ -461,3 +461,9 @@ mark.src-hit{background:color-mix(in srgb,#f2c94c 55%,transparent);outline:1px s
 .student-refs{margin:0;padding-left:18px;font-size:13px;display:flex;flex-direction:column;gap:2px}
 .merge-pick{display:flex;gap:8px;flex-wrap:wrap}.merge-pick select{flex:1 1 240px;min-width:0}
 .dialog-sub{margin:16px 0 6px;font-size:15px}
+.job-strip{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;margin:16px 0;padding:10px 14px;border:1px solid var(--color-accent);background:var(--color-surface)}
+.job-strip:not(.running) .ai-pulse{animation:none;opacity:.35}
+.job-strip.failed,.job-strip.interrupted{border-color:#9a3a45}.job-strip.failed .cell-main,.job-strip.interrupted .cell-main{color:#9a3a45}
+.job-strip .row-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.nav-dot{width:7px;height:7px;border-radius:50%;background:var(--color-accent);flex:none}
+@media(max-width:700px){.job-strip{grid-template-columns:auto minmax(0,1fr)}.job-strip .row-actions{grid-column:1/-1;justify-content:flex-start}}

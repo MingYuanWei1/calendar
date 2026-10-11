@@ -1,6 +1,6 @@
 // Full-screen review for AI extraction: the source material on the left, results growing on the right as
 // the model streams them, and each result linked back to the text or cell it came from.
-import {esc,corners,icon,T} from './console-core.js';
+import {esc,corners,icon,T,api} from './console-core.js';
 
 /** @typedef {{page?:number|null,quote?:string|null,sheet?:string|null,cell?:string|null}} Source */
 
@@ -38,6 +38,39 @@ export async function streamApi(path,{body,headers={},signal}={},onMessage=()=>{
  handle(buffer);
  if(!result)throw new Error(T('连接中断，请重试。','The connection was interrupted. Please retry.'));
  return result;
+}
+
+/**
+ * Follows a background extraction job (提取任务): polls its progress every two seconds and calls onMessage with the
+ * same messages streamApi delivers. Resolves with {result, elapsed} once the job is done; rejects when it failed
+ * (with `partial`, the results finished before then, and `job`), was cancelled, or stopped reporting.
+ * Aborting `signal` only stops following: the job keeps running on the server.
+ * @param {string} id
+ * @param {{signal?:AbortSignal,onJob?:(job:any)=>void}} [options]
+ * @param {(message:any)=>void} [onMessage]
+ */
+export async function followJob(id,{signal,onJob=()=>{}}={},onMessage=()=>{}){
+ const path='/admin/extract-jobs/'+encodeURIComponent(id);
+ const stopped=()=>{const error=new Error('stopped');error.name='AbortError';return error;};
+ let after=0;
+ while(true){
+  if(signal?.aborted)throw stopped();
+  let page;
+  try{page=await api(`${path}/events?after=${after}`);}
+  catch(error){if(signal?.aborted)throw stopped();if(/不存在|过期|not found/i.test(error.message))throw error;await new Promise(r=>setTimeout(r,4000));continue;}
+  if(signal?.aborted)throw stopped();
+  onJob(page.job);
+  for(const message of page.events){
+   after=message.seq;
+   if(message.type==='done'){const {result}=await api(path+'/result');return {result,elapsed:message.elapsed,job:page.job};}
+   if(message.type==='error'){const {partial}=message.partial?await api(path+'/result'):{partial:null};throw Object.assign(new Error(message.error),{partial,job:page.job});}
+   if(message.type==='cancelled')throw Object.assign(new Error(T('提取已取消。','The extraction was cancelled.')),{cancelled:true,job:page.job});
+   onMessage(message);
+  }
+  if(page.events.length>=500)continue;
+  if(page.job.status==='interrupted')throw Object.assign(new Error(T('后台提取已中断（服务重启或连接丢失），请重试。','The background extraction stopped (a restart or a lost connection). Retry it.')),{job:page.job});
+  await new Promise(r=>setTimeout(r,2000));
+ }
 }
 
 /* — locating a quote inside source text — */
@@ -164,9 +197,10 @@ const invalidCard=entry=>`<div class="ai-card ai-invalid"><span class="ai-card-t
 /**
  * Opens the review view. `sourceOf(index)` returns the source of result `index`, used when a
  * [data-pick] element is clicked. Returns controls for streaming progress and final results.
- * @param {{title:string,sourceOf?:(index:number)=>Source|null|undefined,onClose?:()=>void}} options
+ * `startedAt` (epoch ms) starts the timer from when a background job began rather than from now.
+ * @param {{title:string,sourceOf?:(index:number)=>Source|null|undefined,onClose?:()=>void,startedAt?:number}} options
  */
-export function reviewView({title,sourceOf=()=>null,onClose=()=>{}}){
+export function reviewView({title,sourceOf=()=>null,onClose=()=>{},startedAt=0}){
  let dialog=/** @type {HTMLDialogElement} */(document.getElementById('ai-review'));
  if(!dialog){dialog=document.createElement('dialog');dialog.id='ai-review';document.body.append(dialog);}
  dialog.className='ai-review blueprint';
@@ -178,7 +212,7 @@ export function reviewView({title,sourceOf=()=>null,onClose=()=>{}}){
  <footer class="ai-foot"><p class="alert bad" role="alert" data-error hidden></p><div class="dialog-actions" data-actions></div></footer>`;
  const q=selector=>/** @type {HTMLElement} */(dialog.querySelector(selector));
  const controller=new AbortController();
- const started=performance.now();let stage='preparing',detail={},count=0,finished=false,pane=null,pickedIndex=-1;
+ const started=startedAt?performance.now()-(Date.now()-startedAt):performance.now();let stage='preparing',detail={},count=0,finished=false,pane=null,pickedIndex=-1;
  const timer=window.setInterval(()=>{q('[data-timer]').textContent=((performance.now()-started)/1000).toFixed(1)+' s';},100);
  const close=()=>{window.clearInterval(timer);controller.abort();if(dialog.open)dialog.close();};
  dialog.onclose=()=>{window.clearInterval(timer);controller.abort();onClose();};

@@ -10,7 +10,9 @@ export function connection(config){
 export const RETRY={times:10,pause:tries=>Math.min(1000*2**tries,8000)};
 const transient=status=>status===429||status>=500;
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-const failed=status=>new Error(`LLM Worker 请求失败（${status}）${transient(status)?`，已自动重试 ${RETRY.times} 次`:''}，请检查配置或稍后重试。`);
+const failed=status=>Object.assign(new Error(`LLM Worker 请求失败（${status}）${transient(status)?`，已自动重试 ${RETRY.times} 次`:''}，请检查配置或稍后重试。`),{status});
+/** A network failure or a 5xx from the gateway, which a background job may retry once. */
+export const retryable=error=>error?.name==='TypeError'||error?.status>=500;
 export async function worker(config,path,body,timeout){
  let response;
  for(let tries=0;;tries++){
@@ -30,15 +32,22 @@ export async function worker(config,path,body,timeout){
 // `timeout` bounds the wait for the first token; once the model is writing, only a silence longer than
 // `idle` (IDLE_TIMEOUT by default) aborts, so long but steady outputs are never cut off midway.
 // `onRetry(attempt, status)` reports each retry of a failing gateway; status is null for a network error.
+// Aborting `signal` (a cancelled job) stops the request with an AbortError.
 const IDLE_TIMEOUT=45000,MAX_TEXT=2*1024*1024;
-export async function streamChat(config,body,timeout,onText,idle=IDLE_TIMEOUT,onRetry=()=>{}){
+export async function streamChat(config,body,timeout,onText,idle=IDLE_TIMEOUT,onRetry=()=>{},signal=null){
  const url=connection(config)+'/chat/completions',controller=new AbortController();
+ const cancel=()=>controller.abort();
+ signal?.addEventListener('abort',cancel);
  let timer;
  const arm=ms=>{clearTimeout(timer);timer=setTimeout(()=>controller.abort(),ms);};
  const alive=()=>arm(idle);
  try{return await read();}
- catch(error){if(controller.signal.aborted){const timedOut=new Error('timeout');timedOut.name='TimeoutError';throw timedOut;}throw error;}
- finally{clearTimeout(timer);}
+ catch(error){
+  if(signal?.aborted){const cancelled=new Error('cancelled');cancelled.name='AbortError';throw cancelled;}
+  if(controller.signal.aborted){const timedOut=new Error('timeout');timedOut.name='TimeoutError';throw timedOut;}
+  throw error;
+ }
+ finally{clearTimeout(timer);signal?.removeEventListener('abort',cancel);}
  async function read(){
  const request=payload=>fetch(url,{method:'POST',headers:{Authorization:`Bearer ${config.token}`,'Content-Type':'application/json',Accept:'text/event-stream'},body:JSON.stringify({...payload,stream:true}),redirect:'manual',signal:controller.signal});
  // Low reasoning effort cuts the silent wait before the first token from ~30 s to a few seconds;
@@ -215,7 +224,7 @@ export async function respond(req,res,task,failure,status=502){
 // An answer without a single usable item is regenerated once (the client is told to reset).
 // A thrown error carries `items` ({key: [item…]}): the array items that were complete when it failed.
 export const INVALID=Symbol('invalid items');
-export async function streamJson(config,body,timeout,progress,idle){
+export async function streamJson(config,body,timeout,progress,idle,signal=null){
  for(let tries=0;;tries++){
   const items={},invalid=[];
   const feed=jsonItems(
@@ -223,7 +232,7 @@ export async function streamJson(config,body,timeout,progress,idle){
    (key,text,reason)=>{const entry={key,text:text.slice(0,4000),reason};invalid.push(entry);progress.invalid?.(entry);});
   let first=true,raw;
   const retry=(attempt,status)=>progress.stage('reconnecting',{attempt,of:RETRY.times,status});
-  try{raw=await streamChat(config,body,timeout,delta=>{if(first){first=false;progress.stage('generating');}feed(delta);},idle,retry);}
+  try{raw=await streamChat(config,body,timeout,delta=>{if(first){first=false;progress.stage('generating');}feed(delta);},idle,retry,signal);}
   catch(error){throw Object.assign(error,{items});}
   try{return parseAnswer(raw);}
   catch(error){
@@ -253,4 +262,15 @@ export function lenientList(raw,key,schema,max){
  }
  const warnings=(Array.isArray(raw.warnings)?raw.warnings:[]).filter(w=>typeof w==='string'&&w).map(w=>w.slice(0,1000)).slice(0,100);
  return {list,warnings,invalid};
+}
+
+/**
+ * Runs a prepared extraction request ({body, timeout, idle, reading}) against the LLM Worker and returns the parsed
+ * answer. Shared by the request-bound endpoints and background extraction jobs.
+ */
+export async function generate(config,request,progress,signal=null){
+ progress.stage('connecting');
+ await requireFlash(config);
+ progress.stage('reading',request.reading||{});
+ return streamJson(config,request.body,request.timeout,progress,request.idle,signal);
 }
