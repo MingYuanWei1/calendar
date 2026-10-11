@@ -274,16 +274,18 @@ button.grid-row{cursor:pointer;padding-block:12px}
 .mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
 
 /* — dialogs — */
-dialog.dialog{padding:0;border:1px solid var(--color-divider);background:var(--color-bg);color:var(--color-text);width:min(440px,calc(100% - 32px));max-height:calc(100dvh - 32px);overflow:visible;box-shadow:var(--shadow-lg)}
+dialog.dialog{padding:0;border:1px solid var(--color-divider);background:var(--color-bg);color:var(--color-text);width:min(440px,calc(100% - 32px));max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow:visible;box-shadow:var(--shadow-lg)}
+dialog.dialog[open]{display:flex;flex-direction:column}
 dialog.dialog.wide{width:min(760px,calc(100% - 32px))}
 dialog.dialog.medium{width:min(560px,calc(100% - 32px))}
 dialog.dialog::backdrop{background:color-mix(in srgb,var(--color-neutral-900) 50%,transparent)}
-.dialog-body{max-height:calc(100dvh - 34px);overflow:auto;padding:13.6px;display:flex;flex-direction:column;gap:14px}
+.dialog-body{flex:1 1 auto;min-height:0;max-height:calc(100vh - 34px);max-height:calc(100dvh - 34px);overflow:auto;padding:13.6px;display:flex;flex-direction:column;gap:14px}
 .dialog-top{display:flex;align-items:center;gap:10px}
 .dialog-title{font-family:var(--font-heading);font-weight:600;font-size:20px}
 .dialog-top .btn-icon{margin-left:auto}
 .dialog-text{font-size:14px;opacity:.85}
 .dialog-actions{display:flex;justify-content:flex-end;gap:6.8px;margin-top:6.8px;flex-wrap:wrap}
+.dialog-body>.dialog-actions{position:sticky;bottom:-13.6px;margin-bottom:-13.6px;padding:6.8px 0 13.6px;background:var(--color-bg);z-index:1}
 .dialog-actions .left{margin-right:auto}
 .dialog-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 14px}
 .dialog-grid .span2{grid-column:span 2}.dialog-grid .all{grid-column:1/-1}
