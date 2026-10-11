@@ -24,6 +24,7 @@ export const app={
  visit:0,
  setLanguage:lang=>{},
  signOut:()=>{},
+ replaceHash:hash=>{},
 };
 /** Navigate programmatically without prompting (the caller has already saved). */
 export function go(hash){app.dirty=false;location.hash=hash;}

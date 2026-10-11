@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import pages from '../../cloudflare/pages.mjs';
 
 test('Pages refuses protected HTML before touching assets and never caches protected responses',async()=>{
- for(const path of ['/console.html','/console','/console/','/%63onsole.html','/unused%2f..%2fconsole.html','//console.html','/students.html','/students']){
+ for(const path of ['/console.html','/console','/console/','/%63onsole.html','/unused%2f..%2fconsole.html','//console.html']){
   for(const status of [401,403,503,204]){
    let assets=0,checks=0;
    const env={CALENDAR_API:{fetch:async request=>{checks++;assert.equal(request.headers.get('Cookie'),'session=test');const url=new URL(request.url);assert.equal(url.pathname,'/api/page-access');assert.equal(url.searchParams.get('path'),path);return new Response(null,{status});}},ASSETS:{fetch:async()=>{assets++;return new Response('protected page',{headers:{'Cache-Control':'public, max-age=3600'}});}}};
@@ -20,4 +20,12 @@ test('Pages refuses protected HTML before touching assets and never caches prote
  assert.equal(assets,0);
  assert.equal(await (await pages.fetch(new Request('https://calendar.example/'),env)).text(),'public');
  assert.equal(assets,1);
+});
+
+test('Pages redirects the retired student page into the console without checking access',async()=>{
+ const env={CALENDAR_API:{fetch:async()=>{throw new Error('not called');}},ASSETS:{fetch:async()=>{throw new Error('not called');}}};
+ for(const path of ['/students','/students.html','/students/']){
+  const response=await pages.fetch(new Request('https://calendar.example'+path),env);
+  assert.equal(response.status,302);assert.equal(response.headers.get('Location'),'https://calendar.example/console.html#students');
+ }
 });

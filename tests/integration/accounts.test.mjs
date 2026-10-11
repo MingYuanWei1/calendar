@@ -24,7 +24,7 @@ test('roles protect management, migrate old accounts, and apply account changes 
    assert.equal((await call('/admin/accounts','POST',{username,password,name:username,role},admin)).status,201);
   }
   const reader=await login('reader'),moderator=await login('moderator'),otherAdmin=await login('otheradmin');
-  const pages=[['/console.html',2],['/students.html',2]];
+  const pages=[['/console.html',2]];
   for(const [cookie,role] of [['',0],[reader,1],[moderator,2],[admin,3]]){
    for(const [path,required] of pages){
     const response=await fetch(base+path,{headers:{Cookie:cookie}});
@@ -36,11 +36,17 @@ test('roles protect management, migrate old accounts, and apply account changes 
     assert.equal(check.status,role>=required?204:role?403:401);
    }
   }
-  for(const path of ['/console','/console/','/%63onsole.html','/unused%2f..%2fconsole.html','//console.html','/students','/students/']){
+  for(const path of ['/console','/console/','/%63onsole.html','/unused%2f..%2fconsole.html','//console.html']){
    const response=await fetch(base+path,{headers:{Cookie:reader},redirect:'manual'});
    assert.equal(response.status,403);assert.equal(await response.text(),'');
    assert.equal((await call('/page-access?path='+encodeURIComponent(path),'GET',undefined,reader)).status,403);
   }
+  // The student page moved into the console; only system admins may use its API.
+  for(const path of ['/students','/students.html','/Students/']){
+   const response=await fetch(base+path,{redirect:'manual'});
+   assert.equal(response.status,302);assert.equal(response.headers.get('location'),'/console.html#students');
+  }
+  for(const [cookie,status] of [[moderator,403],[admin,200]])assert.equal((await call('/admin/students','GET',undefined,cookie)).status,status);
   assert.equal((await fetch(base+'/')).status,200);
   assert.equal((await fetch(base+'/exams.html')).status,200);
   // Retired management pages are no longer protected entry points.

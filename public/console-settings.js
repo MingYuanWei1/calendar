@@ -13,7 +13,7 @@ export function showSettings(main){
   <span>${T('账户','Account')}</span><span>${esc(app.user.name)}</span>
   <span>${T('角色','Role')}</span><span>${app.user.role} · ${roles[app.user.role]}</span>
   <span>${T('界面语言','Language')}</span><div class="seg" style="width:max-content"><button type="button" data-lang="0" aria-pressed="${!app.lang}">中文</button><button type="button" data-lang="1" aria-pressed="${!!app.lang}">English</button></div></div>
-  <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">${app.user.role===3?`<a class="btn btn-secondary" href="#accounts">${T('账户管理','Manage accounts')}</a>`:''}<a class="btn btn-secondary" href="/students.html">${T('学生管理','Students')}</a><button type="button" class="btn btn-secondary" data-sign-out>${T('退出登录','Sign out')}</button></div></section>
+  <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">${app.user.role===3?`<a class="btn btn-secondary" href="#accounts">${T('账户管理','Manage accounts')}</a><a class="btn btn-secondary" href="#students">${T('学生管理','Students')}</a>`:''}<button type="button" class="btn btn-secondary" data-sign-out>${T('退出登录','Sign out')}</button></div></section>
  </div>`;
  main.querySelectorAll('[data-lang]').forEach(button=>button.onclick=()=>app.setLanguage(Number(button.dataset.lang)));
  main.querySelector('[data-sign-out]').onclick=()=>app.signOut();

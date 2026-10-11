@@ -1,8 +1,10 @@
-import {pageRole} from '../server/page-access.mjs';
+import {pageRedirect,pageRole} from '../server/page-access.mjs';
 export default {
   async fetch(request,env){
     const url=new URL(request.url);
     if(url.pathname.startsWith('/api/'))return env.CALENDAR_API.fetch(request);
+    const moved=pageRedirect(url);
+    if(moved)return Response.redirect(new URL(moved,url.origin).href,302);
     if(!pageRole(url))return env.ASSETS.fetch(request);
     const headers={'Cache-Control':'no-store'};
     try{

@@ -1,4 +1,4 @@
-import {pageRole} from './page-access.mjs';
+import {pageRedirect,pageRole} from './page-access.mjs';
 import {initializeAccounts,installAccounts} from './accounts.mjs';
 import {installSchoolAuth} from './school-auth.mjs';
 import express from 'express';
@@ -265,13 +265,15 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
     res.type('image/webp').send(bytes);
   });
   installAccounts(app,db,{requireRole,currentUser:session});
-  const exams=installExams(app,db,{requireAdmin,isAdmin:req=>session(req)?.role>=2,user:session,origin,timeZone,llm,quota});
+  const exams=installExams(app,db,{requireAdmin,requireSystemAdmin:requireRole(3),isAdmin:req=>session(req)?.role>=2,user:session,origin,timeZone,llm,quota});
   examEvents=exams.events;
   installFeeds(app,db,{user:session,account:schoolAuth.account,origin,timeZone,matching:exams.matching,examEvents,personalEvents:listPersonal});
   installNoticeExtract(app,db,{requireAdmin,llm,timeZone,quota});
   installAssistant(app,db,{session,llm,matching:exams.matching,timeZone,quota,personalEvents:listPersonal});
   app.use('/api',(req,res)=>res.status(404).json({error:'接口不存在。'}));
   app.use((req,res,next)=>{
+    const moved=pageRedirect(new URL(origin+req.originalUrl));
+    if(moved)return res.redirect(302,moved);
     const required=pageRole(new URL(origin+req.originalUrl));
     if(!required)return next();
     res.set('Cache-Control','no-store');

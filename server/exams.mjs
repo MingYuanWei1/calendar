@@ -9,10 +9,10 @@ import express from 'express';
 import {randomUUID} from 'node:crypto';
 import {adaptRooms,batchEvent,batchSchema,numberGrades,seatErrors,schedule,scheduleKey} from './exam-model.mjs';
 import {seatTemplate,parseSeats,makeSchedulePdf} from './exam-files.mjs';
-export function installExams(app,db,{requireAdmin,isAdmin,user,origin,timeZone,quota,sso={},llm={}}){
+export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,user,origin,timeZone,quota,sso={},llm={}}){
  db.exec(`CREATE TABLE IF NOT EXISTS exam_batches(id TEXT PRIMARY KEY,version INTEGER NOT NULL,draft TEXT NOT NULL,published TEXT,seating TEXT);
  CREATE TABLE IF NOT EXISTS exam_choices(user_id TEXT NOT NULL,batch_id TEXT NOT NULL,exam_id TEXT NOT NULL,PRIMARY KEY(user_id,batch_id,exam_id));`);
- const students=installStudents(app,db,requireAdmin);
+ const students=installStudents(app,db,requireSystemAdmin);
  const matching=installExamMatching(app,db,{user,students});
  const subjects=installSubjects(app,db,requireAdmin);
  const schoolRules=installSchoolRules(app,db,{requireAdmin,subjects});
