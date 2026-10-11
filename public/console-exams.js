@@ -333,11 +333,11 @@ function subjectsDialog(){
 
 function publishDialog(b,seating){
  const rows=sorted(b.sessions);
- const body=modal(seating?T('座位表发布预览','Seating publish preview'):T('考试安排发布预览','Schedule publish preview'),seating
+ const body=modal(seating?T('座位表发布预览','Seating publish preview'):T('考试安排发布预览','Schedule publish preview'),(seating
   ?`<p style="font-size:14px">${T(`共 ${b.sessions.length} 场考试、${b.rooms.length} 间教室、${b.seats.length} 个座位。发布前请在“教室”页逐间核对。`,`${b.sessions.length} sessions across ${b.rooms.length} rooms, ${b.seats.length} seats. Check each room on the Rooms tab before publishing.`)}</p>
    ${b.rooms.some(r=>r.sizeReview)?`<p class="callout">${T('标记“尺寸待确认”的教室由座位表自动扩大，请先在“教室”页确认尺寸再发布。','Rooms marked “Check size” were grown to fit the seating sheet; confirm them on the Rooms tab before publishing.')}</p>`:''}
    <div class="list-box rooms">${b.rooms.map(r=>`<div><span style="font-weight:500">${esc(r.name)}</span><span class="muted">${r.rows} × ${r.columns} · ${count(b.sessions.filter(s=>s.rooms.includes(r.name)).length,'场','sessions')} · ${count(b.seats.filter(s=>s.room===r.name).length,'座','seats')}</span>${r.sizeReview?sizeTag():''}</div>`).join('')}</div>`
-  :`<div class="list-box publish">${rows.map(s=>`<div><span class="num">${esc(md(s.date))} · ${s.start}–${s.end}</span><span class="${s.cancelled?'struck':''}">${esc(sName(s))} · ${esc(s.grades.map(g=>gradeLabel(g,app.lang)).join(' / '))}</span><span>${esc(s.rooms.join(' / '))}</span></div>`).join('')||`<div class="muted">${T('暂无考试','No sessions')}</div>`}</div>`
+  :`<div class="list-box publish">${rows.map(s=>`<div><span class="num">${esc(md(s.date))} · ${s.start}–${s.end}</span><span class="${s.cancelled?'struck':''}">${esc(sName(s))} · ${esc(s.grades.map(g=>gradeLabel(g,app.lang)).join(' / '))}</span><span>${esc(s.rooms.join(' / '))}</span></div>`).join('')||`<div class="muted">${T('暂无考试','No sessions')}</div>`}</div>`)
  +`<p class="callout">${seating?T('使用学校 Microsoft 账号登录的学生可查看全部已发布座位表。','Students signed in with a school Microsoft account can view all published seating.'):T('时间、教室或取消状态发生变化时，已发布座位表将撤下，需核对后重新发布。','If times, rooms or cancellations change later, published seating is withdrawn and must be re-published.')}</p>
  ${actions({saveLabel:seating?T('确认发布座位表','Publish seating'):T('确认发布考试安排','Publish schedule')})}`,{size:'wide'});
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
