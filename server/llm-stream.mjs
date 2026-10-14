@@ -120,8 +120,20 @@ export function jsonItems(onItem,onInvalid=()=>{}){
  let inString=false,escaped=false,key='',lastString='',arrayKey='',start=-1,stringStart=-1,text='',position=0,capturing=false,ended=false;
  const stack=[],closed=new Set(),strings={};
  const topLevel=()=>stack.length===2&&stack[0]==='{'&&stack[1]==='[';
+ // Drop the text already scanned, keeping only the item or string still being captured. Appending to a long string
+ // and then reading it by index copies the whole string on every delta, which made long answers quadratic in CPU.
+ const compact=()=>{
+  const keep=Math.min(position,capturing?start:position,stringStart>=0?stringStart:position);
+  if(!keep)return;
+  text=text.slice(keep);position-=keep;
+  if(capturing)start-=keep;
+  if(stringStart>=0)stringStart-=keep;
+ };
  const feed=chunk=>{
   text+=chunk;
+  try{scan();}finally{compact();}
+ };
+ const scan=()=>{
   for(;position<text.length;position++){
    const c=text[position];
    if(inString){
