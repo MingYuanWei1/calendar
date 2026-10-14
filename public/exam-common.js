@@ -27,5 +27,5 @@ export function seatingMarkup(batch,seating,exam,roomName,point=exam.start,lang=
    cells+=`<${tag}${attributes} class="seat${seat?'':' empty'}${own?' my-seat':''}">${own?`<small>${lang?'Your seat':'你的座位'}</small>`:''}${seat?`<small>${esc(seat.className)}</small><strong>${esc(seat.name)}</strong><span>${esc(seat.englishName)}</span><small>${esc(lang?(s.titleEn||s.title):s.title)}</small>`:(lang?'Empty':'空位')}</${tag}>`;
   }
  }
- return `<div class="podium">${lang?'Front / Podium':'讲台 / 前方'}</div><div class="seating-scroll"><div class="seating-grid" style="grid-template-columns:40px repeat(${room.columns},105px)">${cells}</div></div>`;
+ return `<div class="podium">${lang?'Front / Podium':'讲台 / 前方'}</div><div class="seating-scroll"><div class="seating-grid" style="grid-template-columns:40px repeat(${room.columns},105px);--columns:${room.columns}">${cells}</div></div>`;
 }

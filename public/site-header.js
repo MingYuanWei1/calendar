@@ -5,13 +5,16 @@
  const exams=header.dataset.page==='exams';
  const management=header.dataset.page==='management';
  const link=(href,key,zh,en,active)=>`<a href="${href}" data-i18n="${key}" data-zh="${zh}" data-en="${en}"${active?' class="active" aria-current="page"':''}>${zh}</a>`;
+ // Phones draw Lucide chevrons in place of the text arrows.
+ const chevron=d=>`<span class="glyph" aria-hidden="true">${d==='left'?'‹':'›'}</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d==='left'?'m15 18-6-6 6-6':'m9 18 6-6-6-6'}"/></svg>`;
  const dateControls=exams
   ? '<div class="date-nav"><button id="previous" aria-label="上一周">‹</button><button id="current">本批次首周</button><button id="next" aria-label="下一周">›</button></div>'
-  : '<div class="month-heading"><h1 id="month-title"></h1></div><div class="date-nav"><button id="previous" aria-label="上个月">‹</button><button id="today" data-i18n="today">今天</button><button id="next" aria-label="下个月">›</button></div>';
+  : `<div class="month-heading"><h1 id="month-title"></h1></div><div class="date-nav"><button id="previous" aria-label="上个月">${chevron('left')}</button><button id="today" data-i18n="today">今天</button><button id="next" aria-label="下个月">${chevron('right')}</button></div>`;
  const pageActions=exams
   ? '<button id="download" class="primary" disabled>下载 PDF</button>'
-  : '<div class="view-switch" aria-label="日历视图"><button id="month-view" aria-pressed="true" data-i18n="monthView">月历</button><button id="week-view" aria-pressed="false" data-i18n="weekView">周历</button><button id="list-view" aria-pressed="false" data-i18n="listView">日程</button></div><button id="add-personal" type="button" class="add-personal" hidden><span aria-hidden="true">+</span><span class="add-personal-label">添加个人事件</span></button>';
- header.innerHTML=`<a class="brand" href="/"><img src="/logo.png" alt=""><span data-i18n="brand" data-zh="日历" data-en="Calendar">日历</span></a><nav class="section-nav" aria-label="主要导航">${link('/','calendarNav','校历','Calendar',!exams)}${link('exams.html','examsNav','考试安排','Exams',exams)}</nav><div class="calendar-toolbar"><div class="date-controls">${management?'':dateControls}</div><div class="calendar-actions">${management?'':pageActions}</div></div><div class="header-actions">${management?'':`<div class="subscribe">${exams?'<button id="subscribe-exams" type="button" class="subscribe-button" aria-haspopup="menu" aria-expanded="false" aria-controls="subscribe-menu"></button><div id="subscribe-menu" class="account-menu subscribe-menu" role="menu" hidden><button type="button" role="menuitem" data-feed="exams"></button><button type="button" role="menuitem" data-feed="mine"></button></div>':'<button id="subscribe-calendar" type="button" class="subscribe-button"></button>'}</div>`}${management?'':'<button id="assistant-open" type="button" class="assistant-trigger"></button>'}<button id="language" class="language" aria-label="Switch to English">EN</button><div class="user-menu"><button id="school-account" type="button" disabled aria-expanded="false" aria-controls="account-menu">登录</button><div id="account-menu" class="account-menu" hidden><strong id="account-name"></strong><small id="account-role"></small><a id="account-console" href="/console.html" hidden>管理后台</a><button id="account-logout" type="button">退出登录</button><p id="account-error" role="alert"></p></div></div></div>`;
+  : '<div class="view-switch" aria-label="日历视图"><button id="month-view" aria-pressed="true" data-i18n="monthView">月历</button><button id="week-view" aria-pressed="false" data-i18n="weekView">周历</button><button id="list-view" aria-pressed="false" data-i18n="listView">日程</button></div><button id="mobile-filter" type="button" class="btn mobile-only" aria-haspopup="dialog"></button><button id="add-personal" type="button" class="add-personal" hidden><span aria-hidden="true">+</span><span class="add-personal-label">添加个人事件</span></button>';
+ const moreButton='<button id="site-more" type="button" class="site-more btn btn-ghost btn-icon mobile-only" aria-haspopup="dialog" aria-label="更多"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>';
+ header.innerHTML=`<a class="brand" href="/"><img src="/logo.png" alt=""><span data-i18n="brand" data-zh="日历" data-en="Calendar">日历</span></a><nav class="section-nav" aria-label="主要导航">${link('/','calendarNav','校历','Calendar',!exams)}${link('exams.html','examsNav','考试安排','Exams',exams)}</nav><div class="calendar-toolbar"><div class="date-controls">${management?'':dateControls}</div><div class="calendar-actions">${management?'':pageActions}</div></div><div class="header-actions">${management?'':`<div class="subscribe">${exams?'<button id="subscribe-exams" type="button" class="subscribe-button" aria-haspopup="menu" aria-expanded="false" aria-controls="subscribe-menu"></button><div id="subscribe-menu" class="account-menu subscribe-menu" role="menu" hidden><button type="button" role="menuitem" data-feed="exams"></button><button type="button" role="menuitem" data-feed="mine"></button></div>':'<button id="subscribe-calendar" type="button" class="subscribe-button"></button>'}</div>`}${management?'':'<button id="assistant-open" type="button" class="assistant-trigger"></button>'}<button id="language" class="language" aria-label="Switch to English">EN</button><div class="user-menu"><button id="school-account" type="button" disabled aria-expanded="false" aria-controls="account-menu">登录</button><div id="account-menu" class="account-menu" hidden><strong id="account-name"></strong><small id="account-role"></small><a id="account-console" href="/console.html" hidden>管理后台</a><button id="account-logout" type="button">退出登录</button><p id="account-error" role="alert"></p></div></div>${management?'':moreButton}</div>`;
  const accountButton=/** @type {HTMLButtonElement} */(document.getElementById('school-account'));
  const menu=document.getElementById('account-menu');
  const dialog=document.createElement('dialog');
@@ -34,6 +37,7 @@
   document.getElementById('account-role').textContent=({1:'reader',2:'moderator',3:'admin'})[user?.role]||'';
   document.getElementById('account-console').hidden=!(user?.role>=2);
   set('account-console','管理后台','Admin console');
+  document.getElementById('site-more')?.setAttribute('aria-label',label('更多','More'));
   set('account-logout','退出登录','Sign out');
   set('account-login-title','登录','Sign in');set('account-microsoft','使用 Microsoft 登录','Sign in with Microsoft');
   set('account-divider','或使用账号密码','or use your username and password');set('account-username-label','账号','Username');set('account-password-label','密码','Password');set('account-submit','登录','Sign in');
@@ -153,5 +157,9 @@
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!subscribeMenu.hidden){closeSubscribe();examsButton.focus();}});
  }
  subscriptions();
+ // Phones gather subscribe and language into the page's own ⋯ sheet, which opens feeds through this.
+ /** @type {any} */(window).siteHeader={openFeed};
+ const more=document.getElementById('site-more');
+ if(more)more.onclick=()=>window.dispatchEvent(new CustomEvent('site-menu'));
  renderAccount();loadSession().catch(error=>{accountButton.disabled=false;accountButton.title=error.message;});
 })();

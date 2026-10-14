@@ -6,13 +6,16 @@ function eventDetails(event) {
   const when = formatDate(event.start, true) + (isMulti(event) ? ' — ' + formatDate(event.end, true) : '');
   const row = (name, value) => value ? `<div class="meta-row"><span class="meta-label">${esc(t(name))}</span><div class="meta-value">${value}</div></div>` : '';
   let notice = '';
+  // Registration marks for the phone's blueprint frames; hidden on wider screens.
+  const frame = '<i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>';
+  const arrow = mark => `<span class="arrow" aria-hidden="true">${mark}</span>`;
   if (event.cancelled) {
     const fallback = event.cancelledOnce ? (state.lang ? 'This date will not take place. The other dates of this repeating event go ahead.' : '本次不举行，该重复事件的其他日期照常。') : (state.lang ? 'This event will not take place.' : '此事件不再举行，保留记录供查阅。');
-    notice = `<div class="change-notice cancel-notice"><strong>${esc(cancelText(event))}</strong><p>${esc(event.cancelReason || fallback)}</p></div>`;
+    notice = `<div class="change-notice cancel-notice blueprint">${frame}<strong>${esc(cancelText(event))}</strong><p>${esc(event.cancelReason || fallback)}</p></div>`;
   } else if (event.oldDate) {
     const previous = event.previousSchedule;
     const original = previous ? `${formatDate(previous.start)}${previous.end && previous.end !== previous.start ? ' — ' + formatDate(previous.end) : ''} · ${timeText(previous)}` : formatDate(event.oldDate);
-    notice = `<div class="change-notice"><strong>${esc(t('changed'))}</strong><p>${state.lang ? 'Previously: ' : '原定：'}${esc(original)}</p><p>${state.lang ? 'Now: ' : '现定：'}${esc(when)} · ${esc(timeText(event))}</p></div>`;
+    notice = `<div class="change-notice reschedule-notice blueprint">${frame}<strong>${esc(t('changed'))}</strong><p>${state.lang ? 'Previously: ' : '原定：'}${esc(original)}</p><p>${state.lang ? 'Now: ' : '现定：'}${esc(when)} · ${esc(timeText(event))}</p></div>`;
   }
   return `<span class="detail-type ${esc(event.type)}"><span class="dot"></span>${esc(text(types[event.type].label))}</span>
     <h2>${esc(text(event.title))}</h2><p class="detail-subtitle">${esc(scopeText(event))} · ${state.lang ? 'School event' : '校园公共事件'}</p>${notice}
@@ -25,8 +28,8 @@ function eventDetails(event) {
     </div>
     ${text(event.description) ? `<section class="detail-section"><h3>${esc(t('about'))}</h3><p>${esc(text(event.description))}</p>${text(event.extra) ? `<p class="detail-extra">${esc(text(event.extra))}</p>` : ''}</section>` : ''}
     ${event.poster?`<section class="detail-section"><h3>${state.lang?'Event poster':'事件海报'}</h3>${mediaImage(event.poster,state.lang?'Event poster — open full size':'事件海报，点击放大',true)}</section>`:''}
-    ${!event.cancelled&&(event.registrationUrl||event.qr||event.registration)?`<section class="detail-section"><h3>${state.lang?'Registration':'报名入口'}</h3>${event.registrationUrl?`<a class="primary registration-button" href="${esc(event.registrationUrl)}" target="_blank" rel="noopener noreferrer">${esc(t('registration'))} ↗</a>`:event.registration?`<button class="primary registration-button" data-registration>${esc(t('registration'))} ↗</button>`:''}${event.qr?mediaImage(event.qr,state.lang?'Registration QR code':'报名二维码',false):''}<p class="external-note">${esc(t('external'))}</p></section>`:''}
-    ${event.examBatch?`<a class="primary registration-button" href="exams.html?batch=${encodeURIComponent(event.examBatch)}">${state.lang?'View exam schedules':'查看考试安排'} →</a>`:event.type==='exam'?`<a class="primary registration-button" href="exams.html?date=${encodeURIComponent(event.start)}&division=${encodeURIComponent(event.scope.find(s=>s!=='schoolwide')||'high')}">${state.lang?'View exam schedules':'查看考试安排'} →</a>`:''}
+    ${!event.cancelled&&(event.registrationUrl||event.qr||event.registration)?`<section class="detail-section"><h3>${state.lang?'Registration':'报名入口'}</h3>${event.registrationUrl?`<a class="primary registration-button blueprint" href="${esc(event.registrationUrl)}" target="_blank" rel="noopener noreferrer">${frame}<span>${esc(t('registration'))}</span>${arrow('↗')}</a>`:event.registration?`<button class="primary registration-button blueprint" data-registration>${frame}<span>${esc(t('registration'))}</span>${arrow('↗')}</button>`:''}${event.qr?mediaImage(event.qr,state.lang?'Registration QR code':'报名二维码',false):''}<p class="external-note">${esc(t('external'))}</p></section>`:''}
+    ${event.examBatch?`<a class="primary registration-button blueprint" href="exams.html?batch=${encodeURIComponent(event.examBatch)}">${frame}<span>${state.lang?'View exam schedules':'查看考试安排'}</span>${arrow('→')}</a>`:event.type==='exam'?`<a class="primary registration-button blueprint" href="exams.html?date=${encodeURIComponent(event.start)}&division=${encodeURIComponent(event.scope.find(s=>s!=='schoolwide')||'high')}">${frame}<span>${state.lang?'View exam schedules':'查看考试安排'}</span>${arrow('→')}</a>`:''}
     <p class="detail-updated">${esc(event.updatedAt ? (state.lang ? 'Updated: ' : '更新于：') + new Intl.DateTimeFormat(state.lang?'en-GB':'zh-CN',{timeZone:settings.timeZone,dateStyle:'medium',timeStyle:'short'}).format(new Date(event.updatedAt)) : '')}</p>`;
 }
 

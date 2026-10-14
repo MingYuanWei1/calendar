@@ -13,7 +13,7 @@ const types = {
   exam:{label:['考试','Exams'],color:'var(--exam)'}, competition:{label:['比赛','Competitions'],color:'var(--competition)'}, activity:{label:['活动','Activities'],color:'var(--activity)'}, deadline:{label:['截止日','Deadlines'],color:'var(--deadline)'}
 };
 const divisions = ['primary','middle','high'];
-const state = {lang:Number(localStorage.getItem('exam-language')||0),year:new Date().getFullYear(),month:new Date().getMonth(),divisions:new Set(),hiddenGrades:new Set(),personal:true,types:new Set(Object.keys(types)),query:'',view:'month',anchor:'',selected:null};
+const state = {lang:Number(localStorage.getItem('exam-language')||0),year:new Date().getFullYear(),month:new Date().getMonth(),divisions:new Set(),hiddenGrades:new Set(),personal:true,types:new Set(Object.keys(types)),query:'',view:'month',anchor:'',selected:null,day:'',sheet:null};
 const mobileQuery = matchMedia('(max-width:760px)');
 /** Events as published: a repeating event appears once, with its 重复规则. */
 /** @type {SchoolEvent[]} */
@@ -96,6 +96,10 @@ function renderFilters(){
   $('#type-filter').innerHTML=Object.entries(types).map(([key,value])=>`<label class="type-option" style="--type-color:${value.color}"><input type="checkbox" data-type="${key}" ${state.types.has(key)?'checked':''}>${esc(text(value.label))}</label>`).join('')+personalOption;
   $('#inline-types').innerHTML=Object.entries(types).map(([key,value])=>`<button class="type-chip ${key}" data-type="${key}" aria-pressed="${state.types.has(key)}"><span class="dot"></span>${esc(text(value.label))}</button>`).join('')+(personalEnabled?`<button class="type-chip personal" data-personal-filter aria-pressed="${state.personal}"><span class="dot"></span>${esc(t('personalEvents'))}</button>`:'');
   $('#add-personal').hidden=!personalEnabled;$('#add-personal').title=t('addPersonal');$('#add-personal').setAttribute('aria-label',t('addPersonal'));$('#add-personal .add-personal-label').textContent=t('addPersonal');
+  // Phones gather the filters into a sheet; its button counts the types turned off and the divisions chosen.
+  const filtersOn=Object.keys(types).length-state.types.size+(personalEnabled&&!state.personal?1:0)+state.divisions.size;
+  $('#mobile-filter').innerHTML=`${icons.filter}<span>${esc(state.lang?'Filter':'筛选')}${filtersOn?' · '+filtersOn:''}</span>`;
+  $('#mobile-filter').dataset.active=String(filtersOn>0);
   const bind=(selector,action)=>$$(selector).forEach(b=>b.tagName==='INPUT'?b.onchange=()=>action(b):b.onclick=()=>action(b));
   bind('[data-division]',b=>toggleDivision(b.dataset.division));
   bind('[data-grade]',b=>toggleGrade(Number(b.dataset.grade)));
@@ -123,7 +127,7 @@ function calendarFocus(id,date){
     target=date?dates.find(e=>e.occurrence===date):dates.find(e=>!e.cancelled)||dates[0];
     if(!target)return false;
   }
-  resetFilters();const [year,month]=target.start.split('-').map(Number);state.year=year;state.month=month-1;
+  resetFilters();const [year,month]=target.start.split('-').map(Number);state.year=year;state.month=month-1;state.day=target.start;
   render();selectEvent(target.id);return true;
 }
 window.calendarFocus=calendarFocus;
@@ -149,13 +153,14 @@ function wrapRows(items,rows){
 }
 function renderCalendar(){
   $('#agenda-search').hidden=state.view!=='list';
-  document.body.classList.toggle('week-mode',state.view==='week');
+  document.body.classList.toggle('week-mode',state.view==='week');document.body.dataset.view=state.view;
   $('#week-board').hidden=state.view!=='week';
   $('#month-title').removeAttribute('title');
   $('#week-view').setAttribute('aria-pressed',String(state.view==='week'));
   $('#previous').setAttribute('aria-label',state.view==='week'?(state.lang?'Previous week':'上一周'):t('previous'));
   $('#next').setAttribute('aria-label',state.view==='week'?(state.lang?'Next week':'下一周'):t('next'));
   refreshOccurrences();
+  $('#mobile-month').hidden=$('#day-panel').hidden=state.view!=='month';
   if(state.view==='week'){renderWeek();return;}
 
   const first = new Date(state.year,state.month,1,12);const last = new Date(state.year,state.month+1,0,12);
@@ -224,29 +229,125 @@ function renderCalendar(){
   $('#agenda').innerHTML=agenda;
   $('#agenda').classList.toggle('is-empty',!agenda);
   $('#agenda').hidden=state.view==='month';$('#month-grid').hidden=state.view!=='month';$('#weekdays').hidden=state.view!=='month';
-  $('#empty').hidden=!!agenda;
+  // On phones the day panel says when a day is empty, so the month view needs no banner.
+  $('#empty').hidden=!!agenda||(mobileQuery.matches&&state.view==='month');
   $('#result-count').textContent=state.lang?`${monthEvents.length} events this month`:`本月 ${monthEvents.length} 项事件`;
   $('#month-view').setAttribute('aria-pressed',String(state.view==='month'));$('#list-view').setAttribute('aria-pressed',String(state.view==='list'));
   bindEvents($('#main-calendar'));$$('[data-day]').forEach(b=>b.onclick=()=>openDay(b.dataset.day));
+  if(mobileQuery.matches&&state.view==='month')renderMobileMonth();
   requestAnimationFrame(fitMonthDensity);
+}
+/** The day the phone's day panel lists: today when it falls in the shown month, otherwise the 1st. */
+function defaultDay(){
+  const today=schoolToday(),[year,month]=today.split('-').map(Number);
+  return year===state.year&&month===state.month+1?today:isoDate(new Date(state.year,state.month,1,12));
+}
+// Phones: a borderless month grid — a date square, up to three dots per day and thin bars for multi-day
+// events — above the selected day's events, which replace the day dialog.
+function renderMobileMonth(){
+  const first=new Date(state.year,state.month,1,12),last=new Date(state.year,state.month+1,0,12);
+  const monthStart=isoDate(first),monthEnd=isoDate(last),today=schoolToday();
+  if(!state.day||state.day<monthStart||state.day>monthEnd)state.day=defaultDay();
+  const offset=(first.getDay()+6)%7,count=Math.ceil((offset+last.getDate())/7)*7;
+  const shown=events.filter(matches);
+  // A multi-day bar keeps one height across the month so it reads as one line from cell to cell.
+  const lanes=[],laneOf=new Map();
+  shown.filter(isMulti).filter(e=>e.start<=monthEnd&&e.end>=monthStart).sort((a,b)=>a.start.localeCompare(b.start)||b.end.localeCompare(a.end)||a.id.localeCompare(b.id)).forEach(e=>{
+    let lane=lanes.findIndex(end=>end<e.start);if(lane<0)lane=lanes.length;lanes[lane]=e.end;laneOf.set(e,lane);
+  });
+  const weekdays=(state.lang?['M','T','W','T','F','S','S']:['一','二','三','四','五','六','日']).map((d,i)=>`<span${i>4?' class="weekend"':''}>${d}</span>`).join('');
+  let cells='';
+  for(let i=0;i<count;i++){
+    const date=new Date(state.year,state.month,1-offset+i,12),iso=isoDate(date);
+    if(iso<monthStart||iso>monthEnd){cells+=`<span class="mm-cell outside" aria-hidden="true"><span class="mm-date">${date.getDate()}</span></span>`;continue;}
+    const plan=dayPlan(iso),singles=shown.filter(e=>!isMulti(e)&&onDate(e,iso)).sort(sortEvents),spans=shown.filter(e=>isMulti(e)&&onDate(e,iso));
+    const bars=spans.filter(e=>laneOf.get(e)<2).map(e=>`<i class="mm-bar ${e.type}${e.cancelled?' cancelled':''}" style="bottom:${6+laneOf.get(e)*5}px;left:${iso===e.start?6:0}px;right:${iso===e.end?6:0}px"></i>`).join('');
+    const more=singles.length>3||spans.some(e=>laneOf.get(e)>=2);
+    const dots=singles.slice(0,3).map(e=>`<i class="dot ${e.type}${e.personal?' personal':''}${e.cancelled?' cancelled':''}"></i>`).join('')+(more?'<i class="mm-more">+</i>':'');
+    const square=['mm-date',i%7>4?'weekend':'',plan&&plan.kind!=='school'?'plan-'+plan.kind:'',iso===today?'today':'',iso===state.day?'ticked':''].filter(Boolean).join(' ');
+    const total=singles.length+spans.length;
+    const name=formatDate(iso,true)+(plan?' · '+dayPlanName(plan):'')+(total?(state.lang?` · ${total} events`:` · ${total} 项事件`):'');
+    cells+=`<button type="button" class="mm-cell" data-pick="${iso}" aria-pressed="${iso===state.day}" aria-label="${esc(name)}"${iso===today?' aria-current="date"':''}><span class="${square}">${date.getDate()}</span><span class="mm-dots">${dots}</span>${bars}</button>`;
+  }
+  $('#mobile-month').innerHTML=`<div class="mm-weekdays" aria-hidden="true">${weekdays}</div><div class="mm-grid">${cells}</div>`;
+  $$('#mobile-month [data-pick]').forEach(b=>b.onclick=()=>selectDay(b.dataset.pick));
+  renderDayPanel();
+}
+function selectDay(iso){
+  state.day=iso;renderMobileMonth();
+  $(`#mobile-month [data-pick="${iso}"]`)?.focus();$('#day-panel').scrollTop=0;
+}
+function renderDayPanel(){
+  const iso=state.day,plan=dayPlan(iso),date=dateValue(iso);
+  const items=events.filter(matches).filter(e=>onDate(e,iso)).sort(sortEvents);
+  const heading=state.lang?new Intl.DateTimeFormat('en-GB',{weekday:'short',day:'numeric',month:'short'}).format(date):`${date.getMonth()+1}月${date.getDate()}日 ${new Intl.DateTimeFormat('zh-CN',{weekday:'short'}).format(date)}`;
+  // The left column: the start time, the span of a multi-day event, or 全天.
+  const when=e=>{
+    if(!isMulti(e))return e.time||t('allDay');
+    const [,sm,sd]=e.start.split('-').map(Number),[,em,ed]=e.end.split('-').map(Number);
+    return sm===em?(state.lang?`${sd}–${ed}`:`${sd}–${ed}日`):`${sm}/${sd}–${em}/${ed}`;
+  };
+  const rows=items.map(e=>`<button type="button" class="day-row ${e.type}${e.personal?' personal':''}${e.cancelled?' cancelled':''}" data-event="${esc(e.id)}"><span class="day-row-time num">${esc(when(e))}</span><span class="day-row-main"><span class="day-row-title"><span class="dot"></span><strong>${e.cancelled?esc(cancelText(e))+' · ':''}${e.oldDate?esc(t('changed'))+' · ':''}${esc(text(e.title))}</strong></span><small>${[timeText(e),scopeText(e),text(e.location)].filter(Boolean).map(esc).join(' · ')}</small></span></button>`).join('');
+  $('#day-panel').innerHTML=`<div class="day-panel-head"><h3>${esc(heading)}</h3>${plan?`<span class="tag plan-${plan.kind}">${esc(dayPlanName(plan))}</span>`:''}</div>${rows||`<p class="day-panel-empty">${esc(t('noDayEvents'))}</p>`}${personalEnabled?`<button type="button" class="day-add-personal" data-add-on="${iso}">+ ${esc(state.lang?'Add a personal event on this day':'在这天添加个人事件')}</button>`:''}`;
+  bindEvents($('#day-panel'));
+  const add=$('#day-panel [data-add-on]');if(add)add.onclick=()=>openPersonalEditor({date:iso});
+}
+const corners='<i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>';
+const icons={
+  filter:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></svg>',
+  subscribe:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4"/></svg>',
+  close:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>'
+};
+/** Phone sheets: 'filter' (适用学部 and 事件类型) or 'menu' (subscribe and language). */
+function openSheet(kind){state.sheet=kind;renderSheet();const sheet=$('#calendar-sheet');if(!sheet.open)sheet.showModal();}
+function renderSheet(){
+  const sheet=$('#calendar-sheet');if(!state.sheet)return;
+  const focused=document.activeElement?.closest?.('#calendar-sheet [data-key]')?.getAttribute('data-key');
+  sheet.className='sheet'+(state.sheet==='menu'?' menu':'');
+  sheet.setAttribute('aria-label',state.sheet==='menu'?(state.lang?'More':'更多'):(state.lang?'Filter':'筛选'));
+  if(state.sheet==='menu'){
+    sheet.innerHTML=`<button type="button" class="menu-row" data-key="subscribe" data-menu="subscribe">${icons.subscribe}<span class="menu-text">${esc(state.lang?'Subscribe to the calendar':'订阅校历')}</span></button><button type="button" class="menu-row" data-key="language" data-menu="language"><span class="lang-mark">${state.lang?'中':'EN'}</span><span class="menu-text">${state.lang?'切换为中文':'Switch to English'}</span></button>`;
+  }else{
+    const first=isoDate(new Date(state.year,state.month,1,12)),last=isoDate(new Date(state.year,state.month+1,0,12));
+    const count=events.filter(matches).filter(e=>e.start<=last&&(e.end||e.start)>=first).length;
+    const gradeName=g=>gradeTools?gradeTools.gradeLabel(g,state.lang):String(g);
+    const grades=[...state.divisions].map(d=>gradeTools?.DIVISION_GRADES[d]?.length?`<div class="sheet-chips" role="group" aria-label="${esc(t(d))} · ${esc(t('grades'))}">${gradeTools.DIVISION_GRADES[d].map(g=>`<button type="button" class="chip sub" data-key="grade-${g}" data-sheet-grade="${g}" aria-pressed="${!state.hiddenGrades.has(g)}">${esc(gradeName(g))}</button>`).join('')}</div>`:'').join('');
+    sheet.innerHTML=`<div class="sheet-head"><h3>${esc(state.lang?'Filter':'筛选')}</h3><button type="button" class="btn btn-ghost" data-key="reset" data-sheet-reset>${esc(t('reset'))}</button></div>
+      <div class="sheet-section"><h6 class="m-h6">${esc(t('scope'))}</h6><div class="sheet-chips">${divisions.map(d=>`<button type="button" class="chip" data-key="division-${d}" data-sheet-division="${d}" aria-pressed="${state.divisions.has(d)}">${esc(t(d))}</button>`).join('')}</div>${grades}<p class="sheet-note">${esc(t('scopeNote'))}</p></div>
+      <div class="sheet-section"><h6 class="m-h6">${esc(t('types'))}</h6><div class="sheet-chips">${Object.entries(types).map(([key,value])=>`<button type="button" class="chip type-toggle ${key}" data-key="type-${key}" data-sheet-type="${key}" aria-pressed="${state.types.has(key)}"><span class="dot"></span>${esc(text(value.label))}</button>`).join('')}${personalEnabled?`<button type="button" class="chip type-toggle personal" data-key="personal" data-sheet-personal aria-pressed="${state.personal}"><span class="dot"></span>${esc(t('personalEvents'))}</button>`:''}</div></div>
+      <button type="button" class="btn btn-primary blueprint" data-key="done" data-sheet-done>${corners}${esc(state.lang?`Show ${count} events`:`显示 ${count} 项事件`)}</button>`;
+  }
+  const on=(selector,action)=>sheet.querySelectorAll(selector).forEach(b=>b.onclick=()=>action(b));
+  on('[data-sheet-division]',b=>toggleDivision(b.dataset.sheetDivision));
+  on('[data-sheet-grade]',b=>toggleGrade(Number(b.dataset.sheetGrade)));
+  on('[data-sheet-type]',b=>toggleType(b.dataset.sheetType));
+  on('[data-sheet-personal]',()=>togglePersonal());
+  on('[data-sheet-reset]',()=>resetFilters());
+  on('[data-sheet-done]',()=>sheet.close());
+  on('[data-menu=subscribe]',()=>{sheet.close();/** @type {any} */(window).siteHeader?.openFeed('calendar');});
+  on('[data-menu=language]',()=>{sheet.close();$('#language').click();});
+  if(focused)sheet.querySelector(`[data-key="${focused}"]`)?.focus();
 }
 function renderDetail(){
   const event=events.find(e=>e.id===state.selected);
   // Without a selected event the panel closes instead of showing an empty placeholder.
   if(!event&&!document.body.classList.contains('detail-closed')){document.body.classList.remove('mobile-detail');document.body.classList.add('detail-closed');syncDetailMode();}
-  $('#details').innerHTML=`<div class="detail-top"><span class="overline">${esc(t('detail'))}</span><button id="close-detail" class="close-button" aria-label="${esc(t('close'))}">×</button></div>`+(event?eventDetails(event):`<p class="no-detail">${esc(t('chooseEvent'))}</p>`);
+  $('#details').innerHTML=`<div class="detail-top"><span class="overline">${esc(t('detail'))}</span><button id="close-detail" class="close-button" aria-label="${esc(t('close'))}"><span class="glyph" aria-hidden="true">×</span>${icons.close}</button></div>`+(event?eventDetails(event):`<p class="no-detail">${esc(t('chooseEvent'))}</p>`);
   bindClose();bindDetailActions($('#details'));
 }
 
 function bindClose(){$('#close-detail').onclick=()=>{document.body.classList.remove('mobile-detail');document.body.classList.add('detail-closed');syncDetailMode();const selectedId=state.selected;state.selected=null;renderCalendar();const target=$$(`[data-event="${selectedId}"]`).find(el=>el.getClientRects().length);const fallback=detailReturnDay?$$(`[data-day="${detailReturnDay}"]`).find(el=>el.getClientRects().length):null;(target||fallback)?.focus({preventScroll:true});window.scrollTo(0,detailScrollY);};}
-function openDay(iso){$('#day-dialog').className=dayPlan(iso)?'day-'+dayPlan(iso).kind:'';$('#day-dialog').dataset.date=iso;$('#day-title').textContent=formatDate(iso,true)+(dayPlan(iso)?' · '+dayPlanName(dayPlan(iso)):'');const items=events.filter(matches).filter(e=>onDate(e,iso)).sort(sortEvents);$('#day-events').innerHTML=dayBadge(dayPlan(iso))+(items.length?items.map(agendaButton).join(''):`<p>${esc(t('noDayEvents'))}</p>`)+(personalEnabled?`<button class="day-add-personal" data-add-on="${iso}">+ ${esc(state.lang?'Add a personal event on this day':'在这天添加个人事件')}</button>`:'');bindEvents($('#day-events'));const add=$('#day-events [data-add-on]');if(add)add.onclick=()=>{$('#day-dialog').close();openPersonalEditor({date:iso});};$('#day-dialog').showModal();}
+function openDay(iso){
+  // Phones list a day under the month grid instead of in a dialog.
+  if(mobileQuery.matches){const [year,month]=iso.split('-').map(Number);state.year=year;state.month=month-1;state.day=iso;state.anchor=iso;state.view='month';renderCalendar();return;}
+  $('#day-dialog').className=dayPlan(iso)?'day-'+dayPlan(iso).kind:'';$('#day-dialog').dataset.date=iso;$('#day-title').textContent=formatDate(iso,true)+(dayPlan(iso)?' · '+dayPlanName(dayPlan(iso)):'');const items=events.filter(matches).filter(e=>onDate(e,iso)).sort(sortEvents);$('#day-events').innerHTML=dayBadge(dayPlan(iso))+(items.length?items.map(agendaButton).join(''):`<p>${esc(t('noDayEvents'))}</p>`)+(personalEnabled?`<button class="day-add-personal" data-add-on="${iso}">+ ${esc(state.lang?'Add a personal event on this day':'在这天添加个人事件')}</button>`:'');bindEvents($('#day-events'));const add=$('#day-events [data-add-on]');if(add)add.onclick=()=>{$('#day-dialog').close();openPersonalEditor({date:iso});};$('#day-dialog').showModal();}
 function render(){
   document.documentElement.lang=state.lang?'en':'zh-CN';document.title=state.lang?'Keydion Calendar - School calendar':'Keydion日历 - 校历';$$('[data-i18n]').forEach(el=>el.textContent=t(el.dataset.i18n));
   $('#language').textContent=state.lang?'中文':'EN';$('#language').setAttribute('aria-label',state.lang?'切换为中文':'Switch to English');
   $('#search').placeholder=t('searchPlaceholder');$('#search').setAttribute('aria-label',t('searchPlaceholder'));
   $('#previous').setAttribute('aria-label',t('previous'));$('#next').setAttribute('aria-label',t('next'));$('#details').setAttribute('aria-label',t('detail'));$('#close-day').setAttribute('aria-label',t('closeDay'));$('#close-registration').setAttribute('aria-label',state.lang?'Close':'关闭');
   $('#day-legend').innerHTML=`<span class="legend-weekday">${state.lang?'Weekday':'工作日'}</span><span class="legend-weekend">${state.lang?'Weekend':'周末'}</span><span class="legend-half">${state.lang?'Half day':'上半天'}</span><span class="legend-off">${state.lang?'Holiday':'放假'}</span><span>${dayBadge({kind:'school'})} ${state.lang?'Full school day':'全天上课'}</span>`;
-  renderFilters();renderCalendar();renderDetail();
+  renderFilters();renderCalendar();renderDetail();renderSheet();
   document.dispatchEvent(new CustomEvent('calendar-language'));
 }
 $('#search').oninput=e=>{state.query=e.target.value;state.selected=null;renderCalendar();renderDetail();};
@@ -257,12 +358,17 @@ $('#month-view').onclick=()=>changeView('month');$('#list-view').onclick=()=>cha
   if(!state.anchor){const today=dateValue(schoolToday());state.anchor=isoDate(new Date(state.year,state.month,today.getFullYear()===state.year&&today.getMonth()===state.month?today.getDate():1,12));}
   changeView('week');
 };
-function moveMonth(delta){const date=state.view==='week'?dateValue(state.anchor):new Date(state.year,state.month+delta,1,12);if(state.view==='week')date.setDate(date.getDate()+delta*7);state.anchor=state.view==='week'?isoDate(date):'';state.year=date.getFullYear();state.month=date.getMonth();state.selected=null;renderCalendar();renderDetail();}
-$('#previous').onclick=()=>moveMonth(-1);$('#next').onclick=()=>moveMonth(1);$('#today').onclick=()=>{state.anchor=schoolToday();const current=state.anchor.split('-').map(Number);state.year=current[0];state.month=current[1]-1;state.selected=null;render();};
+function moveMonth(delta){const date=state.view==='week'?dateValue(state.anchor):new Date(state.year,state.month+delta,1,12);if(state.view==='week')date.setDate(date.getDate()+delta*7);state.anchor=state.view==='week'?isoDate(date):'';state.year=date.getFullYear();state.month=date.getMonth();state.day='';state.selected=null;renderCalendar();renderDetail();}
+$('#previous').onclick=()=>moveMonth(-1);$('#next').onclick=()=>moveMonth(1);$('#today').onclick=()=>{state.anchor=schoolToday();const current=state.anchor.split('-').map(Number);state.year=current[0];state.month=current[1]-1;state.day=state.anchor;state.selected=null;render();};
 $('#close-day').onclick=()=>$('#day-dialog').close();$('#close-registration').onclick=()=>$('#registration-dialog').close();$('#registration-ok').onclick=()=>$('#registration-dialog').close();
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('dialog[open]')&&document.body.classList.contains('mobile-detail'))$('#close-detail')?.click();});
 document.addEventListener('keydown',e=>{if(e.key!=='Tab'||!mobileQuery.matches||!document.body.classList.contains('mobile-detail')||$('dialog[open]'))return;const buttons=[...$('#details').querySelectorAll('button,a[href]')].filter(el=>el.getClientRects().length);const first=buttons[0],last=buttons.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}});
-mobileQuery.addEventListener('change',syncDetailMode);
+mobileQuery.addEventListener('change',()=>{syncDetailMode();renderCalendar();});
+$('#mobile-filter').onclick=()=>openSheet('filter');
+window.addEventListener('site-menu',()=>openSheet('menu'));
+$('#calendar-sheet').addEventListener('close',()=>{state.sheet=null;});
+// Tapping the backdrop (outside the sheet's box) closes it.
+$('#calendar-sheet').addEventListener('click',e=>{const box=e.currentTarget.getBoundingClientRect();if(e.clientY<box.top||e.clientY>box.bottom||e.clientX<box.left||e.clientX>box.right)e.currentTarget.close();});
 render();
 
 $('#close-media').onclick=()=>$('#media-dialog').close();

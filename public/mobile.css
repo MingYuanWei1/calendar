@@ -1,0 +1,148 @@
+/* Phones (≤760px): the calendar and exam pages use the Industry system — Barlow type, steel accent,
+   square corners, hairline borders and "+" registration marks. Desktop keeps the airy theme. */
+@font-face{font-family:'Barlow';font-weight:400;font-display:swap;src:url(fonts/barlow-400.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Barlow';font-weight:500;font-display:swap;src:url(fonts/barlow-500.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Barlow';font-weight:700;font-display:swap;src:url(fonts/barlow-700.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Barlow Condensed';font-weight:400;font-display:swap;src:url(fonts/barlow-condensed-400.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Barlow Condensed';font-weight:600;font-display:swap;src:url(fonts/barlow-condensed-600.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+:root{
+ --color-bg:#f2f2f3;--color-text:#1d1f20;--color-accent:#5980a6;
+ --color-divider:color-mix(in srgb,#1d1f20 16%,transparent);--color-faint:color-mix(in srgb,#1d1f20 8%,transparent);
+ --color-neutral-100:#f5f5f8;--color-neutral-400:#b7b7ba;--color-neutral-500:#98989b;--color-neutral-600:#7a7a7d;--color-neutral-700:#5d5d60;--color-neutral-800:#424244;--color-neutral-900:#2b2b2d;
+ --color-accent-100:#eef6ff;--color-accent-600:#597ea3;--color-accent-700:#416180;--color-accent-800:#2c455d;
+ --font-heading:"Barlow Condensed","PingFang SC","Noto Sans SC",system-ui,sans-serif;--font-body:"Barlow","PingFang SC","Noto Sans SC",system-ui,sans-serif;
+ --shadow-md:0 3px 10px color-mix(in srgb,#2b2b2d 16%,transparent);--shadow-lg:0 12px 32px color-mix(in srgb,#2b2b2d 22%,transparent);
+ --plan-off:#237b58;--plan-off-bg:#e6f2e9;--plan-half:#794b12;--plan-half-bg:#fff0d6;--plan-school:#255d76;--plan-school-bg:#e2eef5;
+}
+/* Mobile-only controls stay out of the desktop layout. */
+@media(min-width:761px){.mobile-only{display:none!important}}
+@media(max-width:760px){
+ .desktop-only{display:none!important}
+ /* The airy palette maps onto Industry so existing dialogs and controls follow. */
+ body.airy,body.exam-page{--base:var(--color-bg);--surface:var(--color-bg);--text:var(--color-text);--muted:var(--color-neutral-700);--line:var(--color-divider);--accent:var(--color-accent);--soft:var(--color-accent-100);--subtle:var(--color-neutral-100);background:var(--color-bg);color:var(--color-text);font-family:var(--font-body)}
+ body.airy h1,body.airy h2,body.airy h3,body.airy h4,body.exam-page h1,body.exam-page h2,body.exam-page h3,body.exam-page h4,.m-h6{font-family:var(--font-heading);font-weight:600;line-height:1.12;letter-spacing:-.015em;margin:0}
+ .m-h6{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-700)}
+ body.airy :focus-visible,body.exam-page :focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
+ .num{font-variant-numeric:tabular-nums}
+
+ /* — components — */
+ .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;text-decoration:none;font-family:var(--font-heading);font-weight:600;font-size:14px;line-height:1.2;color:var(--color-text);background:transparent;border:1px solid var(--color-divider);border-radius:0;padding:7px 12px;white-space:nowrap}
+ .btn svg{display:block;flex:none}
+ .btn:disabled{opacity:.45;cursor:not-allowed}
+ .btn:hover{background:color-mix(in srgb,var(--color-text) 7%,transparent)}
+ .btn-primary{background:var(--color-accent);border-color:var(--color-accent);color:var(--color-bg)}
+ .btn-primary:hover{background:var(--color-accent-600)}.btn-primary:active{background:var(--color-accent-700)}
+ .btn-ghost{border-color:transparent;color:var(--color-accent)}
+ .btn-ghost:hover{background:color-mix(in srgb,var(--color-accent) 10%,transparent)}
+ .btn-icon{width:36px;height:36px;padding:0}
+ .seg{display:inline-flex;border:1px solid var(--color-divider);border-radius:0;overflow:hidden}
+ .seg-opt{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;font:inherit;font-size:13px;line-height:1.5;border:0;border-radius:0;background:transparent;color:var(--color-text);cursor:pointer;white-space:nowrap}
+ .seg-opt+.seg-opt{border-left:1px solid var(--color-divider)}
+ .seg-opt[aria-pressed=true],.seg-opt[aria-checked=true]{background:var(--color-accent);color:var(--color-bg);font-weight:400}
+ .seg-opt:not([aria-pressed=true]):not([aria-checked=true]):hover{background:color-mix(in srgb,var(--color-text) 7%,transparent)}
+ .tag{display:inline-flex;align-items:center;gap:6px;font-size:11px;letter-spacing:.02em;padding:3px 10px;border-radius:0;white-space:nowrap}
+ .tag-neutral{background:var(--color-neutral-100);color:var(--color-neutral-800)}
+ .tag-accent{background:var(--color-accent-100);color:var(--color-accent-800)}
+ .blueprint{position:relative;border:1px solid var(--color-divider);border-radius:0}
+ .blueprint>.corner{position:absolute;width:11px;height:11px;color:color-mix(in srgb,var(--color-text) 55%,transparent);pointer-events:none}
+ .blueprint>.corner::before,.blueprint>.corner::after{content:"";position:absolute;background:currentColor}
+ .blueprint>.corner::before{left:5px;top:0;width:1px;height:100%}
+ .blueprint>.corner::after{top:5px;left:0;width:100%;height:1px}
+ .blueprint>.corner.tl{top:-6px;left:-6px}.blueprint>.corner.tr{top:-6px;right:-6px}.blueprint>.corner.bl{bottom:-6px;left:-6px}.blueprint>.corner.br{bottom:-6px;right:-6px}
+ .btn-primary.blueprint{border-color:var(--color-accent)}
+ /* Selected date: a text-colored frame with two L-shaped ticks. */
+ .ticked{position:relative;border-color:var(--color-text)!important;font-weight:600}
+ .ticked::before,.ticked::after{content:"";position:absolute;width:7px;height:7px;pointer-events:none}
+ .ticked::before{top:-4px;left:-4px;border-top:1px solid var(--color-text);border-left:1px solid var(--color-text)}
+ .ticked::after{bottom:-4px;right:-4px;border-bottom:1px solid var(--color-text);border-right:1px solid var(--color-text)}
+ .chip{display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:13px;line-height:1.5;padding:7px 12px;border:1px solid var(--color-divider);border-radius:0;background:transparent;color:var(--color-text);cursor:pointer}
+ .chip[aria-pressed=true]{border-color:var(--color-accent);background:var(--color-accent);color:var(--color-bg)}
+ .chip.sub{font-size:12px;padding:5px 10px}
+ .chip.type-toggle[aria-pressed=true]{border-color:var(--color-text);background:transparent;color:var(--color-text)}
+ .chip.type-toggle[aria-pressed=false]{color:var(--color-neutral-500)}
+ .chip.type-toggle .dot{width:7px;height:7px;border-radius:50%;background:var(--event-color,var(--color-accent))}
+ .chip.type-toggle[aria-pressed=false] .dot{background:var(--color-neutral-400)!important;border-color:var(--color-neutral-400)!important}
+
+ /* — top bar: logo, section nav, 问一问, sign-in, ⋯ — */
+ #site-header{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;column-gap:14px;row-gap:0;padding:0;background:var(--color-bg);font-family:var(--font-body);color:var(--color-text)}
+ #site-header .brand{grid-column:1;grid-row:1;padding-left:16px;height:52px}
+ #site-header .brand img{width:26px;height:26px;border-radius:0;box-shadow:none}
+ #site-header .brand span{display:none}
+ #site-header .section-nav{grid-column:2;grid-row:1;gap:16px}
+ #site-header .section-nav a{font-size:14px;padding:6px 0;color:var(--color-neutral-600);border-bottom:2px solid transparent}
+ #site-header .section-nav a.active{color:var(--color-text);border-bottom-color:var(--color-accent)}
+ #site-header .header-actions{grid-column:4;grid-row:1;height:52px;padding-right:10px;gap:4px;flex-wrap:nowrap;justify-content:flex-end}
+ #site-header .subscribe,#site-header #language{display:none}
+ #site-header button,#site-header .button{border-radius:0}
+ #site-header .assistant-trigger{width:36px;height:36px;padding:0;border:1px solid transparent;border-radius:0;background:transparent;color:var(--color-text);justify-content:center}
+ #site-header .assistant-trigger:hover{background:color-mix(in srgb,var(--color-accent) 10%,transparent)}
+ #site-header .assistant-trigger svg{width:18px;height:18px;stroke-width:1.5}
+ #site-header .assistant-trigger .label{display:none}
+ #site-header #school-account{height:32px;padding:0 12px;font-family:var(--font-heading);font-weight:600;font-size:14px;line-height:1.2;color:var(--color-text);background:transparent;border:1px solid var(--color-divider);border-radius:0}
+ #site-header #school-account.account-avatar{width:32px;padding:0;border-color:var(--color-accent);background:var(--color-accent);color:var(--color-bg);font-size:16px}
+ #site-header .site-more{width:36px;height:36px;padding:0;border-color:transparent;background:transparent;color:var(--color-text)}
+ #site-header .account-menu{right:0;left:auto;border-radius:0;background:var(--color-bg);border:1px solid var(--color-divider);box-shadow:var(--shadow-lg)}
+ #site-header .account-menu a,#site-header .account-menu button{border-radius:0}
+ #site-header .account-menu a:hover,#site-header .account-menu button:hover{background:color-mix(in srgb,var(--color-accent) 8%,transparent)}
+ /* Title and controls rows under the bar (calendar page). */
+ #site-header .calendar-toolbar{grid-column:1/-1;grid-row:2;display:flex;flex-direction:column;align-items:stretch;gap:0;flex-wrap:nowrap}
+ #site-header .date-controls{display:flex;align-items:center;gap:6px;padding:4px 10px 10px 16px;flex:none}
+ #site-header .month-heading{flex:1;min-width:0}
+ #site-header .month-heading h1{font-family:var(--font-heading);font-weight:600;font-size:30px;line-height:1.12;letter-spacing:-.015em}
+ #site-header .date-nav{gap:6px}
+ #site-header .date-nav #previous,#site-header .date-nav #next{width:36px;height:36px;min-width:0;padding:0;border-color:transparent;background:transparent;display:inline-flex;align-items:center;justify-content:center}
+ #site-header .date-nav .glyph{display:none}
+ #site-header .date-nav svg{display:block!important}
+ #site-header .date-nav #today{height:36px;padding:0 12px;margin:0;font-family:var(--font-heading);font-weight:600;font-size:14px;background:transparent;border:1px solid var(--color-divider)}
+ #site-header .calendar-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 16px 12px;margin:0;width:auto}
+ #site-header .view-switch{border:1px solid var(--color-divider);border-radius:0}
+ #site-header .view-switch button{font-size:13px;padding:7px 12px;line-height:1.5;border-radius:0;background:transparent;color:var(--color-text)}
+ #site-header .view-switch button+button{border-left:1px solid var(--color-divider)}
+ #site-header .view-switch button[aria-pressed=true]{background:var(--color-accent);color:var(--color-bg)}
+ #site-header #mobile-filter{height:36px;padding:0 12px;font-size:14px;background:transparent;border:1px solid var(--color-divider)}
+ #site-header #mobile-filter[data-active=true]{border-color:var(--color-text)}
+ body.exam-page #site-header .calendar-toolbar{display:none}
+
+ /* — bottom sheets — */
+ dialog.sheet{position:fixed;inset:auto 0 0 0;margin:0;width:100%;max-width:none;max-height:85dvh;overflow:auto;padding:16px 16px 22px;border:0;border-top:1px solid var(--color-divider);border-radius:0;background:var(--color-bg);color:var(--color-text);box-shadow:var(--shadow-lg);font-family:var(--font-body);font-size:15px;line-height:1.55}
+ dialog.sheet[open]{display:flex;flex-direction:column;gap:14px;animation:sheet-in .18s ease-out}
+ dialog.sheet.menu{padding-top:10px;gap:0}
+ dialog.sheet::backdrop{background:color-mix(in srgb,var(--color-neutral-900) 40%,transparent);backdrop-filter:none}
+ @keyframes sheet-in{from{transform:translateY(16px);opacity:0}to{transform:none;opacity:1}}
+ .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+ .sheet h3{font-family:var(--font-heading);font-weight:600;font-size:22px;line-height:1.12;margin:0}
+ .sheet-section{display:flex;flex-direction:column;gap:8px}
+ .sheet-chips{display:flex;flex-wrap:wrap;gap:6px}
+ .sheet-note{margin:0;font-size:12px;color:var(--color-neutral-600)}
+ .sheet .btn-primary.blueprint{height:44px;font-size:16px}
+ .menu-row{display:flex;align-items:center;gap:12px;min-height:52px;width:100%;padding:6px 0;border:0;border-bottom:1px solid var(--color-faint);border-radius:0;background:transparent;color:var(--color-text);font:inherit;font-size:15px;text-align:left;cursor:pointer}
+ .menu-row:last-child{border-bottom:0}
+ .menu-row:hover{background:color-mix(in srgb,var(--color-accent) 8%,transparent)}
+ .menu-row>svg{flex:none;color:var(--color-accent)}
+ .menu-row .lang-mark{width:18px;flex:none;font-family:var(--font-heading);font-weight:600;color:var(--color-accent)}
+ .menu-row .menu-text{flex:1;display:flex;flex-direction:column;min-width:0}
+ .menu-row small{font-size:12px;color:var(--color-neutral-700)}
+ .menu-row .menu-check{color:var(--color-accent)}
+
+ /* — full-screen detail pages share a 52px bar with a ✕ — */
+ .m-detail-bar{display:flex;align-items:center;justify-content:space-between;height:52px;padding:0 10px 0 16px;flex-shrink:0;border-bottom:1px solid var(--color-divider)}
+ .m-meta{display:flex;flex-direction:column;border-top:1px solid var(--color-divider)}
+ .m-meta-row{display:grid;grid-template-columns:48px minmax(0,1fr);gap:12px;padding:12px 0;border-bottom:1px solid var(--color-faint)}
+ .m-meta-row>.label{font-size:13px;color:var(--color-neutral-600)}
+ .m-meta-row>.value{font-size:15px;overflow-wrap:anywhere}
+ .m-meta-row small{display:block;font-size:12px;color:var(--color-neutral-700)}
+
+ /* — shared dialogs: login, subscribe — */
+ .account-login-dialog,#subscribe-dialog{border-radius:0;border:1px solid var(--color-divider);background:var(--color-bg);box-shadow:var(--shadow-lg);font-family:var(--font-body)}
+ .account-login-dialog h2,#subscribe-dialog h2{font-family:var(--font-heading);font-weight:600}
+ .account-login-dialog input,.account-login-dialog button,#subscribe-dialog button,#subscribe-dialog .subscribe-actions a,#subscribe-dialog .subscribe-url input,#subscribe-dialog .subscribe-warning{border-radius:0}
+ .account-login-dialog .microsoft-login,.account-login-dialog .primary{background:var(--color-accent);border-color:var(--color-accent);color:var(--color-bg)}
+ .account-login-dialog::backdrop,#subscribe-dialog::backdrop{background:color-mix(in srgb,var(--color-neutral-900) 40%,transparent)}
+ /* 校历问答 drawer. */
+ .assistant{border-radius:0;background:var(--color-bg);font-family:var(--font-body)}
+ .assistant-head h2{font-family:var(--font-heading);font-weight:600;font-size:20px}
+ .assistant-msg.user{border-radius:0}.assistant-msg.bot{border-radius:0;background:var(--color-neutral-100)}
+ .assistant-card,.assistant-form textarea,.assistant-form button,.assistant-suggest button,.assistant-head button{border-radius:0}
+ .assistant-card .n,.assistant-msg .cite{border-radius:0}
+}
+@media(prefers-reduced-motion:reduce){dialog.sheet[open]{animation:none}}
