@@ -148,7 +148,8 @@ test('the assistant sees a repeating event as its concrete upcoming dates',async
  t.after(()=>new Promise(r=>gateway.close(r)));
  const {call,request}=await setup(t,{url:`http://127.0.0.1:${gateway.address().port}`,token:'fixture-token'});
  const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
- const nextWednesday=addDays(today,(3-weekdayOf(today)+7)%7||7),start=addDays(nextWednesday,-28);
+ // Upcoming dates start today, so on a Wednesday the first one is today itself.
+ const nextWednesday=addDays(today,(3-weekdayOf(today)+7)%7),start=addDays(nextWednesday,-28);
  let series=await call('/api/admin/events','POST',club({start}));
  series=await call(`/api/admin/events/${series.id}/cancel`,'POST',{version:series.version,reason:'',occurrence:{date:nextWednesday,span:'one'}});
  const response=await request('/api/assistant',{method:'POST',body:{messages:[{role:'user',content:'机器人社什么时候活动？'}]},accept:'application/json'});
