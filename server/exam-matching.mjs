@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {seatExamIds} from '../public/exam-seats.mjs';
 export function installExamMatching(app,db,{user,students}){
  db.exec('CREATE TABLE IF NOT EXISTS exam_personal_state(user_id TEXT NOT NULL,batch_id TEXT NOT NULL,body TEXT NOT NULL,PRIMARY KEY(user_id,batch_id))');
  const choices=(uid,bid)=>db.prepare('SELECT exam_id FROM exam_choices WHERE user_id=? AND batch_id=? ORDER BY exam_id').all(uid,bid).map(r=>r.exam_id);
@@ -10,12 +11,19 @@ export function installExamMatching(app,db,{user,students}){
   const email=students.normalizeEmail(u.email),valid=students.validEmail(email);
   const matches=valid?(seating?.seats||[]).filter(s=>s.matchEmail===email):[];
   const identities=new Set(matches.map(s=>s.studentId)),personal=Object.create(null);
-  if(identities.size===1)for(const seat of matches){if(matches.filter(s=>s.examId===seat.examId).length===1&&batch.sessions.some(s=>s.id===seat.examId))personal[seat.examId]={studentId:seat.studentId,room:seat.room,row:seat.row,column:seat.column};}
-  return {batch,seating,personal,valid};
+  // An undecided seat ("Chinese B / Honor") shows under whichever of its exams the student follows, but only a decided
+  // seat adds its exam to the student's own list.
+  const related=new Set();
+  if(identities.size===1)for(const seat of matches)for(const id of seatExamIds(seat)){
+   if(matches.filter(s=>seatExamIds(s).includes(id)).length!==1||!batch.sessions.some(s=>s.id===id))continue;
+   personal[id]={studentId:seat.studentId,room:seat.room,row:seat.row,column:seat.column};
+   if(!seat.examIds)related.add(id);
+  }
+  return {batch,seating,personal,related:[...related],valid};
  }
  function synchronize(u,bid){
   const ctx=context(u,bid);if(!ctx)return null;
-  const state=read(u.id,bid),related=Object.keys(ctx.personal);
+  const state=read(u.id,bid),related=ctx.related;
   if(ctx.valid&&!state.initialized&&related.length){
    for(const id of related)db.prepare('INSERT OR IGNORE INTO exam_choices VALUES(?,?,?)').run(u.id,bid,id);
    state.initialized=true;state.seen=[...new Set([...state.seen,...related,...choices(u.id,bid)])];save(u.id,bid,state);

@@ -1,5 +1,5 @@
 import {$,$$,esc,corners,icon,app,T,tx,SCOPES,api,toast,modal,closeModal,busy,errorLine,fail,go,refreshNav,md,mdw,stamp,loadBatches,loadSubjects,loadJobs} from './console-core.js';
-import {adaptRooms,mergeSeats,moveSeat,roomExamsAt,seatViewTimes} from './exam-seats.mjs';
+import {adaptRooms,examsLabel,mergeSeats,moveSeat,roomExamsAt,seatExamIds,seatViewTimes,withoutExam} from './exam-seats.mjs';
 import {subjectName} from './exam-subjects.mjs';
 import {defaultExamSlots,slotOf} from './exam-times.mjs';
 import {importPreview} from './exam-import-preview.js';
@@ -13,6 +13,8 @@ const batch=()=>app.data.batches.find(b=>b.id===view.id);
 const bTitle=b=>app.lang?(b.titleEn||b.title):b.title;
 const bDivision=b=>b.division?tx(SCOPES[b.division]):[...new Set(b.sessions.map(s=>s.division))].map(d=>tx(SCOPES[d])).join(' / ')||'—';
 const sName=s=>{const name=app.lang?(s.titleEn||s.title):s.title;return name+(s.level&&!name.includes(s.level)?' '+s.level:'');};
+/** A seat's exam, or its candidate exams joined ("Chinese B / Honor") when the sheet left it undecided. */
+const seatExamName=(b,seat)=>examsLabel(seatExamIds(seat).map(id=>{const exam=b.sessions.find(s=>s.id===id);return exam?sName(exam):id;}));
 const sorted=sessions=>[...sessions].sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start)||a.title.localeCompare(b.title));
 const slotsOf=b=>b.timeSlots||defaultExamSlots;
 const pubTag=on=>on?'tag tag-accent':'tag tag-outline';
@@ -116,10 +118,10 @@ function roomsTab(b){
  const {room,exams,exam,times,time,active,ids}=ctx;
  let seats='',filled=0;
  for(let r=1;r<=room.rows;r++)for(let c=1;c<=room.columns;c++){
-  const index=b.seats.findIndex(s=>s.room===room.name&&s.row===r&&s.column===c&&ids.includes(s.examId)),seat=b.seats[index];
+  const index=b.seats.findIndex(s=>s.room===room.name&&s.row===r&&s.column===c&&seatExamIds(s).some(id=>ids.includes(id))),seat=b.seats[index];
   if(seat)filled++;
   const label=seat?(tx([seat.name,seat.englishName])||'—'):T('空位','Empty');
-  const examNote=seat&&active.length>1?' · '+sName(active.find(s=>s.id===seat.examId)):'';
+  const examNote=seat&&(active.length>1||seat.examIds)?' · '+seatExamName(b,seat):'';
   seats+=`<button type="button" class="seat${seat?' taken':''}" data-row="${r}" data-column="${c}"${seat?` data-index="${index}"`:''} title="${esc(`${T(`第 ${r} 排 · 第 ${c} 列`,`Row ${r}, column ${c}`)}${examNote}`)}"><strong>${esc(label)}</strong><span>${esc(seat?seat.className:`${r}-${c}`)}</span></button>`;
  }
  return `<div class="rooms-layout"><div class="room-list">${b.rooms.map((r,i)=>`<button type="button" data-room="${i}" aria-pressed="${r===room}"><strong>${esc(r.name)}</strong><small>${r.rows} × ${r.columns} · ${count(b.sessions.filter(s=>s.rooms.includes(r.name)).length,'场','sessions')}</small>${r.sizeReview?sizeTag():''}</button>`).join('')}<button type="button" class="btn btn-ghost" data-act="add-room" style="align-self:flex-start;margin-top:8px">+ ${T('新增教室','Add room')}</button></div>
@@ -245,7 +247,7 @@ function examDialog(s){
  $$('[data-slot]',body).forEach(el=>el.onclick=()=>{const [a,z]=el.dataset.slot.split('-');body.querySelector('[name=start]').value=a;body.querySelector('[name=end]').value=z;});
  $$('[data-room-pick]',body).forEach(el=>el.onclick=()=>{const name=el.dataset.roomPick,on=!d.rooms.includes(name);d.rooms=on?[...d.rooms,name]:d.rooms.filter(x=>x!==name);el.setAttribute('aria-pressed',String(on));});
  body.querySelector('[data-cancelled]').onclick=e=>{d.cancelled=!d.cancelled;e.currentTarget.setAttribute('aria-pressed',String(d.cancelled));};
- confirmButton(body,'[data-del]',T('删除考试','Delete exam'),async()=>{await update(next=>{next.sessions=next.sessions.filter(x=>x.id!==s.id);next.seats=next.seats.filter(x=>x.examId!==s.id);},T('已从草稿删除考试及其座位。','Exam and its seats removed from draft.'));closeModal();});
+ confirmButton(body,'[data-del]',T('删除考试','Delete exam'),async()=>{await update(next=>{next.sessions=next.sessions.filter(x=>x.id!==s.id);next.seats=next.seats.map(x=>withoutExam(x,s.id)).filter(Boolean);},T('已从草稿删除考试及其座位。','Exam and its seats removed from draft.'));closeModal();});
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
   const v=values(body),grades=d.grades.filter(g=>DIVISION_GRADES[d.division].includes(g));
   const title=v.title||[d.subject,v.level].filter(Boolean).join(' ');
@@ -257,7 +259,7 @@ function examDialog(s){
   if(!d.rooms.length)fail(T('请至少勾选一个教室。','Select at least one room.'));
   const session={id:s?.id||crypto.randomUUID(),title,titleEn:v.titleEn,subject:d.subject,subjectEn:d.subjectEn,level:v.level,division:d.division,grades,date:v.date,start:v.start,end:v.end,rooms:d.rooms,note:v.note,cancelled:d.cancelled};
   await update(next=>{
-   if(s){next.sessions=next.sessions.map(x=>x.id===s.id?session:x);next.seats=next.seats.filter(x=>x.examId!==s.id||session.rooms.includes(x.room));}
+   if(s){next.sessions=next.sessions.map(x=>x.id===s.id?session:x);next.seats=next.seats.map(x=>session.rooms.includes(x.room)?x:withoutExam(x,s.id)).filter(Boolean);}
    else next.sessions.push(session);
   },draftMsg());
   if(d.subject&&!app.data.subjects.some(x=>x.name===d.subject))await loadSubjects();
@@ -293,8 +295,10 @@ function roomDialog(index){
 
 function seatDialog(b,row,column,index){
  const ctx=seatContext(b),seat=b.seats[index];
+ // "Undecided" keeps the seat under all the exams it may belong to (the sheet's own candidates, else every exam here now).
+ const undecided=seat?.examIds||ctx.active.map(s=>s.id),undecidedName=seatExamName(b,{examId:undecided[0],examIds:undecided});
  const body=modal(seat?T('编辑座位','Edit seat'):T('添加座位','Add seat'),`<p class="muted" style="font-size:13px">${esc(ctx.room.name)} · ${T(`第 ${row} 排 · 第 ${column} 列`,`Row ${row}, column ${column}`)}</p>
- ${ctx.active.length>1?field(T('考试（本教室当前时段）','Exam (this room, this time)'),`<select class="input" name="examId" style="width:100%">${ctx.active.map(s=>`<option value="${esc(s.id)}"${(seat?.examId||ctx.exam.id)===s.id?' selected':''}>${esc(sName(s))} ${s.start}–${s.end}</option>`).join('')}</select>`):''}
+ ${ctx.active.length>1?field(T('考试（本教室当前时段）','Exam (this room, this time)'),`<select class="input" name="examId" style="width:100%">${ctx.active.map(s=>`<option value="${esc(s.id)}"${!seat?.examIds&&(seat?.examId||ctx.exam.id)===s.id?' selected':''}>${esc(sName(s))} ${s.start}–${s.end}</option>`).join('')}<option value="*"${seat?.examIds?' selected':''}>${esc(T(`待定：${undecidedName}`,`Undecided: ${undecidedName}`))}</option></select>`):''}
  <div class="two">${field(T('班级 *','Class *'),input('className',seat?.className,'maxlength="60" placeholder="11-1"'))}${field(T('年级（可留空推算）','Grade (optional)'),input('grade',seat?.grade,'type="number" min="1" max="12"'))}</div>
  <div class="two">${field(T('中文名','Chinese name'),input('name',seat?.name,'maxlength="80"'))}${field(T('英文名','English name'),input('englishName',seat?.englishName,'maxlength="120"'))}</div>
  ${actions({left:seat?`<button type="button" class="btn btn-ghost btn-danger left" data-del>${T('清空座位','Clear seat')}</button>`:''})}`);
@@ -303,9 +307,10 @@ function seatDialog(b,row,column,index){
   const v=values(body);
   if(!v.className)fail(T('请填写班级。','Class is required.'));
   if(!v.name&&!v.englishName)fail(T('至少填写一种姓名。','Enter at least one name.'));
-  const examId=v.examId||seat?.examId||ctx.exam.id;
+  const examIds=v.examId==='*'?undecided:null,examId=examIds?examIds[0]:v.examId||seat?.examId||ctx.exam.id;
   const same=seat&&seat.name===v.name&&seat.className===v.className;
-  const value={...(seat||{}),examId,room:ctx.room.name,row,column,className:v.className,name:v.name,englishName:v.englishName,grade:v.grade?Number(v.grade):null,studentId:same?seat.studentId:undefined};
+  const {examIds:_,...kept}=seat||{};
+  const value={...kept,...(examIds?{examIds}:{}),examId,room:ctx.room.name,row,column,className:v.className,name:v.name,englishName:v.englishName,grade:v.grade?Number(v.grade):null,studentId:same?seat.studentId:undefined};
   await update(next=>{if(seat)next.seats[index]=value;else next.seats.push(value);},draftMsg());
   closeModal();
  });
@@ -434,12 +439,11 @@ async function importSeats(file,llm){
   seatPreview(b,result,T('Excel 导入预览','Excel import preview'));
  }catch(error){toast(error.message,{bad:true});}
 }
-const examName=(b,id)=>{const exam=b.sessions.find(s=>s.id===id);return exam?sName(exam):id;};
-const seatLine=(b,s,i)=>`<div class="seat-line" data-pick="${i}" tabindex="0"><span class="num">${esc(s.room)} · ${T(`第 ${s.row} 排 ${s.column} 列`,`Row ${s.row} · Col ${s.column}`)}</span><span>${esc([s.className,s.name,s.englishName].filter(Boolean).join(' '))}</span><span class="muted">${esc(examName(b,s.examId))}</span></div>`;
+const seatLine=(b,s,i)=>`<div class="seat-line" data-pick="${i}" tabindex="0"><span class="num">${esc(s.room)} · ${T(`第 ${s.row} 排 ${s.column} 列`,`Row ${s.row} · Col ${s.column}`)}</span><span>${esc([s.className,s.name,s.englishName].filter(Boolean).join(' '))}</span><span class="muted">${esc(seatExamName(b,s))}</span></div>`;
 function seatResults(b,result,review,{elapsed=null,preset=false,job=null}={}){
  const groups=new Map();
- result.seats.forEach((seat,i)=>{const key=`${seat.examId}\u0000${seat.room}`;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(i);});
- review.results([...groups.values()].map(indexes=>{const first=result.seats[indexes[0]];return `<div class="seat-group"><h4>${esc(examName(b,first.examId))} · ${esc(first.room)} <span class="muted num" style="font-size:13px">${T(`${indexes.length} 座`,`${indexes.length} seats`)}</span></h4>${indexes.map(i=>seatLine(b,result.seats[i],i)).join('')}</div>`;}).join('')||`<p class="muted">${T('未识别到座位。','No seats found.')}</p>`,
+ result.seats.forEach((seat,i)=>{const key=`${seatExamIds(seat).join()}\u0000${seat.room}`;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(i);});
+ review.results([...groups.values()].map(indexes=>{const first=result.seats[indexes[0]];return `<div class="seat-group"><h4>${esc(seatExamName(b,first))} · ${esc(first.room)} <span class="muted num" style="font-size:13px">${T(`${indexes.length} 座`,`${indexes.length} seats`)}</span></h4>${indexes.map(i=>seatLine(b,result.seats[i],i)).join('')}</div>`;}).join('')||`<p class="muted">${T('未识别到座位。','No seats found.')}</p>`,
   {notes:[...roomChangeNotes(result.roomChanges),...(result.warnings||[]),...(result.errors||[])],elapsed,preset,total:result.seats.length,invalid:result.invalid||[]});
  const bar=review.actions(`${discardButton(job)}<button type="button" class="btn btn-secondary" data-dismiss>${T('返回','Go back')}</button><button type="button" class="btn btn-primary" data-next${result.seats.length?'':' disabled'}>${T('下一步：核对身份并导入','Next: check identities and import')}</button>`);
  bar.querySelector('[data-dismiss]').onclick=review.close;
@@ -465,7 +469,7 @@ const seatText=s=>`${s.room} · ${T(`第 ${s.row} 排 ${s.column} 列`,`Row ${s.
 /** The draft already has seats: show what the import adds and corrects, then merge it in or replace the draft. */
 function mergeDialog(b,seats,onImported){
  const merge=mergeSeats(b.seats,seats);
- const corrections=merge.changed.map(({before,after})=>`<div class="merge-change"><span class="muted">${esc(examName(b,after.examId))}</span>${before.map(s=>`<del>${esc(seatText(s))}</del>`).join('')}<ins>→ ${esc(seatText(after))}</ins></div>`).join('');
+ const corrections=merge.changed.map(({before,after})=>`<div class="merge-change"><span class="muted">${esc(seatExamName(b,after))}</span>${before.map(s=>`<del>${esc(seatText(s))}</del>`).join('')}<ins>→ ${esc(seatText(after))}</ins></div>`).join('');
  const body=modal(T('合并到草稿座位？','Merge into draft seats?'),`<p class="dialog-text">${T(`草稿已有 ${b.seats.length} 个座位。本次导入：新增 ${merge.added.length} 个，修正 ${merge.changed.length} 个，与草稿相同 ${merge.unchanged} 个。合并后未在本次导入中出现的草稿座位保持不变。`,`The draft already has ${b.seats.length} seats. This import adds ${merge.added.length}, corrects ${merge.changed.length} and repeats ${merge.unchanged} unchanged. Merging keeps draft seats this import does not mention.`)}</p>
  ${corrections?`<h4 style="margin:12px 0 4px">${T('修正（修正前 → 修正后）','Corrections (before → after)')}</h4><div class="merge-changes">${corrections}</div>`:''}
  ${actions({left:`<button type="button" class="btn btn-ghost btn-danger left" data-replace>${T('替换全部草稿座位','Replace all draft seats')}</button>`,saveLabel:T('合并到草稿','Merge into draft')})}`,{size:'wide'});

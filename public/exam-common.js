@@ -1,4 +1,4 @@
-import {roomExamsAt} from './exam-seats.mjs';
+import {examsLabel,roomExamsAt,seatExamIds} from './exam-seats.mjs';
 export const $=selector=>/** @type {any} */(document.querySelector(selector));
 export const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export async function api(path,options={}){
@@ -15,16 +15,17 @@ export const sorted=sessions=>[...sessions].sort((a,b)=>a.date.localeCompare(b.d
 export function seatingMarkup(batch,seating,exam,roomName,point=exam.start,lang=0,editable=false,personal=null){
  const room=seating.rooms.find(r=>r.name===roomName);if(!room)return '<p>座位表尚未发布 / Not published</p>';
  const active=roomExamsAt(batch,exam,roomName,point);
- const occupants=seating.seats.filter(seat=>seat.room===roomName&&active.some(s=>s.id===seat.examId));
+ const occupants=seating.seats.filter(seat=>seat.room===roomName&&active.some(s=>seatExamIds(seat).includes(s.id)));
+ const title=s=>lang?(s.titleEn||s.title):s.title;
  let cells=`<span class="seat-label"></span>`;
  for(let c=1;c<=room.columns;c++)cells+=`<span class="seat-label">${lang?'Col '+c:'第 '+c+' 列'}</span>`;
  for(let r=1;r<=room.rows;r++){
   cells+=`<span class="seat-label">${lang?'Row '+r:'第 '+r+' 排'}</span>`;
   for(let c=1;c<=room.columns;c++){
-   const seat=occupants.find(s=>s.row===r&&s.column===c),s=seat&&active.find(s=>s.id===seat.examId);
-   const own=!!seat&&seat.examId===exam.id&&personal?.room===roomName&&personal?.row===r&&personal?.column===c;
+   const seat=occupants.find(s=>s.row===r&&s.column===c),label=seat&&examsLabel(active.filter(s=>seatExamIds(seat).includes(s.id)).map(title));
+   const own=!!seat&&seatExamIds(seat).includes(exam.id)&&personal?.room===roomName&&personal?.row===r&&personal?.column===c;
    const tag=editable?'button':'div',attributes=editable?` type="button" data-seat-row="${r}" data-seat-column="${c}" aria-label="${esc(`第 ${r} 排，第 ${c} 列，${seat?(seat.name||seat.englishName):'空位'}，${seat?'编辑':'添加'}座位`)}"`:'';
-   cells+=`<${tag}${attributes} class="seat${seat?'':' empty'}${own?' my-seat':''}">${own?`<small>${lang?'Your seat':'你的座位'}</small>`:''}${seat?`<small>${esc(seat.className)}</small><strong>${esc(seat.name)}</strong><span>${esc(seat.englishName)}</span><small>${esc(lang?(s.titleEn||s.title):s.title)}</small>`:(lang?'Empty':'空位')}</${tag}>`;
+   cells+=`<${tag}${attributes} class="seat${seat?'':' empty'}${own?' my-seat':''}">${own?`<small>${lang?'Your seat':'你的座位'}</small>`:''}${seat?`<small>${esc(seat.className)}</small><strong>${esc(seat.name)}</strong><span>${esc(seat.englishName)}</span><small>${esc(label)}</small>`:(lang?'Empty':'空位')}</${tag}>`;
   }
  }
  return `<div class="podium">${lang?'Front / Podium':'讲台 / 前方'}</div><div class="seating-scroll"><div class="seating-grid" style="grid-template-columns:40px repeat(${room.columns},105px);--columns:${room.columns}">${cells}</div></div>`;

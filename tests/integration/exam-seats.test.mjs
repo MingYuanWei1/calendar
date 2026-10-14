@@ -1,7 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {mergeSeats,moveSeat,roomExamsAt,seatViewTimes} from '../../public/exam-seats.mjs';
+import {examsLabel,mergeSeats,moveSeat,roomExamsAt,seatExamIds,seatViewTimes,withoutExam} from '../../public/exam-seats.mjs';
 import {seatingMarkup} from '../../public/exam-common.js';
+import {seatErrors} from '../../server/exam-model.mjs';
 test('seat moves and swaps preserve identities and reject concurrent occupancy',()=>{
  const batch={rooms:[{name:'A',rows:3,columns:3}],sessions:[{id:'a',date:'2026-09-21',start:'08:10',end:'09:40'},{id:'b',date:'2026-09-21',start:'09:00',end:'10:00'}],seats:[{examId:'a',room:'A',row:1,column:1,name:'A'},{examId:'a',room:'A',row:1,column:2,name:'B'},{examId:'b',room:'A',row:3,column:3,name:'C'}]};
  assert.equal(moveSeat(batch,0,2,1),true);assert.equal(batch.seats[0].row,2);
@@ -56,4 +57,24 @@ test('imported seats merge into the draft: new seats append, moved or reassigned
  assert.deepEqual(result.added.map(s=>s.name),['戊']);
  assert.deepEqual(result.changed.map(c=>[c.before.map(s=>s.name),c.after.name]),[[['乙'],'乙'],[['丙'],'丁']]);
  assert.deepEqual(result.seats.map(s=>s.examId+s.name+s.row+s.column),['b甲11','a甲11','a乙33','a丁21','a戊44']);
+});
+
+test('undecided seats list every candidate exam and narrow when one is removed',()=>{
+ assert.equal(examsLabel(['Chinese B','Chinese Honor']),'Chinese B / Honor');
+ assert.equal(examsLabel(['数学 HL','物理 SL']),'数学 HL / 物理 SL');assert.equal(examsLabel(['Math']),'Math');
+ const seat={examId:'a',examIds:['a','b','c'],room:'A',row:1,column:1};
+ assert.deepEqual(seatExamIds(seat),['a','b','c']);assert.deepEqual(seatExamIds({examId:'a'}),['a']);
+ assert.deepEqual(withoutExam(seat,'a'),{examId:'b',examIds:['b','c'],room:'A',row:1,column:1});
+ assert.deepEqual(withoutExam(withoutExam(seat,'a'),'c'),{examId:'b',room:'A',row:1,column:1});
+ assert.equal(withoutExam({examId:'a'},'a'),null);
+ // Deciding an undecided seat is a correction, not an unchanged seat.
+ const merged=mergeSeats([{...seat,name:'X'}],[{examId:'a',room:'A',row:1,column:1,name:'X'}]);
+ assert.equal(merged.changed.length,1);
+ const batch={sessions:[{id:'a',title:'Chinese B',date:'2026-09-21',start:'08:10',end:'09:40',rooms:['A']},{id:'b',title:'Chinese Honor',date:'2026-09-21',start:'08:10',end:'09:40',rooms:['A']}],rooms:[{name:'A',rows:1,columns:1}]};
+ const html=seatingMarkup(batch,{rooms:batch.rooms,seats:[{examId:'a',examIds:['a','b'],room:'A',row:1,column:1,className:'10.1',name:'学生',englishName:''}]},batch.sessions[1],'A','08:10',1,false,{room:'A',row:1,column:1});
+ assert.match(html,/Chinese B \/ Honor/);assert.match(html,/my-seat/);
+ // Candidates must share the room and the time.
+ assert.deepEqual(seatErrors(batch,[{examId:'a',examIds:['a','b'],room:'A',row:1,column:1}]),[]);
+ const apart={...batch,sessions:[batch.sessions[0],{...batch.sessions[1],start:'10:00',end:'11:00'}]};
+ assert.match(seatErrors(apart,[{examId:'a',examIds:['a','b'],room:'A',row:1,column:1}]).join(''),/不在同一时段/);
 });

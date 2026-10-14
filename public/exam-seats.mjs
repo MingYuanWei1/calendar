@@ -1,3 +1,22 @@
+/**
+ * The exams a seat belongs to. When a room hosts several exams at once and the seating sheet does not say which one a
+ * student sits, the seat lists them all in `examIds` (its `examId` is the first) and is shown as e.g. "Chinese B / Honor".
+ */
+export const seatExamIds=seat=>seat.examIds?.length?seat.examIds:[seat.examId];
+/** Removes one exam from a seat: an undecided seat narrows to the rest, a seat left without an exam becomes null. */
+export function withoutExam(seat,id){
+ const ids=seatExamIds(seat).filter(x=>x!==id);
+ if(!ids.length)return null;
+ const {examIds,...rest}=seat;
+ return ids.length>1?{...rest,examId:ids[0],examIds:ids}:{...rest,examId:ids[0]};
+}
+/** Joins exam names, keeping their shared leading words once: ["Chinese B","Chinese Honor"] → "Chinese B / Honor". */
+export function examsLabel(names){
+ if(names.length<2)return names[0]||'';
+ const words=names.map(n=>n.split(' '));let shared=0;
+ while(words.every(w=>w.length>shared+1&&w[shared]===words[0][shared]))shared++;
+ return shared?`${words[0].slice(0,shared).join(' ')} ${words.map(w=>w.slice(shared).join(' ')).join(' / ')}`:names.join(' / ');
+}
 export function roomExamsAt(batch,exam,room,point){
  return batch.sessions.filter(s=>!s.cancelled&&s.date===exam.date&&s.rooms.includes(room)&&s.start<=point&&point<s.end);
 }
@@ -46,7 +65,7 @@ export function mergeSeats(existing,incoming){
  const who=s=>JSON.stringify([s.name||'',s.englishName||'',s.className||'']);
  const sameStudent=(a,b)=>a.studentId&&b.studentId?a.studentId===b.studentId:who(a)===who(b);
  const fields=['room','row','column','className','name','englishName'];
- const same=(a,b)=>fields.every(f=>(a[f]??'')===(b[f]??''))&&(a.grade==null||b.grade==null||a.grade===b.grade);
+ const same=(a,b)=>fields.every(f=>(a[f]??'')===(b[f]??''))&&seatExamIds(a).join()===seatExamIds(b).join()&&(a.grade==null||b.grade==null||a.grade===b.grade);
  const replaced=new Set(),added=[],changed=[];let unchanged=0;
  for(const seat of incoming){
   const before=existing.filter((s,i)=>!replaced.has(i)&&s.examId===seat.examId&&(sameStudent(s,seat)||(s.room===seat.room&&s.row===seat.row&&s.column===seat.column)));

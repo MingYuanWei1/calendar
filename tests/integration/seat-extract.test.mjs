@@ -7,7 +7,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createApplication} from '../../server/app.mjs';
 import {setAdminPassword} from '../../server/store.mjs';
-import {seatingWorkbook,sheetParts} from '../../server/seat-extract.mjs';
+import {seatingWorkbook,sheetParts,finishSeats} from '../../server/seat-extract.mjs';
 import {generate} from '../../server/llm-stream.mjs';
 test('XLSX seat extraction preserves grid context, validates matches and only previews',async()=>{
  const book=new ExcelJS.Workbook(),sheet=book.addWorksheet('101');sheet.mergeCells('A1:C1');sheet.getCell('A1').value='数学 HL / SL 2026-09-21 08:10';sheet.getCell('B3').value='G12A 示例学生';
@@ -62,4 +62,11 @@ test('a large workbook is sent a few whole worksheets at a time and the answers 
   const error=await generate(config,request(['a','e']),progress).then(()=>null,e=>e);
   assert.equal(error.status,400);assert.deepEqual(error.items.seats.map(s=>s.name),['a']);
  }finally{await new Promise(r=>gateway.close(r));}
+});
+test('a seat the sheet leaves between exams sharing its room and time is kept with every candidate',()=>{
+ const context={sessions:['B','Honor'].map(id=>({id,title:`Chinese ${id}`,division:'high',grades:[10],date:'2026-07-07',start:'08:15',end:'09:45',rooms:['Room2120']})),rooms:[{name:'Room2120',rows:5,columns:5}]};
+ const base={room:'Room2120',row:1,column:1,className:'10.1',name:'学生',englishName:'',source:{sheet:'G10 Chinese',cell:'B2'}};
+ const result=finishSeats(context,{seats:[{...base,examIds:['B','Honor']},{...base,column:2,examIds:['Honor']},{...base,column:3,examId:'B',examIds:['Honor','B']}],warnings:[]});
+ assert.deepEqual(result.seats.map(s=>[s.examId,s.examIds]),[['B',['B','Honor']],['Honor',undefined],['Honor',['Honor','B']]]);
+ assert.deepEqual(result.errors,[]);assert.deepEqual(result.invalid,[]);
 });

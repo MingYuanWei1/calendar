@@ -225,3 +225,18 @@ test('a seat moved during withdrawal reports both locations when published again
  batch.seats[0].room='A';batch=await call(admin,'PUT',batch);await call(admin+'/publish-seats','POST',{version:batch.version});
  const change=(await call(path+'/personal-sync','POST',{},student)).changes[0];assert.equal(change.kind,'changed');assert.equal(change.before.room,'B');assert.equal(change.after.room,'A');
 });
+
+test('an undecided seat is kept, shows under whichever candidate exam the student follows and is never auto-chosen',async t=>{
+ const {call,student}=await setup(t);await call('/admin/students/settings','PUT',{domain:'school.edu.cn'});
+ const input=source(),chinese=id=>({...input.sessions[0],id,title:`Chinese ${id}`});
+ input.sessions=[chinese('B'),chinese('Honor')];input.seats=[{...input.seats[0],examId:'B',examIds:['B','Honor']}];
+ let batch=await call('/admin/exams','POST',input,undefined,201),path='/admin/exams/'+batch.id,personal='/exams/'+batch.id;
+ assert.deepEqual(batch.seats[0].examIds,['B','Honor']);
+ // examId must be the first candidate.
+ await call('/admin/exams','POST',{...input,seats:[{...input.seats[0],examIds:['Honor','B']}]},undefined,422);
+ batch=await call(path+'/publish','POST',{version:batch.version});batch=await call(path+'/publish-seats','POST',{version:batch.version});
+ let sync=await call(personal+'/personal-sync','POST',{},student);
+ assert.deepEqual(sync.choices,[]);assert.deepEqual(Object.keys(sync.personal).sort(),['B','Honor']);
+ await call(personal+'/choices','PUT',{ids:['Honor']},student);
+ sync=await call(personal+'/personal-sync','POST',{},student);assert.deepEqual(sync.choices,['Honor']);assert.equal(sync.personal.Honor.column,2);
+});
