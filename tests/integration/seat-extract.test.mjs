@@ -7,7 +7,8 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createApplication} from '../../server/app.mjs';
 import {setAdminPassword} from '../../server/store.mjs';
-import {seatingWorkbook} from '../../server/seat-extract.mjs';
+import {seatingWorkbook,sheetParts} from '../../server/seat-extract.mjs';
+import {generate} from '../../server/llm-stream.mjs';
 test('XLSX seat extraction preserves grid context, validates matches and only previews',async()=>{
  const book=new ExcelJS.Workbook(),sheet=book.addWorksheet('101');sheet.mergeCells('A1:C1');sheet.getCell('A1').value='数学 HL / SL 2026-09-21 08:10';sheet.getCell('B3').value='G12A 示例学生';
  const buffer=Buffer.from(await book.xlsx.writeBuffer());
@@ -34,4 +35,31 @@ test('XLSX seat extraction preserves grid context, validates matches and only pr
   assert.deepEqual((await (await fetch(base+'/admin/exams',{headers:{Cookie:cookie}})).json()).find(b=>b.id===saved.id).rooms,batch.rooms);
   enabled=false;const count=calls.length;assert.equal((await run()).status,422);assert.equal(calls.length,count);
  }finally{await new Promise(r=>server.close(r));instance.close();await new Promise(r=>gateway.close(r));await rm(directory,{recursive:true,force:true});}
+});
+test('a large workbook is sent a few whole worksheets at a time and the answers are joined in order',async()=>{
+ const sheet=(name,n)=>({name,merges:[],cells:Array.from({length:n},(_,i)=>({address:`A${i+1}`,text:'x'}))});
+ assert.deepEqual(sheetParts([sheet('a',100),sheet('b',100),sheet('c',100),sheet('d',400),sheet('e',10)]).map(p=>p.map(s=>s.name)),[['a','b'],['c'],['d'],['e']]);
+ const seat=name=>({examId:'hl',room:'101',row:1,column:1,className:'G12A',name,englishName:''});
+ const gateway=http.createServer(async(req,res)=>{
+  res.setHeader('Content-Type','application/json');
+  if(req.url==='/v1/capabilities')return res.end(JSON.stringify({purposes:{flash:{enabled:true}}}));
+  let body='';for await(const part of req)body+=part;
+  const sheetName=JSON.parse(JSON.parse(body).messages[1].content)[0].name;
+  // Later parts answer first, so joining must follow part order rather than arrival order.
+  await new Promise(r=>setTimeout(r,sheetName==='a'?60:0));
+  if(sheetName==='e'){res.statusCode=400;return res.end('{}');}
+  res.end(JSON.stringify({choices:[{message:{content:JSON.stringify({seats:[seat(sheetName)],warnings:[`warn ${sheetName}`]})}}]}));
+ });
+ await new Promise(r=>gateway.listen(0,'127.0.0.1',r));
+ const config={url:`http://127.0.0.1:${gateway.address().port}`,token:'t'};
+ const items=[],resets=[],progress={stage(){},item:(key,i,item)=>items.push(item.name),invalid(){},reset:()=>resets.push(1),text(){},source(){}};
+ const request=names=>({parts:names.map(name=>({body:{model:'flash',messages:[{role:'system',content:''},{role:'user',content:JSON.stringify([sheet(name,1)])}]}})),timeout:5000});
+ try{
+  const raw=await generate(config,request(['a','c','d']),progress);
+  assert.deepEqual(raw.seats.map(s=>s.name),['a','c','d']);assert.deepEqual(raw.warnings,['warn a','warn c','warn d']);
+  assert.deepEqual(items.sort(),['a','c','d']);assert.deepEqual(resets,[]);
+  // A failing part keeps the seats the other parts finished.
+  const error=await generate(config,request(['a','e']),progress).then(()=>null,e=>e);
+  assert.equal(error.status,400);assert.deepEqual(error.items.seats.map(s=>s.name),['a']);
+ }finally{await new Promise(r=>gateway.close(r));}
 });

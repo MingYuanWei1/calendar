@@ -96,6 +96,7 @@ export async function streamChat(config,body,timeout,onText,idle=IDLE_TIMEOUT,on
  if(plain){
   try{emit(JSON.parse(buffer).choices?.[0]?.message?.content);}catch{throw new Error('模型未返回可解析的结果，请重试。');}
  }
+ if(finish==='length')console.error('LLM answer hit the output token cap:',full.length,'chars');
  // An empty answer is not a format problem: say why the gateway ended (an error event, a content filter, a length cap).
  if(!full&&!plain){
   console.error('LLM answer is empty:',JSON.stringify({finish,problem,reasoningChars:thought,bytes,tail:buffer.slice(-300)}));
@@ -276,13 +277,39 @@ export function lenientList(raw,key,schema,max){
  return {list,warnings,invalid};
 }
 
+/** Joins the answers of a request's parts: arrays (items, warnings) are concatenated in part order. */
+function mergeAnswers(answers){
+ const merged={[INVALID]:[]};
+ for(const answer of answers){
+  for(const [key,value] of Object.entries(answer||{}))if(Array.isArray(value))(merged[key]||=[]).push(...value);
+  merged[INVALID].push(...(answer?.[INVALID]||[]));
+ }
+ return merged;
+}
+const PART_CONCURRENCY=3;
 /**
  * Runs a prepared extraction request ({body, timeout, idle, reading}) against the LLM Worker and returns the parsed
  * answer. Shared by the request-bound endpoints and background extraction jobs.
+ * A request too large for one answer (the model stops at its output token cap) lists `parts` ([{body}]) instead of a
+ * body: they run a few at a time and their answers are joined in order. Only a lone part may reset the progress,
+ * since a reset clears every item streamed so far; a failure carries the items every part had finished.
  */
 export async function generate(config,request,progress,signal=null){
  progress.stage('connecting');
  await requireFlash(config);
  progress.stage('reading',request.reading||{});
- return streamJson(config,request.body,request.timeout,progress,request.idle,signal);
+ if(!request.parts)return streamJson(config,request.body,request.timeout,progress,request.idle,signal);
+ const parts=request.parts,answers=parts.map(()=>({})),quiet={...progress,reset(){},stage:(stage,detail)=>{if(stage!=='retrying')progress.stage(stage,detail);}};
+ let next=0,failure=null;
+ const worker=async()=>{
+  while(next<parts.length&&!failure){
+   const index=next++;
+   try{answers[index]=await streamJson(config,parts[index].body,request.timeout,parts.length>1?quiet:progress,request.idle,signal);}
+   catch(error){answers[index]=error.items||{};failure||=error;}
+  }
+ };
+ await Promise.all(Array.from({length:Math.min(PART_CONCURRENCY,parts.length)},worker));
+ const merged=mergeAnswers(answers);
+ if(failure){const {[INVALID]:_,...items}=merged;throw Object.assign(failure,{items});}
+ return merged;
 }
