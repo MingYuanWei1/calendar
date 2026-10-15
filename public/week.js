@@ -16,7 +16,7 @@ function renderWeek(){
     const from=Math.max(0,days.findIndex(day=>day>=e.start));
     let to=days.findIndex(day=>day>(e.end||e.start));if(to<0)to=7;
     let lane=lanes.findIndex(end=>end<=from);if(lane<0)lane=lanes.length;lanes[lane]=to;
-    return `<button class="week-bar ${e.type}${e.personal?' personal':''}${e.cancelled?' cancelled':''}${state.selected===e.id?' selected':''}" data-event="${esc(e.id)}" style="grid-column:${from+1}/${to+1};grid-row:${lane+1}" title="${esc(label(e))}" aria-label="${esc(label(e))}">${e.start<days[0]?'‹ ':''}${e.cancelled?esc(cancelText(e))+' · ':''}${e.oldDate?esc(t('changed'))+' · ':''}${esc(text(e.title))}${(e.end||e.start)>days[6]?' ›':''}</button>`;
+    return `<button class="week-bar ${e.type}${isMulti(e)?' multi':''}${e.personal?' personal':''}${e.cancelled?' cancelled':''}${state.selected===e.id?' selected':''}" data-event="${esc(e.id)}" style="grid-column:${from+1}/${to+1};grid-row:${lane+1}" title="${esc(label(e))}" aria-label="${esc(label(e))}">${e.start<days[0]?'‹ ':''}${e.cancelled?esc(cancelText(e))+' · ':''}${e.oldDate?esc(t('changed'))+' · ':''}${esc(text(e.title))}${(e.end||e.start)>days[6]?' ›':''}</button>`;
   }).join('');
   const columns=days.map((day,i)=>{
     const items=list.filter(e=>e.time&&!isMulti(e)&&onDate(e,day)).sort(sortEvents);

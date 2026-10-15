@@ -197,24 +197,39 @@ function renderCalendar(){
     for(const p of placements){
       if(p.lane===weekSlots-1&&dates.slice(p.from,p.to).some((date,index)=>dailyCounts[p.from+index]>weekSlots||hiddenMulti.some(e=>shownOn(e,isoDate(date)))))hiddenMulti.push(p.event);
     }
-    const bars=placements.filter(p=>!hiddenMulti.includes(p.event)).map(({event:e,from,to,lane})=>{
+    const continuesLeft=e=>e.start<shownStart&&shownStart===weekStart,continuesRight=e=>e.end>shownEnd&&shownEnd===weekEnd;
+    const spanButton=(e,from,to,row,left,right)=>`<button class="span-event ${e.type}${e.cancelled?' cancelled':''}${state.selected===e.id?' selected':''}${left?' continues-left':''}${right?' continues-right':''}" data-event="${e.id}" style="grid-column:${from+1}/${to+1};grid-row:${row+1}" aria-label="${esc(label(e))}" title="${esc(label(e))}">${e.cancelled?esc(cancelText(e))+' · ':''}${e.oldDate?esc(t('changed'))+' · ':''}${esc(text(e.title))} · ${esc(scopeText(e))}</button>`;
+    let bars=placements.filter(p=>!hiddenMulti.includes(p.event)).map(({event:e,from,to,lane})=>{
       for(let column=from;column<to;column++)occupied[column].add(lane);
-      return `<button class="span-event ${e.type}${e.cancelled?' cancelled':''}${state.selected===e.id?' selected':''}${e.start<shownStart&&shownStart===weekStart?' continues-left':''}${e.end>shownEnd&&shownEnd===weekEnd?' continues-right':''}" data-event="${e.id}" style="grid-column:${from+1}/${to+1};grid-row:${lane+1}" aria-label="${esc(label(e))}" title="${esc(label(e))}">${e.cancelled?esc(cancelText(e))+' · ':''}${e.oldDate?esc(t('changed'))+' · ':''}${esc(text(e.title))} · ${esc(scopeText(e))}</button>`;
+      return spanButton(e,from,to,lane,continuesLeft(e),continuesRight(e));
     }).join('');
+    // A bar that cannot run the whole week still shows on the dates with a free row, as one piece per run of dates.
+    const partial=placements.filter(p=>hiddenMulti.includes(p.event)).map(p=>({...p,rows:[]}));
     html+=`<div class="week${weekHasPlan?'':' no-plans'}">`;
     for(let i=0;i<7;i++){
       const d=dates[i],iso=isoDate(d),plan=plans[i];const items=events.filter(matches).filter(e=>!isMulti(e)&&shownOn(e,iso)).sort(sortEvents);
       const daySlots=planRow(i)?calendarSlots:looseSlots;
       // A cross-day bar occupies only the dates it actually covers. Fill gaps on each date.
       const freeRows=Array.from({length:daySlots},(_,row)=>row).filter(row=>!occupied[i].has(row));
-      const hiddenSpans=hiddenMulti.filter(e=>shownOn(e,iso)).length;
-      const needsMore=items.length>freeRows.length||hiddenSpans>0;
+      const spans=partial.filter(p=>shownOn(p.event,iso));
+      const needsMore=items.length+spans.length>freeRows.length;
       const eventRows=needsMore?freeRows.filter(row=>row<daySlots-1):freeRows;
-      const visibleItems=items.slice(0,eventRows.length);
-      const hiddenCount=items.length-visibleItems.length+hiddenSpans;
-      const blocks=wrapRows(visibleItems,eventRows);
+      const shownSpans=spans.slice(0,eventRows.length);shownSpans.forEach((p,index)=>{p.rows[i]=eventRows[index];});
+      const itemRows=eventRows.slice(shownSpans.length);
+      const visibleItems=items.slice(0,itemRows.length);
+      const hiddenCount=items.length-visibleItems.length+spans.length-shownSpans.length;
+      const blocks=wrapRows(visibleItems,itemRows);
       const itemMarkup=visibleItems.map((event,index)=>`<div class="day-event-slot${blocks[index].span>1?' lines-'+blocks[index].span:''}" style="grid-row:${blocks[index].row+1}${blocks[index].span>1?' / span '+blocks[index].span:''}">${eventButton(event)}</div>`).join('');
       html+=`<div class="day${d.getMonth()!==state.month?' outside':''}${i>4?' weekend':''}${plan?' day-'+plan.kind:''}${planRow(i)?'':' no-plan-row'}${iso===schoolToday()?' today':''}"><div class="day-date"><button class="day-number" data-day="${iso}" aria-label="${esc(formatDate(iso,true))}" ${iso===schoolToday()?'aria-current="date"':''}>${d.getDate()}</button>${dayBadge(plan)}</div><div class="day-plan-name" title="${esc(dayPlanName(plan))}">${dayPlanMarkup(plan)}</div><div class="day-items">${itemMarkup}${hiddenCount>0?`<button class="more" data-day="${iso}" style="grid-row:${Math.max(1,daySlots)}">${state.lang?`+${hiddenCount} more`:`还有 ${hiddenCount} 项`}</button>`:''}</div></div>`;
+    }
+    for(const p of partial){
+      for(let from=p.from;from<p.to;){
+        const row=p.rows[from];let to=from+1;
+        if(row===undefined){from++;continue;}
+        while(to<p.to&&p.rows[to]===row)to++;
+        bars+=spanButton(p.event,from,to,row,from>p.from||continuesLeft(p.event),to<p.to||continuesRight(p.event));
+        from=to;
+      }
     }
     html+=`<div class="spans">${bars}</div></div>`;
   }

@@ -216,6 +216,11 @@ body.detail-closed .workspace{grid-template-columns:180px minmax(0,1fr)}body.edi
 .type-chip.personal{--event-color:var(--accent);--event-bg:var(--soft)}
 .event.personal{outline:1px dashed var(--event-color);outline-offset:-1px}
 .week-card.personal,.week-bar.personal{border-style:dashed}
+/* Cross-day bars carry a border in their type colour so the pale fill still reads as one bar; a cut edge stays open. */
+.span-event,.week-bar.multi{border:1px solid color-mix(in srgb,var(--event-color) 45%,transparent)}
+.span-event.continues-left{border-left:0}.span-event.continues-right{border-right:0}
+.span-event.selected,.week-bar.multi.selected{border-color:var(--event-color)}
+.week-bar.multi.personal{border-style:dashed}
 .add-personal{display:inline-flex;align-items:center;gap:6px;background:var(--accent);border:1px solid var(--accent);color:white;border-radius:7px;font-size:12px;padding:6px 12px;white-space:nowrap}
 .add-personal[hidden]{display:none}
 .add-personal span[aria-hidden]{font-size:15px;line-height:1}
