@@ -12,3 +12,5 @@ backups/
 dist/
 .wrangler/
 .dev.vars*
+
+.claude/
