@@ -26,9 +26,10 @@ let expandSeries=(list,from,to)=>list;
 let repeatSummary=rule=>'';
 let detailReturnDay=null;
 let detailScrollY=0;
-let calendarSlots=4;
-/** Event rows a month cell fits once it needs no line for a day's name (放假说明). */
-let looseSlots=5;
+/** Event rows a month cell fits under its date line. */
+let monthSlots=5;
+/** Event rows in a week that also shows a borrowed-timetable band (按周五课表) under the dates. */
+let bandSlots=4;
 /** Set once grades.mjs loads: which grades a division covers and how an audience reads. */
 let gradeTools=null;
 /** Whether the visitor is signed in and so may keep 个人事件. */
@@ -179,11 +180,11 @@ function renderCalendar(){
     const weekStart=isoDate(dates[0]),weekEnd=isoDate(dates[6]);
     const shownStart=weekStart<monthStart?monthStart:weekStart,shownEnd=weekEnd>monthEnd?monthEnd:weekEnd;
     const multi=events.filter(matches).filter(isMulti).filter(e=>e.start<=shownEnd&&e.end>=shownStart).sort((a,b)=>a.start.localeCompare(b.start)||b.end.localeCompare(a.end));
-    // A day's name (e.g. 国庆假期) takes a line under the date. A week without any names starts its events
-    // right under the dates; with names but no cross-day bars, only the named days keep that line.
+    // A day's name (e.g. 国庆假期) sits on the date line. A borrowed timetable (按周五课表) takes a band under it;
+    // with cross-day bars every date in that week keeps the band's line so the bars stay level.
     const plans=dates.map(date=>dayPlan(isoDate(date)));
-    const weekHasPlan=plans.some(Boolean),planRow=i=>Boolean(plans[i])||(weekHasPlan&&multi.length>0);
-    const weekSlots=weekHasPlan?calendarSlots:looseSlots;
+    const weekHasBand=plans.some(plan=>plan?.follows),bandRow=i=>Boolean(plans[i]?.follows)||(weekHasBand&&multi.length>0);
+    const weekSlots=weekHasBand?bandSlots:monthSlots;
     const lanes=[];const occupied=Array.from({length:7},()=>new Set());
     const placements=multi.map(e=>{
       const from=Math.max(0,dates.findIndex(d=>isoDate(d)>=(e.start>shownStart?e.start:shownStart)));
@@ -206,10 +207,10 @@ function renderCalendar(){
     }).join('');
     // A bar that cannot run the whole week still shows on the dates with a free row, as one piece per run of dates.
     const partial=placements.filter(p=>hiddenMulti.includes(p.event)).map(p=>({...p,rows:[]}));
-    html+=`<div class="week${weekHasPlan?'':' no-plans'}">`;
+    html+=`<div class="week${weekHasBand?' has-band':''}">`;
     for(let i=0;i<7;i++){
       const d=dates[i],iso=isoDate(d),plan=plans[i];const items=events.filter(matches).filter(e=>!isMulti(e)&&shownOn(e,iso)).sort(sortEvents);
-      const daySlots=planRow(i)?calendarSlots:looseSlots;
+      const daySlots=bandRow(i)?bandSlots:monthSlots;
       // A cross-day bar occupies only the dates it actually covers. Fill gaps on each date.
       const freeRows=Array.from({length:daySlots},(_,row)=>row).filter(row=>!occupied[i].has(row));
       const spans=partial.filter(p=>shownOn(p.event,iso));
@@ -221,7 +222,7 @@ function renderCalendar(){
       const hiddenCount=items.length-visibleItems.length+spans.length-shownSpans.length;
       const blocks=wrapRows(visibleItems,itemRows);
       const itemMarkup=visibleItems.map((event,index)=>`<div class="day-event-slot${blocks[index].span>1?' lines-'+blocks[index].span:''}" style="grid-row:${blocks[index].row+1}${blocks[index].span>1?' / span '+blocks[index].span:''}">${eventButton(event)}</div>`).join('');
-      html+=`<div class="day${d.getMonth()!==state.month?' outside':''}${i>4?' weekend':''}${plan?' day-'+plan.kind:''}${planRow(i)?'':' no-plan-row'}${iso===schoolToday()?' today':''}"><div class="day-date"><button class="day-number" data-day="${iso}" aria-label="${esc(formatDate(iso,true))}" ${iso===schoolToday()?'aria-current="date"':''}>${d.getDate()}</button>${dayBadge(plan)}</div><div class="day-plan-name" title="${esc(dayPlanName(plan))}">${dayPlanMarkup(plan)}</div><div class="day-items">${itemMarkup}${hiddenCount>0?`<button class="more" data-day="${iso}" style="grid-row:${Math.max(1,daySlots)}">${state.lang?`+${hiddenCount} more`:`还有 ${hiddenCount} 项`}</button>`:''}</div></div>`;
+      html+=`<div class="day${d.getMonth()!==state.month?' outside':''}${i>4?' weekend':''}${plan?' day-'+plan.kind:''}${iso===schoolToday()?' today':''}"><div class="day-date"><button class="day-number" data-day="${iso}" aria-label="${esc(formatDate(iso,true))}" ${iso===schoolToday()?'aria-current="date"':''}>${d.getDate()}</button><span class="day-plan-name" title="${plan?esc(dayPlanTitle(plan)):''}">${plan?esc(dayPlanTitle(plan)):''}</span>${dayBadge(plan)}</div>${bandRow(i)?`<div class="day-band">${plan?.follows?`<span class="day-follows">${esc(followsName(plan))}</span>`:''}</div>`:''}<div class="day-items">${itemMarkup}${hiddenCount>0?`<button class="more" data-day="${iso}" style="grid-row:${Math.max(1,daySlots)}">${state.lang?`+${hiddenCount} more`:`还有 ${hiddenCount} 项`}</button>`:''}</div></div>`;
     }
     for(const p of partial){
       for(let from=p.from;from<p.to;){
@@ -397,9 +398,9 @@ function fitMonthDensity(){
   const weeks=grid.querySelectorAll('.week').length;
   if(!weeks)return;
   // A row is 20px plus a 3px gap, and the last row needs no gap. Above the rows sit the cell's 4px top padding,
-  // the 25px date, the 19px name line (named weeks only) and 2px padding; below them the 1px border.
-  const height=grid.clientHeight/weeks,slots=Math.max(0,Math.floor((height-48)/23)),loose=Math.max(0,Math.floor((height-29)/23));
-  if(slots!==calendarSlots||loose!==looseSlots){calendarSlots=slots;looseSlots=loose;renderCalendar();}
+  // the 25px date line, the 19px timetable band (band weeks only) and 2px padding; below them the 1px border.
+  const height=grid.clientHeight/weeks,slots=Math.max(0,Math.floor((height-29)/23)),band=Math.max(0,Math.floor((height-48)/23));
+  if(slots!==monthSlots||band!==bandSlots){monthSlots=slots;bandSlots=band;renderCalendar();}
 }
 const monthSizeObserver=new ResizeObserver(fitMonthDensity);
 monthSizeObserver.observe($('#month-grid'));
