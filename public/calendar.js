@@ -197,7 +197,8 @@ function renderCalendar(){
     for(const p of placements){
       if(p.lane===weekSlots-1&&dates.slice(p.from,p.to).some((date,index)=>dailyCounts[p.from+index]>weekSlots||hiddenMulti.some(e=>shownOn(e,isoDate(date)))))hiddenMulti.push(p.event);
     }
-    const continuesLeft=e=>e.start<shownStart&&shownStart===weekStart,continuesRight=e=>e.end>shownEnd&&shownEnd===weekEnd;
+    // An edge the event runs past, into the next row or the next month, stays square and open.
+    const continuesLeft=e=>e.start<shownStart,continuesRight=e=>e.end>shownEnd;
     const spanButton=(e,from,to,row,left,right)=>`<button class="span-event ${e.type}${e.cancelled?' cancelled':''}${state.selected===e.id?' selected':''}${left?' continues-left':''}${right?' continues-right':''}" data-event="${e.id}" style="grid-column:${from+1}/${to+1};grid-row:${row+1}" aria-label="${esc(label(e))}" title="${esc(label(e))}">${e.cancelled?esc(cancelText(e))+' · ':''}${e.oldDate?esc(t('changed'))+' · ':''}${esc(text(e.title))} · ${esc(scopeText(e))}</button>`;
     let bars=placements.filter(p=>!hiddenMulti.includes(p.event)).map(({event:e,from,to,lane})=>{
       for(let column=from;column<to;column++)occupied[column].add(lane);
