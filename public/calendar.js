@@ -168,7 +168,7 @@ function renderCalendar(){
   const offset=(first.getDay()+6)%7;const count=Math.ceil((offset+last.getDate())/7)*7;
   const start=new Date(state.year,state.month,1-offset,12);
   const monthStart=isoDate(first),monthEnd=isoDate(last);
-  // Padding days from the neighbouring months stay empty: events show only in their own month.
+  // Padding days from the neighbouring months show no events of their own; only cross-day bars from this month run on into them.
   const shownOn=(e,iso)=>iso>=monthStart&&iso<=monthEnd&&onDate(e,iso);
   const monthEvents=events.filter(matches).filter(e=>e.start<=isoDate(last)&&(e.end||e.start)>=isoDate(first));
   $('#month-title').textContent=new Intl.DateTimeFormat(state.lang?'en-GB':'zh-CN',{year:'numeric',month:'long'}).format(first);
@@ -187,19 +187,21 @@ function renderCalendar(){
     const weekSlots=weekHasBand?bandSlots:monthSlots;
     const lanes=[];const occupied=Array.from({length:7},()=>new Set());
     const placements=multi.map(e=>{
-      const from=Math.max(0,dates.findIndex(d=>isoDate(d)>=(e.start>shownStart?e.start:shownStart)));
-      let to=dates.findIndex(d=>isoDate(d)>(e.end<shownEnd?e.end:shownEnd));if(to<0)to=7;
+      const from=Math.max(0,dates.findIndex(d=>isoDate(d)>=e.start));
+      let to=dates.findIndex(d=>isoDate(d)>e.end);if(to<0)to=7;
       let lane=lanes.findIndex(end=>end<=from);if(lane<0)lane=lanes.length;lanes[lane]=to;
       return {event:e,from,to,lane};
     });
     const hiddenMulti=placements.filter(p=>p.lane>=weekSlots).map(p=>p.event);
-    const dailyCounts=dates.map(date=>events.filter(matches).filter(e=>shownOn(e,isoDate(date))).length);
+    // A cross-day event that reaches into this month runs on through the neighbouring month's dates in its week.
+    const barOn=(e,iso)=>multi.includes(e)&&onDate(e,iso);
+    const dailyCounts=dates.map(date=>events.filter(matches).filter(e=>shownOn(e,isoDate(date))||barOn(e,isoDate(date))).length);
     // Reserve the final row for expansion only on dates that really have overflow.
     for(const p of placements){
-      if(p.lane===weekSlots-1&&dates.slice(p.from,p.to).some((date,index)=>dailyCounts[p.from+index]>weekSlots||hiddenMulti.some(e=>shownOn(e,isoDate(date)))))hiddenMulti.push(p.event);
+      if(p.lane===weekSlots-1&&dates.slice(p.from,p.to).some((date,index)=>dailyCounts[p.from+index]>weekSlots||hiddenMulti.some(e=>barOn(e,isoDate(date)))))hiddenMulti.push(p.event);
     }
-    // An edge the event runs past, into the next row or the next month, stays square and open.
-    const continuesLeft=e=>e.start<shownStart,continuesRight=e=>e.end>shownEnd;
+    // An edge the event runs past, into the previous or next row, stays square and open.
+    const continuesLeft=e=>e.start<weekStart,continuesRight=e=>e.end>weekEnd;
     const spanButton=(e,from,to,row,left,right)=>`<button class="span-event ${e.type}${e.cancelled?' cancelled':''}${state.selected===e.id?' selected':''}${left?' continues-left':''}${right?' continues-right':''}" data-event="${e.id}" style="grid-column:${from+1}/${to+1};grid-row:${row+1}" aria-label="${esc(label(e))}" title="${esc(label(e))}">${e.cancelled?esc(cancelText(e))+' · ':''}${e.oldDate?esc(t('changed'))+' · ':''}${esc(text(e.title))} · ${esc(scopeText(e))}</button>`;
     let bars=placements.filter(p=>!hiddenMulti.includes(p.event)).map(({event:e,from,to,lane})=>{
       for(let column=from;column<to;column++)occupied[column].add(lane);
@@ -213,7 +215,7 @@ function renderCalendar(){
       const daySlots=bandRow(i)?bandSlots:monthSlots;
       // A cross-day bar occupies only the dates it actually covers. Fill gaps on each date.
       const freeRows=Array.from({length:daySlots},(_,row)=>row).filter(row=>!occupied[i].has(row));
-      const spans=partial.filter(p=>shownOn(p.event,iso));
+      const spans=partial.filter(p=>barOn(p.event,iso));
       const needsMore=items.length+spans.length>freeRows.length;
       const eventRows=needsMore?freeRows.filter(row=>row<daySlots-1):freeRows;
       const shownSpans=spans.slice(0,eventRows.length);shownSpans.forEach((p,index)=>{p.rows[i]=eventRows[index];});
