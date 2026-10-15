@@ -380,7 +380,9 @@ function fitMonthDensity(){
   if(mobileQuery.matches||!grid.getClientRects().length)return;
   const weeks=grid.querySelectorAll('.week').length;
   if(!weeks)return;
-  const height=grid.clientHeight/weeks,slots=Math.max(0,Math.floor((height-52)/23)),loose=Math.max(0,Math.floor((height-33)/23));
+  // A row is 20px plus a 3px gap, and the last row needs no gap. Above the rows sit the cell's 4px top padding,
+  // the 25px date, the 19px name line (named weeks only) and 2px padding; below them the 1px border.
+  const height=grid.clientHeight/weeks,slots=Math.max(0,Math.floor((height-48)/23)),loose=Math.max(0,Math.floor((height-29)/23));
   if(slots!==calendarSlots||loose!==looseSlots){calendarSlots=slots;looseSlots=loose;renderCalendar();}
 }
 const monthSizeObserver=new ResizeObserver(fitMonthDensity);
