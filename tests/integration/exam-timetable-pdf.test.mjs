@@ -54,12 +54,11 @@ test('all exams in English: batch title and series dates head the first page onl
  for(const later of texts.slice(1))assert.doesNotMatch(later,/Autumn Midterms|21 Sep 2026/);
 });
 
-test('cells list each exam with level, off-slot times, rooms and grades; cancelled exams are left out',async()=>{
+test('cells list each exam with its level, own time, rooms and grades; cancelled exams are left out',async()=>{
  const [first,second]=await pages(await call('/exams/'+batch.id+'/pdf?scope=all&lang=en'));
- assert.match(first,/Mathematics 2101 G10/);
- assert.match(first,/Physics · HL 2102 G11/);
+ assert.match(first,/Mathematics 08:10–09:40 2101 G10/,'an exam that fills its slot still shows its time');
+ assert.match(first,/Physics HL 08:10–09:40 2102 G11/);
  assert.match(first,/Chemistry 07:30–09:00 2101 G10/);
- assert.doesNotMatch(first,/08:10–09:40/,'an exam that fills its slot does not repeat the time');
  assert.doesNotMatch(first+second,/History|Cancelled|Updated/);
  assert.match(second,/Music/);
 });
@@ -77,7 +76,7 @@ test('my exams need a school sign-in and are headed by the student name without 
  const texts=await pages(await call('/exams/'+batch.id+'/pdf?scope=mine&lang=en',student));
  assert.equal(texts.length,1,'two chosen exams in one week fit one page');
  assert.match(texts[0],/^Mingyuan Wei's Timetable From Autumn Midterms 21 Sep 2026 – 9 Oct 2026/);
- assert.match(texts[0],/Mathematics 2101/);
+ assert.match(texts[0],/Mathematics 08:10–09:40 2101/);
  assert.match(texts[0],/Chemistry 07:30–09:00 2101/);
  assert.doesNotMatch(texts[0],/G10|Physics|History/);
 });
@@ -86,8 +85,8 @@ test('selected grades are named in the heading and filter the exams',async()=>{
  const [page,...rest]=await pages(await call('/exams/'+batch.id+'/pdf?scope=grades&grades=12,11&lang=en'));
  assert.equal(rest.length,0);
  assert.match(page,/^Autumn Midterms · G11 \/ G12 /);
- assert.match(page,/Physics · HL 2102 G11/);
- assert.match(page,/Art 2101 G12/);
+ assert.match(page,/Physics HL 08:10–09:40 2102 G11/);
+ assert.match(page,/Art 13:40–15:10 2101 G12/);
  assert.doesNotMatch(page,/Mathematics|English|Music/);
  assert.equal((await call('/exams/'+batch.id+'/pdf?scope=grades&lang=en')).status,422);
 });
@@ -96,9 +95,9 @@ test('Chinese export uses Chinese headings, dates and footer; grades stay as G10
  const [page]=await pages(await call('/exams/'+batch.id+'/pdf?scope=mine&lang=zh',student));
  assert.match(page,/^Mingyuan Wei 的考试安排 来自：秋季期中考试 2026年9月21日 – 2026年10月9日/);
  assert.match(page,/时间 9月21日 周一 9月22日 周二/);
- assert.match(page,/数学 2101/);
+ assert.match(page,/数学 08:10–09:40 2101/);
  const [all]=await pages(await call('/exams/'+batch.id+'/pdf?scope=all&lang=zh'));
- assert.match(all,/物理 · HL 2102 G11/);
+ assert.match(all,/物理 HL 08:10–09:40 2102 G11/);
  assert.match(all,/生成于 \d{4}年\d{1,2}月\d{1,2}日 \d\d:\d\d · 考试安排更新于 \d{4}年\d{1,2}月\d{1,2}日 \d\d:\d\d 1 \/ 2$/);
 });
 
@@ -118,7 +117,7 @@ test('crowded rows move to a new page with the date header, and an oversized cel
  assert.ok(texts.length>=2);
  for(const page of texts)assert.match(page,/Time Mon 21 Sep Tue 22 Sep /);
  const all=texts.join(' ');
- for(const s of sessions)assert.ok(new RegExp(`${s.title} 2101`).test(all),s.title);
+ for(const s of sessions)assert.ok(new RegExp(`${s.title} ${s.start}–${s.end} 2101`).test(all),s.title);
 });
 
 test('only a published batch exports, and the scope must be named',async()=>{

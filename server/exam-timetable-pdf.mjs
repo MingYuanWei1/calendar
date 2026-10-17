@@ -27,7 +27,7 @@ export async function examTimetablePdf(batch,sessions,{scope,grades,name,english
  const longDate=date=>{const p=parts(date);return english?`${p.d} ${MONTHS[p.m]} ${p.y}`:`${p.y}年${p.m+1}月${p.d}日`;};
  const columnDate=date=>{const p=parts(date);return english?`${WEEKDAYS[p.w]} ${p.d} ${MONTHS[p.m]}`:`${p.m+1}月${p.d}日 周${'日一二三四五六'[p.w]}`;};
  const stamp=value=>{const at=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(value)).map(p=>[p.type,p.value]));return `${longDate(`${at.year}-${at.month}-${at.day}`)} ${at.hour}:${at.minute}`;};
- const examTitle=s=>{const title=english?(s.titleEn||s.title):s.title;return title+(s.level&&!title.includes(s.level)?' · '+s.level:'');};
+ const examTitle=s=>{const title=english?(s.titleEn||s.title):s.title;return title+(s.level&&!title.includes(s.level)?' '+s.level:'');};
 
  // The heading sits on the first page only.
  doc.addPage();doc.fillColor('black').strokeColor('black').lineWidth(0.5);
@@ -54,7 +54,7 @@ export async function examTimetablePdf(batch,sessions,{scope,grades,name,english
   for(const row of examSlotRows(batch.timeSlots,week)){
    const cells=days.map(date=>row.sessions.filter(s=>s.date===date).sort((a,b)=>a.start.localeCompare(b.start)||examTitle(a).localeCompare(examTitle(b))).map(s=>({
     title:examTitle(s),
-    details:[s.start!==row.start||s.end!==row.end?`${s.start}–${s.end}`:'',s.rooms.join(' / '),scope==='mine'?'':gradeList(s.grades)].filter(Boolean).join('\n')
+    details:[`${s.start}–${s.end}`,s.rooms.join(' / '),scope==='mine'?'':gradeList(s.grades)].filter(Boolean).join('\n')
    })));
    const content=(cell,size)=>cell.reduce((h,exam,i)=>h+(i?PAD:0)+doc.font('bold').fontSize(size).heightOfString(exam.title,{width:dayW-2*PAD})+(exam.details?doc.font('regular').fontSize(size).heightOfString(exam.details,{width:dayW-2*PAD}):0),0);
    const measure=size=>Math.max(ROW_H,...cells.map(cell=>content(cell,size)+2*PAD));
