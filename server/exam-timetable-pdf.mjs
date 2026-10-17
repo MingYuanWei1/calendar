@@ -45,8 +45,9 @@ export async function examTimetablePdf(batch,sessions,{scope,grades,name,english
   const dayW=(WIDTH-TIME_W)/days.length,week=sessions.filter(s=>days.includes(s.date));
   const header=()=>{
    doc.font('bold').fontSize(SIZE);
-   doc.rect(MARGIN,y,TIME_W,HEAD_H).stroke();doc.text(english?'Time':'时间',MARGIN,y+2,{width:TIME_W,align:'center',lineBreak:false});
-   days.forEach((date,i)=>{const x=MARGIN+TIME_W+i*dayW;doc.rect(x,y,dayW,HEAD_H).stroke();doc.text(columnDate(date),x,y+2,{width:dayW,align:'center',lineBreak:false});});
+   const top=y+(HEAD_H-doc.currentLineHeight())/2;
+   doc.rect(MARGIN,y,TIME_W,HEAD_H).stroke();doc.text(english?'Time':'时间',MARGIN,top,{width:TIME_W,align:'center',lineBreak:false});
+   days.forEach((date,i)=>{const x=MARGIN+TIME_W+i*dayW;doc.rect(x,y,dayW,HEAD_H).stroke();doc.text(columnDate(date),x,top,{width:dayW,align:'center',lineBreak:false});});
    y+=HEAD_H;
   };
   header();let fresh=true;
@@ -55,7 +56,8 @@ export async function examTimetablePdf(batch,sessions,{scope,grades,name,english
     title:examTitle(s),
     details:[s.start!==row.start||s.end!==row.end?`${s.start}–${s.end}`:'',s.rooms.join(' / '),scope==='mine'?'':gradeList(s.grades)].filter(Boolean).join('\n')
    })));
-   const measure=size=>Math.max(ROW_H,...cells.map(cell=>cell.reduce((h,exam,i)=>h+(i?PAD:0)+doc.font('bold').fontSize(size).heightOfString(exam.title,{width:dayW-2*PAD})+doc.font('regular').fontSize(size).heightOfString(exam.details,{width:dayW-2*PAD}),2*PAD)));
+   const content=(cell,size)=>cell.reduce((h,exam,i)=>h+(i?PAD:0)+doc.font('bold').fontSize(size).heightOfString(exam.title,{width:dayW-2*PAD})+(exam.details?doc.font('regular').fontSize(size).heightOfString(exam.details,{width:dayW-2*PAD}):0),0);
+   const measure=size=>Math.max(ROW_H,...cells.map(cell=>content(cell,size)+2*PAD));
    // A row that does not fit moves to a new page; one taller than the space a page offers shrinks its text.
    let size=SIZE,height=measure(size);
    if(y+height>GRID_BOTTOM){
@@ -64,9 +66,11 @@ export async function examTimetablePdf(batch,sessions,{scope,grades,name,english
    }
    fresh=false;
    doc.rect(MARGIN,y,TIME_W,height).stroke();
-   doc.font('regular').fontSize(SIZE).text(`${row.start}\n–\n${row.end}`,MARGIN,y+PAD,{width:TIME_W,align:'center'});
+   // Every cell's text sits in the middle of its row.
+   const time=`${row.start}\n–\n${row.end}`;
+   doc.font('regular').fontSize(SIZE).text(time,MARGIN,y+(height-doc.heightOfString(time,{width:TIME_W}))/2,{width:TIME_W,align:'center'});
    cells.forEach((cell,i)=>{
-    const x=MARGIN+TIME_W+i*dayW;let top=y+PAD;
+    const x=MARGIN+TIME_W+i*dayW;let top=y+(height-content(cell,size))/2;
     doc.rect(x,y,dayW,height).stroke();
     cell.forEach((exam,n)=>{
      if(n){doc.moveTo(x+PAD,top+PAD/2).lineTo(x+dayW-PAD,top+PAD/2).lineWidth(0.25).stroke().lineWidth(0.5);top+=PAD;}
