@@ -133,4 +133,25 @@ test('the downloaded file name carries the PDF language and the series name in t
  assert.equal(response.headers.get('content-disposition'),`attachment; filename="exam-schedule-en-Autumn Midterms.pdf"; filename*=UTF-8''${encodeURIComponent('exam-schedule-en-Autumn Midterms.pdf')}`);
  response=await call('/exams/'+batch.id+'/pdf?scope=all&lang=zh');assert.equal(response.status,200);
  assert.match(response.headers.get('content-disposition'),new RegExp(`filename\\*=UTF-8''${encodeURIComponent('exam-schedule-zh-秋季期中考试.pdf')}$`));
+ response=await call('/exams/'+batch.id+'/pdf?scope=grades&grades=11,10&lang=en');assert.equal(response.status,200);
+ assert.match(response.headers.get('content-disposition'),/filename="exam-schedule-G10_G11-en-Autumn Midterms\.pdf"/);
+ response=await call('/exams/'+batch.id+'/pdf?scope=all&lang=en',student);assert.equal(response.status,200);
+ assert.match(response.headers.get('content-disposition'),/filename="exam-schedule-en-Autumn Midterms\.pdf"/);
+});
+
+test('whole-school and grade exports merge one grade\'s levels of a subject; my exams keep each exam whole',async()=>{
+ const json={Origin:'http://calendar.test','Content-Type':'application/json',Cookie:admin};
+ const level=(id,level,grades,start,end,rooms)=>exam(id,{title:`Biology ${level}`,titleEn:`Biology ${level}`,subject:'生物',subjectEn:'Biology',level,grades,date:'2026-09-21',start,end,rooms});
+ const sessions=[level('bio-1','1',[10],'08:10','09:40',['2101']),level('bio-honor','Honor',[10],'08:10','09:40',['2102']),
+  level('bio-hl','HL',[11],'08:10','09:40',['2101']),level('bio-sl','SL',[11],'08:30','09:40',['2102'])];
+ let res=await fetch(base+'/api/admin/exams',{method:'POST',headers:json,body:JSON.stringify({...source(),title:'生物',titleEn:'Biology',sessions})});assert.equal(res.status,201,await res.clone().text());let bio=await res.json();
+ res=await fetch(base+'/api/admin/exams/'+bio.id+'/publish',{method:'POST',headers:json,body:JSON.stringify({version:bio.version})});assert.equal(res.status,200);bio=await res.json();
+ const [all]=await pages(await call('/exams/'+bio.id+'/pdf?scope=all&lang=en'));
+ assert.match(all,/G10 Biology 08:10–09:40 Biology 1 2101 Biology Honor 2102/,'shared time sits beside the subject only');
+ assert.match(all,/G11 Biology 08:10–09:40 Biology HL 08:10–09:40 2101 Biology SL 08:30–09:40 2102/,'differing times stay on each level');
+ const [grade]=await pages(await call('/exams/'+bio.id+'/pdf?scope=grades&grades=10&lang=en'));
+ assert.match(grade,/G10 Biology 08:10–09:40 Biology 1 2101 Biology Honor 2102/);
+ res=await fetch(base+'/api/exams/'+bio.id+'/choices',{method:'PUT',headers:{...json,Cookie:student},body:JSON.stringify({ids:['bio-1','bio-honor']})});assert.equal(res.status,200);
+ const [mine]=await pages(await call('/exams/'+bio.id+'/pdf?scope=mine&lang=en',student));
+ assert.match(mine,/Biology 1 08:10–09:40 2101 Biology Honor 08:10–09:40 2102/);
 });

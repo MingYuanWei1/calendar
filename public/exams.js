@@ -282,7 +282,7 @@ $('#pdf-submit').onclick=async()=>{
   const query=new URLSearchParams({scope,lang:language,...(scope==='grades'?{grades:grades.join(',')}:{})});
   const response=await fetch(`/api/exams/${encodeURIComponent(batch.id)}/pdf?${query}`);
   if(!response.ok)throw new Error('PDF export failed');
-  const url=URL.createObjectURL(await response.blob()),link=document.createElement('a');link.href=url;link.download=examPdfName(batch,{email:school.user?.email,english:language==='en'});document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+  const url=URL.createObjectURL(await response.blob()),link=document.createElement('a');link.href=url;link.download=examPdfName(batch,{scope,grades,email:school.user?.email,english:language==='en'});document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
   $('#pdf-dialog').close();
  }
  catch(error){$('#pdf-error').textContent=T('PDF 导出失败，请重试。','PDF export failed. Please retry.');}

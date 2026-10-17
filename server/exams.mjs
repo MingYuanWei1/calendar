@@ -58,7 +58,7 @@ export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,use
   const sessions=b.sessions.filter(s=>!s.cancelled&&(scope==='all'||(scope==='mine'?mine.includes(s.id):s.grades.some(g=>grades.includes(g))))).map(s=>seats[s.id]?{...s,rooms:[seats[s.id].room]}:s);
   if(!sessions.length)return fail(res,'此范围暂无考试。');
   const pdf=await examTimetablePdf(b,sessions,{scope,grades,name:u?.name||'',english,timeZone});
-  const name=examPdfName(b,{email:u?.email,english});
+  const name=examPdfName(b,{scope,grades,email:u?.email,english});
   res.set({'Content-Type':'application/pdf','Content-Disposition':`attachment; filename="${name.replace(/[^\x20-\x7e]|"/g,'_')}"; filename*=UTF-8''${encodeURIComponent(name)}`}).send(pdf);
  });
  app.get('/api/admin/exams',requireAdmin,(req,res)=>res.json(db.prepare('SELECT * FROM exam_batches').all().map(info)));
