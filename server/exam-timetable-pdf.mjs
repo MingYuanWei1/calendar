@@ -31,7 +31,7 @@ export async function examTimetablePdf(batch,sessions,{scope,grades,name,english
 
  // The heading sits on the first page only.
  doc.addPage();doc.fillColor('black').strokeColor('black').lineWidth(0.5);
- const titles=scope==='mine'?[english?`${name}'s Timetable`:`${name} 的考试安排`,english?`From ${batchTitle}`:`来自：${batchTitle}`]:[scope==='grades'?`${batchTitle} · ${gradeList(grades)}`:batchTitle];
+ const titles=scope==='mine'?[english?`${name}'s Timetable`:`${name} 的考试安排`,batchTitle]:[scope==='grades'?`${batchTitle} · ${gradeList(grades)}`:batchTitle];
  const range=`${longDate(batch.start)} – ${longDate(batch.end)}`,room=WIDTH-doc.font('regular').fontSize(12).widthOfString(range)-12;
  // A long name or batch title shrinks rather than run into the dates.
  const fitted=(text,size)=>Math.min(size,size*room/doc.fontSize(size).widthOfString(text));
