@@ -105,6 +105,8 @@ test('my exams PDF lists only the student\'s own room once the seating places th
   const task=getDocument({data:new Uint8Array(r.buffer()),useSystemFonts:false});
   try{const page=await (await task.promise).getPage(1);return (await page.getTextContent()).items.map(x=>x.str||'').join(' ');}finally{await task.destroy();}
  };
+ const named=await request('/exams/'+batch.id+'/pdf?lang=en&scope=mine','GET',undefined,student);
+ assert.ok(named.headers.get('content-disposition').endsWith("filename*=UTF-8''"+encodeURIComponent('exam-schedule-29wangxiaoming-en-学生关联考试.pdf')));
  const mine=await text('mine');assert.match(mine,/\bB\b/);assert.doesNotMatch(mine,/A \/ B/);
  assert.match(await text('all'),/A \/ B/);
 });

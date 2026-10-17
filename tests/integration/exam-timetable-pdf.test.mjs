@@ -127,3 +127,10 @@ test('only a published batch exports, and the scope must be named',async()=>{
  assert.equal((await call('/exams/'+draft.id+'/pdf?scope=all&lang=en')).status,404);
  assert.equal((await call('/exams/'+batch.id+'/pdf?lang=en')).status,422);
 });
+
+test('the downloaded file name carries the PDF language and the series name in that language',async()=>{
+ let response=await call('/exams/'+batch.id+'/pdf?scope=all&lang=en');assert.equal(response.status,200);
+ assert.equal(response.headers.get('content-disposition'),`attachment; filename="exam-schedule-en-Autumn Midterms.pdf"; filename*=UTF-8''${encodeURIComponent('exam-schedule-en-Autumn Midterms.pdf')}`);
+ response=await call('/exams/'+batch.id+'/pdf?scope=all&lang=zh');assert.equal(response.status,200);
+ assert.match(response.headers.get('content-disposition'),new RegExp(`filename\\*=UTF-8''${encodeURIComponent('exam-schedule-zh-秋季期中考试.pdf')}$`));
+});

@@ -11,6 +11,7 @@ import {randomUUID} from 'node:crypto';
 import {adaptRooms,batchEvent,batchSchema,numberGrades,seatErrors,schedule,scheduleKey} from './exam-model.mjs';
 import {seatTemplate,parseSeats} from './exam-files.mjs';
 import {examTimetablePdf} from './exam-timetable-pdf.mjs';
+import {examPdfName} from '../public/exam-file-name.mjs';
 export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,user,origin,timeZone,quota,sso={},llm={},extractRunner}){
  db.exec(`CREATE TABLE IF NOT EXISTS exam_batches(id TEXT PRIMARY KEY,version INTEGER NOT NULL,draft TEXT NOT NULL,published TEXT,seating TEXT);
  CREATE TABLE IF NOT EXISTS exam_choices(user_id TEXT NOT NULL,batch_id TEXT NOT NULL,exam_id TEXT NOT NULL,PRIMARY KEY(user_id,batch_id,exam_id));`);
@@ -57,7 +58,8 @@ export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,use
   const sessions=b.sessions.filter(s=>!s.cancelled&&(scope==='all'||(scope==='mine'?mine.includes(s.id):s.grades.some(g=>grades.includes(g))))).map(s=>seats[s.id]?{...s,rooms:[seats[s.id].room]}:s);
   if(!sessions.length)return fail(res,'此范围暂无考试。');
   const pdf=await examTimetablePdf(b,sessions,{scope,grades,name:u?.name||'',english,timeZone});
-  res.set({'Content-Type':'application/pdf','Content-Disposition':`attachment; filename="exam-schedule-${scope}-${b.start}.pdf"`}).send(pdf);
+  const name=examPdfName(b,{email:u?.email,english});
+  res.set({'Content-Type':'application/pdf','Content-Disposition':`attachment; filename="${name.replace(/[^\x20-\x7e]|"/g,'_')}"; filename*=UTF-8''${encodeURIComponent(name)}`}).send(pdf);
  });
  app.get('/api/admin/exams',requireAdmin,(req,res)=>res.json(db.prepare('SELECT * FROM exam_batches').all().map(info)));
  app.delete('/api/admin/exams/:id',requireAdmin,(req,res)=>{
