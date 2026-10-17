@@ -407,3 +407,5 @@ function fitMonthDensity(){
 const monthSizeObserver=new ResizeObserver(fitMonthDensity);
 monthSizeObserver.observe($('#month-grid'));
 startCalendar();
+// 访问统计: report this page load; counting never holds up or breaks the page.
+fetch('/api/views',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({page:'calendar'}),keepalive:true}).catch(()=>{});

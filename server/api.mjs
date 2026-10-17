@@ -12,6 +12,7 @@ import {installQuota} from './llm-quota.mjs';
 import {installFeeds} from './feeds.mjs';
 import {installNoticeExtract} from './notice-extract.mjs';
 import {installAssistant} from './assistant.mjs';
+import {installStats} from './stats.mjs';
 export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/Shanghai',trustProxy='',sso={},llm={},extractRunner}){
   new Intl.DateTimeFormat('en',{timeZone}).format();
   const base=new URL(origin);if(!['http:','https:'].includes(base.protocol)||base.origin!==origin)throw new Error('APP_ORIGIN must contain only scheme and host/port');
@@ -271,6 +272,7 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   installFeeds(app,db,{user:session,account:schoolAuth.account,origin,timeZone,matching:exams.matching,examEvents,personalEvents:listPersonal});
   installNoticeExtract(app,db,{requireAdmin,llm,timeZone,quota});
   installAssistant(app,db,{session,llm,matching:exams.matching,timeZone,quota,personalEvents:listPersonal});
+  installStats(app,db,{session,requireAdmin,timeZone});
   app.use('/api',(req,res)=>res.status(404).json({error:'接口不存在。'}));
   app.use((req,res,next)=>{
     const moved=pageRedirect(new URL(origin+req.originalUrl));

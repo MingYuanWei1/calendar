@@ -5,6 +5,7 @@ import {showExams,showBatch} from './console-exams.js';
 import {showSettings} from './console-settings.js';
 import {showAccounts,accountCount,loadAccounts} from './console-accounts.js';
 import {showStudents} from './console-students.js';
+import {showStats} from './console-stats.js';
 
 const navIcons={
  events:'<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',
@@ -12,6 +13,7 @@ const navIcons={
  exams:'<path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/>',
  students:'<path d="M22 10v6"/><path d="M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>',
  accounts:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+ stats:'<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
  settings:'<line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/>',
 };
 let route=['events'],current='';
@@ -21,7 +23,7 @@ function renderNav(){
  // A finished or failed extraction waits for an administrator to review it.
  const attention={exams:jobs?.some(j=>j.status!=='running'&&j.status!=='cancelled')};
  const counts={events:events?.length,days:plans&&planRanges(plans).length,exams:batches?.length,accounts:accountCount()};
- const labels={events:T('事件','Events'),days:T('放假与调休','School days'),exams:T('考试','Exams'),...(app.user?.role===3?{students:T('学生管理','Students'),accounts:T('账户','Accounts')}:{}),settings:T('设置','Settings')};
+ const labels={events:T('事件','Events'),days:T('放假与调休','School days'),exams:T('考试','Exams'),...(app.user?.role===3?{students:T('学生管理','Students'),accounts:T('账户','Accounts')}:{}),stats:T('统计','Statistics'),settings:T('设置','Settings')};
  $('#console-nav').innerHTML=`<a class="brand" href="/"><img src="/logo.png" alt=""><span><strong>${T('日历','Calendar')}</strong><span class="overline">${T('管理后台','Admin console')}</span></span></a>
  <nav class="nav-links">${Object.keys(labels).map(key=>`<a href="#${key}"${route[0]===key?' aria-current="page"':''}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${navIcons[key]}</svg><span>${labels[key]}</span>${attention[key]?`<i class="nav-dot" title="${T('有待核对的 AI 提取','AI extraction to review')}"></i>`:''}${counts[key]!==undefined?`<span class="count">${counts[key]}</span>`:''}</a>`).join('')}</nav>
  <div class="nav-foot"><div class="seg" role="group" aria-label="${T('界面语言','Language')}"><button type="button" data-lang="0" aria-pressed="${!app.lang}">中文</button><button type="button" data-lang="1" aria-pressed="${!!app.lang}">EN</button></div><a href="/">← ${T('公共校历','Public calendar')}</a><div class="nav-user"><span title="${esc(app.user?.name)}">${esc(app.user?.name)}</span><button type="button" class="btn btn-ghost" data-sign-out style="font-size:13px">${T('退出登录','Sign out')}</button></div></div>`;
@@ -46,11 +48,11 @@ async function navigate(){
  app.dirty=false;current=hash;app.visit++;
  const [path]=hash.split('?');
  route=path.split('/').map(decodeURIComponent);
- if(!['events','days','exams','settings',...(app.user.role===3?['students','accounts']:[])].includes(route[0]))route=['events'];
+ if(!['events','days','exams','stats','settings',...(app.user.role===3?['students','accounts']:[])].includes(route[0]))route=['events'];
  $('#console-dialog').open&&$('#console-dialog').close();
  renderNav();
  const main=$('#console-main');main.scrollTop=0;
- const show={events:()=>route[1]?showEditor(main,route[1],route[2]):showEvents(main),days:()=>showDays(main),exams:()=>route[1]?showBatch(main,route[1]):showExams(main),students:()=>showStudents(main,location.hash.split('?')[1]||''),accounts:()=>showAccounts(main),settings:()=>showSettings(main)}[route[0]];
+ const show={events:()=>route[1]?showEditor(main,route[1],route[2]):showEvents(main),days:()=>showDays(main),exams:()=>route[1]?showBatch(main,route[1]):showExams(main),students:()=>showStudents(main,location.hash.split('?')[1]||''),accounts:()=>showAccounts(main),stats:()=>showStats(main),settings:()=>showSettings(main)}[route[0]];
  app.rerender=()=>show();
  try{await show();}catch(error){main.innerHTML=`<p class="load-error">${esc(error.message)}</p>`;}
  renderNav();
