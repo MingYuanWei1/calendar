@@ -7,6 +7,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createApplication} from '../../server/app.mjs';
 import {setAdminPassword} from '../../server/passwords.mjs';
+import {getDocument} from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 const source=()=>({title:'学生关联考试',start:'2026-09-21',end:'2026-10-04',academicYear:2026,rooms:[{name:'A',rows:3,columns:3},{name:'B',rows:3,columns:3}],sessions:[{id:'math',title:'数学',division:'high',grades:[10],date:'2026-09-23',start:'08:00',end:'09:00',rooms:['A','B']}],seats:[{examId:'math',room:'B',row:1,column:2,className:'10.5',name:'王小明',englishName:'Ming'}]});
 async function setup(t,previewEmail='29wangxiaoming@school.edu.cn'){
@@ -15,7 +16,7 @@ async function setup(t,previewEmail='29wangxiaoming@school.edu.cn'){
  const server=instance.app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
  t.after(async()=>{await new Promise(r=>server.close(r));instance.close();await rm(directory,{recursive:true,force:true});});
  const base=`http://127.0.0.1:${server.address().port}`;
- const request=(path,method='GET',body,cookie='school_preview_out=1')=>new Promise((resolve,reject)=>{const req=httpRequest(base+'/api'+path,{method,headers:{Host:'localhost:3000',Origin:origin,'Content-Type':'application/json',Cookie:cookie}},res=>{const chunks=[];res.on('data',b=>chunks.push(b));res.on('end',()=>resolve({status:res.statusCode,headers:{get:key=>{const v=res.headers[key];return Array.isArray(v)?v.join(','):v;}},json:async()=>JSON.parse(Buffer.concat(chunks).toString())}));});req.on('error',reject);req.end(body===undefined?undefined:JSON.stringify(body));});
+ const request=(path,method='GET',body,cookie='school_preview_out=1')=>new Promise((resolve,reject)=>{const req=httpRequest(base+'/api'+path,{method,headers:{Host:'localhost:3000',Origin:origin,'Content-Type':'application/json',Cookie:cookie}},res=>{const chunks=[];res.on('data',b=>chunks.push(b));res.on('end',()=>resolve({status:res.statusCode,headers:{get:key=>{const v=res.headers[key];return Array.isArray(v)?v.join(','):v;}},json:async()=>JSON.parse(Buffer.concat(chunks).toString()),buffer:()=>Buffer.concat(chunks)}));});req.on('error',reject);req.end(body===undefined?undefined:JSON.stringify(body));});
  await setAdminPassword(instance.db,'admin','student-testing-password');
  const login=await request('/login','POST',{username:'admin',password:'student-testing-password'}),admin=login.headers.get('set-cookie').split(';')[0]+'; school_preview_out=1';
  const call=async(path,method='GET',body,cookie=admin,status=200)=>{const r=await request(path,method,body,cookie);const data=await r.json();assert.equal(r.status,status,JSON.stringify(data));return data;};
@@ -92,6 +93,20 @@ test('trusted school email initializes each batch once and respects deliberate e
  await call(personal+'/choices','PUT',{ids:[]},student);
  sync=await call(personal+'/personal-sync','POST',{},student);assert.deepEqual(sync.choices,[]);assert.equal(sync.newExams.length,0);
  const adminSync=await call(personal+'/personal-sync','POST',{});assert.equal(adminSync.status,'skipped');assert.deepEqual(adminSync.choices,[]);
+});
+
+test('my exams PDF lists only the student\'s own room once the seating places them',async t=>{
+ const {call,request,student}=await setup(t);await call('/admin/students/settings','PUT',{domain:'school.edu.cn'});
+ let batch=await call('/admin/exams','POST',source(),undefined,201),path='/admin/exams/'+batch.id;
+ batch=await call(path+'/publish','POST',{version:batch.version});batch=await call(path+'/publish-seats','POST',{version:batch.version});
+ await call('/exams/'+batch.id+'/personal-sync','POST',{},student);
+ const text=async scope=>{
+  const r=await request('/exams/'+batch.id+'/pdf?lang=en&scope='+scope,'GET',undefined,student);assert.equal(r.status,200);
+  const task=getDocument({data:new Uint8Array(r.buffer()),useSystemFonts:false});
+  try{const page=await (await task.promise).getPage(1);return (await page.getTextContent()).items.map(x=>x.str||'').join(' ');}finally{await task.destroy();}
+ };
+ const mine=await text('mine');assert.match(mine,/\bB\b/);assert.doesNotMatch(mine,/A \/ B/);
+ assert.match(await text('all'),/A \/ B/);
 });
 
 test('seating response locates the signed-in student without hiding other rooms',async t=>{

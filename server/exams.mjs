@@ -52,7 +52,9 @@ export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,use
   if(scope==='grades'&&!grades.length)return fail(res,'请至少选择一个年级。');
   const u=user(req);if(scope==='mine'&&!u)return res.status(401).json({error:'请先登录。'});
   const mine=scope==='mine'?choices(req,b.id):[];
-  const sessions=b.sessions.filter(s=>!s.cancelled&&(scope==='all'||(scope==='mine'?mine.includes(s.id):s.grades.some(g=>grades.includes(g)))));
+  // My exams list only the student's own room once the seating places them.
+  const seats=scope==='mine'?matching.personal(u,b.id):{};
+  const sessions=b.sessions.filter(s=>!s.cancelled&&(scope==='all'||(scope==='mine'?mine.includes(s.id):s.grades.some(g=>grades.includes(g))))).map(s=>seats[s.id]?{...s,rooms:[seats[s.id].room]}:s);
   if(!sessions.length)return fail(res,'此范围暂无考试。');
   const pdf=await examTimetablePdf(b,sessions,{scope,grades,name:u?.name||'',english,timeZone});
   res.set({'Content-Type':'application/pdf','Content-Disposition':`attachment; filename="exam-schedule-${scope}-${b.start}.pdf"`}).send(pdf);
