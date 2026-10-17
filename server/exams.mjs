@@ -9,7 +9,8 @@ import {installSchoolRules} from './school-rules.mjs';
 import express from 'express';
 import {randomUUID} from 'node:crypto';
 import {adaptRooms,batchEvent,batchSchema,numberGrades,seatErrors,schedule,scheduleKey} from './exam-model.mjs';
-import {seatTemplate,parseSeats,makeSchedulePdf} from './exam-files.mjs';
+import {seatTemplate,parseSeats} from './exam-files.mjs';
+import {examTimetablePdf} from './exam-timetable-pdf.mjs';
 export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,user,origin,timeZone,quota,sso={},llm={},extractRunner}){
  db.exec(`CREATE TABLE IF NOT EXISTS exam_batches(id TEXT PRIMARY KEY,version INTEGER NOT NULL,draft TEXT NOT NULL,published TEXT,seating TEXT);
  CREATE TABLE IF NOT EXISTS exam_choices(user_id TEXT NOT NULL,batch_id TEXT NOT NULL,exam_id TEXT NOT NULL,PRIMARY KEY(user_id,batch_id,exam_id));`);
@@ -46,12 +47,15 @@ export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,use
  });
  app.get('/api/exams/:id/pdf',async(req,res)=>{
   const b=publicBatch(row(req.params.id));if(!b)return res.status(404).json({error:'考试批次不存在。'});
-  let sessions=b.sessions,scope;
-  if(req.query.mine==='1'){if(!user(req))return res.status(401).json({error:'请先登录。'});const ids=choices(req,b.id);sessions=sessions.filter(s=>ids.includes(s.id));scope='我的考试 / My exams';}
-  else{if(!['primary','middle','high'].includes(req.query.division))return fail(res,'请选择学部。');sessions=sessions.filter(s=>s.division===req.query.division&&(!req.query.grade||s.grades.includes(Number(req.query.grade))));scope=`${{primary:'小学部',middle:'初中部',high:'高中部'}[req.query.division]}${req.query.grade?` · ${req.query.lang==='en'?'G'+Number(req.query.grade):Number(req.query.grade)+'年级'}`:''}`;}
-  sessions.sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start));
-  const pdf=await makeSchedulePdf(b,sessions,{timeZone,scope,english:req.query.lang==='en'});
-  res.set({'Content-Type':'application/pdf','Content-Disposition':'attachment; filename="exam-schedule.pdf"'}).send(pdf);
+  const scope=req.query.scope,english=req.query.lang==='en',grades=[...new Set(String(req.query.grades||'').split(',').map(Number))].filter(g=>Number.isInteger(g)&&g>=1&&g<=12);
+  if(!['all','grades','mine'].includes(scope))return fail(res,'请选择导出范围。');
+  if(scope==='grades'&&!grades.length)return fail(res,'请至少选择一个年级。');
+  const u=user(req);if(scope==='mine'&&!u)return res.status(401).json({error:'请先登录。'});
+  const mine=scope==='mine'?choices(req,b.id):[];
+  const sessions=b.sessions.filter(s=>!s.cancelled&&(scope==='all'||(scope==='mine'?mine.includes(s.id):s.grades.some(g=>grades.includes(g)))));
+  if(!sessions.length)return fail(res,'此范围暂无考试。');
+  const pdf=await examTimetablePdf(b,sessions,{scope,grades,name:u?.name||'',english,timeZone});
+  res.set({'Content-Type':'application/pdf','Content-Disposition':`attachment; filename="exam-schedule-${scope}-${b.start}.pdf"`}).send(pdf);
  });
  app.get('/api/admin/exams',requireAdmin,(req,res)=>res.json(db.prepare('SELECT * FROM exam_batches').all().map(info)));
  app.delete('/api/admin/exams/:id',requireAdmin,(req,res)=>{

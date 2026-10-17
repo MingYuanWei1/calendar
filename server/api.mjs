@@ -2,7 +2,6 @@ import {pageRedirect,pageRole} from './page-access.mjs';
 import {initializeAccounts,installAccounts} from './accounts.mjs';
 import {installSchoolAuth} from './school-auth.mjs';
 import express from 'express';
-import {schedulePdfSchema,vectorSchedulePdf} from './schedule-pdf.mjs';
 import {randomBytes,randomUUID} from 'node:crypto';
 import {installExams} from './exams.mjs';
 import {digest,verifyPassword} from './passwords.mjs';
@@ -44,13 +43,7 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   app.use('/api/admin/notice-extract',express.json({limit:'20mb'}));
   app.use('/api/admin/extract-jobs/sessions',express.json({limit:'20mb'}));
   app.use('/api/admin/exams',express.json({limit:'4mb'}));
-  app.use('/api/exam-schedule-pdf',express.json({limit:'4mb'}));
   app.use('/api',express.json({limit:'128kb'}));
-  app.post('/api/exam-schedule-pdf',async(req,res)=>{
-    const parsed=schedulePdfSchema.safeParse(req.body);
-    if(!parsed.success)return res.status(422).json({error:'考试表布局无效或内容过多，请缩小导出范围。'});
-    res.set({'Content-Type':'application/pdf','Content-Disposition':'attachment; filename="exam-schedule.pdf"'}).send(await vectorSchedulePdf(parsed.data.pages));
-  });
   app.get('/api/page-access',(req,res)=>{
     const required=pageRole(new URL(origin+(typeof req.query.path==='string'&&req.query.path.startsWith('/')?req.query.path:'/')));
     const user=required?session(req):null;

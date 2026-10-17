@@ -98,10 +98,6 @@
 #pdf-grade-options legend{font-size:12px;color:var(--muted)}
 #pdf-dialog .pdf-grade-option{display:flex;flex-direction:row;align-items:center;gap:6px;margin:0;padding:4px}
 #pdf-error:not(:empty){margin:10px 0}
-.pdf-export-host{position:absolute;left:-20000px;top:0;width:1540px;pointer-events:none}
-.pdf-export-host .schedule-panel{width:1540px;display:block}
-.pdf-export-host .schedule{max-height:none;height:auto;overflow:visible}
-.pdf-export-host .exam-time-grid{height:auto}
 
 /* Both schedule views fit all visible days using the same compact cards. */
 #schedule .exam-time-grid{min-width:0;width:100%}
@@ -140,16 +136,6 @@
 
 #extract-form label{margin:12px 0}.extract-table{min-width:1000px}.extract-table input:not([type=checkbox]),.extract-table select{width:100%;min-width:105px;margin:2px 0}.extract-table td{vertical-align:top}.extract-table th:nth-child(2){min-width:180px}
 
-@font-face{font-family:ExamPdf;src:url('/vendor/exam-font-regular.woff') format('woff');font-weight:400;font-display:block}
-@font-face{font-family:ExamPdf;src:url('/vendor/exam-font-bold.woff') format('woff');font-weight:700;font-display:block}
-.pdf-vector-export,.pdf-vector-export button{font-family:ExamPdf,sans-serif}
-.pdf-vector-export .schedule-panel{border-radius:0;overflow:visible}
-.pdf-vector-export .exam-time-grid{min-width:0;width:100%;height:auto}
-.pdf-vector-export .exam-time-grid th{position:static}
-.pdf-vector-export .exam-group{display:flex}
-.pdf-vector-export .exam-group>header{flex:0 0 30%;min-width:0}
-.pdf-vector-export .exam-levels{flex:1;min-width:0}
-.pdf-vector-export .exam-card label{display:block}
 
 .seat.my-seat{outline:3px solid #236346;outline-offset:-3px;background:#e1f4e7;color:#153d2b}.seat.my-seat>small:first-child{font-weight:700}.student-changes{padding-left:1.3rem}.student-changes li{margin:1rem 0}.sync-options{display:flex;gap:.6rem;flex-wrap:wrap}.import-exams-list{display:grid;gap:.8rem;margin:1rem 0}.import-exams-list label{display:flex;gap:.6rem;align-items:flex-start}
 

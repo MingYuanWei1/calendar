@@ -1,8 +1,5 @@
 import ExcelJS from 'exceljs';
-import PDFDocument from 'pdfkit';
-import {getFontData} from './font-data.mjs';
-import {seatSchema,seatErrors,adaptRooms,divisionNames} from './exam-model.mjs';
-import {gradeLabel} from '../public/grades.mjs';
+import {seatSchema,seatErrors,adaptRooms} from './exam-model.mjs';
 import unzipper from 'unzipper';
 const columns=['考试编号','教室','排','列','班级','中文名','英文名'];
 export async function seatTemplate(batch){
@@ -35,25 +32,4 @@ export async function parseSeats(buffer,batch){
  });
  const {rooms,changes}=adaptRooms(batch,seats);
  return {seats,roomChanges:changes,errors:[...errors,...seatErrors({...batch,rooms},seats)].slice(0,100)};
-}
-export async function makeSchedulePdf(batch,sessions,{timeZone,scope,english=false}){
- const doc=new PDFDocument({size:'A4',margin:40,info:{Title:batch.title,Author:english?'Calendar':'日历'}}),buffers=[];
- const result=new Promise((resolve,reject)=>{doc.on('data',b=>buffers.push(b));doc.on('end',()=>resolve(Buffer.concat(buffers)));doc.on('error',reject);});
- doc.font((await getFontData()).regular);
- const widths=[76,76,185,83,95],labels=english?['Date','Time','Exam','Division / Grade','Rooms']:['日期','时间','考试','学部 / 年级','教室'];
- const tableHeader=()=>{const top=doc.y;doc.rect(40,top,515,25).fill('#e4eff4');let x=40;doc.fontSize(9).fillColor('#243746');labels.forEach((label,i)=>{doc.text(label,x+5,top+6,{width:widths[i]-10,lineBreak:false});x+=widths[i];});doc.y=top+25;};
- const header=()=>{doc.fontSize(18).fillColor('#243746').text(english?(batch.titleEn||batch.title):batch.title);doc.fontSize(9).fillColor('#607581').text(`${english?'Calendar':'日历'} · ${batch.start} — ${batch.end}`).text(scope).text(`${english?'Generated':'生成于'} ${new Intl.DateTimeFormat(english?'en-GB':'zh-CN',{timeZone,dateStyle:'medium',timeStyle:'short'}).format(new Date())} · ${timeZone}`).moveDown();tableHeader();};
- header();
- if(!sessions.length)doc.fontSize(12).text(english?'No exams selected.':'当前范围没有考试。',40,doc.y+15);
- for(const s of sessions){
-  const title=(s.cancelled?(english?'[Cancelled] ':'[已取消] '):s.changed?(english?'[Updated] ':'[已变更] '):'')+(english?(s.titleEn||s.title):s.title);
-  const examTitle=title+[s.level].filter(value=>value&&!title.includes(value)).map(value=>' · '+value).join('');
-  const values=[s.date,`${s.start}–${s.end}`,examTitle,`${english?s.division:divisionNames[s.division]}\n${s.grades.map(g=>gradeLabel(g,english?1:0)).join(' / ')}`,s.rooms.join(' / ')];
-  doc.fontSize(10);const height=Math.max(36,...values.map((value,i)=>doc.heightOfString(value,{width:widths[i]-10})+16));
-  if(doc.y+height>doc.page.height-45){doc.addPage();header();}
-  const y=doc.y;let x=40;doc.fillColor('#243746').fontSize(10);
-  values.forEach((value,i)=>{doc.text(value,x+5,y+8,{width:widths[i]-10});x+=widths[i];});
-  doc.strokeColor('#dce5eb').moveTo(40,y+height).lineTo(555,y+height).stroke();doc.y=y+height;
- }
- doc.end();return result;
 }

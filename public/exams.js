@@ -2,7 +2,6 @@ import {examUpdates} from './exam-updates.js';
 import {examDatePages} from './exam-dates.mjs';
 import {seatViewTimes} from './exam-seats.mjs';
 import {subjectColors,subjectName} from './exam-subjects.mjs';
-import {downloadExamView,prepareExamPdf} from './exam-export.js';
 import {examSlotRows,groupExamLevels,slotOf,defaultExamSlots} from './exam-times.mjs';
 import {gradeLabel} from './grades.mjs';
 import {$,esc,api,date,monday,divisions,sorted,seatingMarkup} from './exam-common.js';
@@ -256,9 +255,8 @@ function updateDownloadScope(){
 }
 $('#download').onclick=()=>{
  if(!batch)return;
- prepareExamPdf().catch(()=>{});
  $('#pdf-title').textContent=T('下载考试表','Download exam schedule');
- $('#pdf-description').textContent=T('导出整个批次，按学部和周分页，保留考试表布局。','Export the full series, with separate pages by division and week.');
+ $('#pdf-description').textContent=T('导出为 A4 横向考试表，按周分页。','Export an A4 landscape timetable, one page per week.');
  $('#pdf-all-label').textContent=T('下载全部考试','All exams');$('#pdf-grade-label').textContent=T('下载所选年级考试','Selected grades');$('#pdf-mine-label').textContent=T('下载我的考试','My exams');$('#pdf-grade-summary').textContent=T('选择年级（可多选）','Choose grades (multiple)');$('#pdf-submit').textContent=T('下载 PDF','Download PDF');
  $('#pdf-mine').disabled=!school.user;
  $('#pdf-grade-options').innerHTML=Object.entries(divisions).map(([key,names])=>{const grades=[...new Set(batch.sessions.filter(s=>s.division===key).flatMap(s=>s.grades))].sort((a,b)=>a-b);return grades.length?`<fieldset><legend>${names[lang]}</legend>${grades.map(g=>`<label class="pdf-grade-option"><input type="checkbox" data-division="${key}" value="${g}" ${key===division&&g===grade?'checked':''}>${esc(gradeLabel(g,lang))}</label>`).join('')}</fieldset>`:'';}).join('');
@@ -269,25 +267,21 @@ $('#pdf-dialog').addEventListener('change',event=>{if(event.target.name==='pdf-s
 $('#pdf-close').onclick=()=>$('#pdf-dialog').close();
 $('#pdf-submit').onclick=async()=>{
  const scope=$('input[name="pdf-scope"]:checked').value;
- const selected=[...document.querySelectorAll('#pdf-grade-options input:checked')].map(el=>({division:el.getAttribute('data-division'),grade:Number(/** @type {HTMLInputElement} */(el).value)}));
- if(scope==='grades'&&!selected.length){$('#pdf-error').textContent=T('请至少选择一个年级。','Choose at least one grade.');return;}
+ const grades=[...document.querySelectorAll('#pdf-grade-options input:checked')].map(el=>Number(/** @type {HTMLInputElement} */(el).value));
+ if(scope==='grades'&&!grades.length){$('#pdf-error').textContent=T('请至少选择一个年级。','Choose at least one grade.');return;}
  if(scope==='mine'&&!school.user)return;
- const sessions=batch.sessions.filter(s=>scope==='all'||(scope==='mine'?chosen.has(s.id):selected.some(g=>g.division===s.division&&s.grades.includes(g.grade))));
+ const sessions=batch.sessions.filter(s=>!s.cancelled&&(scope==='all'||(scope==='mine'?chosen.has(s.id):s.grades.some(g=>grades.includes(g)))));
  if(!sessions.length){$('#pdf-error').textContent=T('此范围暂无考试。','No exams in this selection.');return;}
- const container=document.createElement('div');container.className='pdf-export-host';
- const panels=[];
- for(const [key,names] of Object.entries(divisions)){
-  const scoped=sessions.filter(s=>s.division===key);if(!scoped.length)continue;
-  for(const exportDays of examDatePages(scoped)){
-   const panel=document.createElement('section');panel.className='schedule-panel';
-   panel.innerHTML=`<div class="selection-toolbar"><span>${esc(title(batch))} · ${names[lang]} · ${exportDays[0]} — ${exportDays.at(-1)}</span></div><div class="schedule">${scheduleMarkup(scoped,exportDays,scope==='grades')}</div><footer>${esc($('#published').textContent)}</footer>`;
-   container.append(panel);panels.push(panel);
-  }
+ $('#pdf-submit').disabled=true;$('#pdf-close').disabled=true;$('#pdf-submit').textContent=T('正在生成 PDF…','Generating PDF…');
+ try{
+  const query=new URLSearchParams({scope,lang:lang?'en':'zh',...(scope==='grades'?{grades:grades.join(',')}:{})});
+  const response=await fetch(`/api/exams/${encodeURIComponent(batch.id)}/pdf?${query}`);
+  if(!response.ok)throw new Error('PDF export failed');
+  const url=URL.createObjectURL(await response.blob()),link=document.createElement('a');link.href=url;link.download=`exam-schedule-${scope}-${batch.start}.pdf`;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+  $('#pdf-dialog').close();
  }
- document.body.append(container);$('#pdf-submit').disabled=true;$('#pdf-close').disabled=true;
- try{await downloadExamView(`exam-schedule-${scope}-${batch.start}.pdf`,panels,stage=>{$('#pdf-submit').textContent=stage==='fonts'?T('正在加载字体…','Loading fonts…'):stage==='layout'?T('正在排版…','Preparing layout…'):T('正在生成 PDF…','Generating PDF…');});$('#pdf-dialog').close();}
  catch(error){$('#pdf-error').textContent=T('PDF 导出失败，请重试。','PDF export failed. Please retry.');}
- finally{container.remove();$('#pdf-submit').textContent=T('下载 PDF','Download PDF');$('#pdf-submit').disabled=false;$('#pdf-close').disabled=false;}
+ finally{$('#pdf-submit').textContent=T('下载 PDF','Download PDF');$('#pdf-submit').disabled=false;$('#pdf-close').disabled=false;}
 };
 async function start(){try{[school,batches,config]=await Promise.all([api('/school/session'),api('/exams'),api('/config')]);const params=new URLSearchParams(location.search),requested=batches.find(b=>b.id===params.get('batch'));const today=new Intl.DateTimeFormat('en-CA',{timeZone:config.timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());if(Object.hasOwn(divisions,params.get('division')))division=params.get('division');const matching=batches.find(b=>b.start<=params.get('date')&&b.end>=params.get('date'));const nearest=[...batches].filter(b=>b.end>=today).sort((a,b)=>a.start.localeCompare(b.start))[0];render();if(batches.length)await loadBatch((requested||matching||nearest||batches[0]).id);if(matching&&batch?.id===matching.id&&!requested){day=params.get('date');autoDay=!batch.sessions.some(s=>s.date===day&&scopeSessions().includes(s));render();}if(params.get('exam')&&batch)await examFocus(batch.id,params.get('exam'));if(params.has('auth'))notice(params.get('auth')==='unconfigured'?T('学校 Microsoft SSO 尚未配置，请联系管理员。','Microsoft SSO is not configured.'):T('登录未完成，请重试。','Sign-in failed. Please retry.'));}catch(e){notice(e.message);}}
 start();

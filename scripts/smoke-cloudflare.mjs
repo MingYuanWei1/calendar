@@ -21,13 +21,14 @@ try{
  event=await json(await request('/api/admin/events/'+eventId,'PUT',{...event,status:'published'}));
  cookie='';assert.equal((await request(uploaded.url)).status,200);assert.ok((await json(await request('/api/events'))).some(e=>e.id===eventId));cookie=adminCookie;
  assert.equal((await request('/api/admin/events/'+eventId,'PUT',{...event,version:1})).status,409);
- const batch={title:'部署验收',titleEn:'Deployment verification',start:'2026-09-23',end:'2026-09-24',rooms:[],sessions:[],seats:[]};
+ const batch={title:'部署验收',titleEn:'Deployment verification',start:'2026-09-23',end:'2026-09-24',rooms:[{name:'R1',rows:1,columns:1}],sessions:[{id:'smoke',title:'考试 Exam',division:'high',grades:[10],date:'2026-09-23',start:'08:10',end:'09:40',rooms:['R1']}],seats:[]};
  const saved=await json(await request('/api/admin/exams','POST',batch),201);batchId=saved.id;
  const template=await request('/api/admin/exams/'+batchId+'/template');assert.equal(template.status,200,await template.clone().text());const xlsx=Buffer.from(await template.arrayBuffer());assert.equal(xlsx.subarray(0,2).toString(),'PK');
  const preview=await json(await request('/api/admin/exams/'+batchId+'/import-preview','POST',xlsx,{'Content-Type':'application/octet-stream'}));assert.deepEqual(preview.errors,[]);
- const pdf=await request('/api/exam-schedule-pdf','POST',{pages:[{width:800,height:400,items:[{kind:'text',x:10,y:10,width:200,height:40,color:[0,0,0],text:'考试 Exam',size:20,bold:false}]}]});assert.equal(pdf.status,200,await pdf.clone().text());assert.equal(Buffer.from(await pdf.arrayBuffer()).subarray(0,4).toString(),'%PDF');
+ const published=await json(await request('/api/admin/exams/'+batchId+'/publish','POST',{version:saved.version}));
+ const pdf=await request('/api/exams/'+batchId+'/pdf?scope=all&lang=zh');assert.equal(pdf.status,200,await pdf.clone().text());assert.equal(Buffer.from(await pdf.arrayBuffer()).subarray(0,4).toString(),'%PDF');
  assert.equal((await request('/api/admin/events/'+eventId,'DELETE',{version:event.version})).status,204);eventId='';
- assert.equal((await request('/api/admin/exams/'+batchId,'DELETE',{version:saved.version})).status,204);batchId='';
+ assert.equal((await request('/api/admin/exams/'+batchId,'DELETE',{version:published.version})).status,204);batchId='';
  assert.equal((await request('/api/logout','POST')).status,204);
  assert.equal((await request('/api/admin/events')).status,401);
  console.log('PASS: login, CSRF, draft isolation, image upload/privacy, publish/conflicts, exams, XLSX template/import, Chinese PDF, deletion, logout.');

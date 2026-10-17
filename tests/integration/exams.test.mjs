@@ -61,9 +61,9 @@ test('exam publication, private seating, per-account choices, import validation 
   res=await call(path+'/publish-seats','POST',{version:batch.version},admin);assert.equal(res.status,422);assert.match((await res.json()).error,/2101.*确认/);
   res=await call(path,'PUT',{...batch,rooms:batch.rooms.map(({sizeReview,...r})=>r)},admin);batch=await res.json();
   res=await call(path+'/publish-seats','POST',{version:batch.version},admin);assert.equal(res.status,200);batch=await res.json();
-  assert.equal((await call('/exams/'+batch.id+'/pdf?mine=1')).status,401);
-  res=await call('/exams/'+batch.id+'/pdf?mine=1','GET',null,a);assert.equal(res.status,200);const pdf=Buffer.from(await res.arrayBuffer());assert.equal(pdf.subarray(0,4).toString(),'%PDF');assert.ok(pdf.length>4000);
-  res=await call('/exams/'+batch.id+'/pdf?division=high');assert.equal(res.status,200);
+  assert.equal((await call('/exams/'+batch.id+'/pdf?scope=mine')).status,401);
+  res=await call('/exams/'+batch.id+'/pdf?scope=mine','GET',null,a);assert.equal(res.status,200);const pdf=Buffer.from(await res.arrayBuffer());assert.equal(pdf.subarray(0,4).toString(),'%PDF');assert.ok(pdf.length>4000);
+  res=await call('/exams/'+batch.id+'/pdf?scope=grades&grades=10');assert.equal(res.status,200);
   assert.equal((await call(path,'PUT',{...batch,version:1},admin)).status,409);
   batch.sessions[0].cancelled=true;res=await call(path,'PUT',batch,admin);batch=await res.json();res=await call(path+'/publish','POST',{version:batch.version},admin);assert.equal(res.status,200);
   assert.equal((await (await call('/exams/'+batch.id)).json()).sessions[0].cancelled,true);assert.deepEqual(await (await call('/exams/'+batch.id+'/choices','GET',null,a)).json(),['english','math']);
