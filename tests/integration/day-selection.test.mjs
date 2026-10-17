@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createContext,runInContext} from 'node:vm';
 import {createDayPlanResolver} from '../../public/day-plans.mjs';
+import {termWeek,termWeeks,parityLabel} from '../../public/terms.mjs';
 import {dayPlanSchema} from '../../server/validation.mjs';
 
 // Run the real page's delegated click/save handlers with only DOM and transport stubbed.
 test('one click saves one date, ranges save both dates, and the next selection starts fresh',async()=>{
   const page={},element={focus(){},hidden:true},requests=[];
   const main={innerHTML:'',querySelector:()=>page,querySelectorAll:()=>[]};
-  const context=createContext({main,createDayPlanResolver,Blob,Event,
+  const context=createContext({main,createDayPlanResolver,termWeek,termWeeks,parityLabel,Blob,Event,
     localStorage:{getItem:()=>null},document:{querySelector:()=>element},
     window:{dispatchEvent(){}},
     fetch:async(path,options)=>{

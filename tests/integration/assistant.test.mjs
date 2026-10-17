@@ -43,6 +43,9 @@ async function seed(call){
  await call('/api/admin/events','POST',{title:['秘密草稿','Secret draft'],type:'activity',scope:['schoolwide'],status:'draft',start:'2026-10-13',timeMode:'allDay'});
  await call('/api/admin/day-plans','PUT',{start:'2026-10-01',end:'2026-10-07',kind:'off',title:['国庆节','National Day']});
  await call('/api/admin/students/settings','PUT',{domain:'school.edu.cn'});
+ // A term around today, so nearby dates carry their 学期周次.
+ const shift=days=>new Date(Date.now()+days*86400000).toISOString().slice(0,10);
+ await call('/api/admin/terms','POST',{name:['本学期','This term'],start:shift(-60),end:shift(120)});
  const exams={title:'期中考试',titleEn:'Midterms',start:'2026-09-21',end:'2026-10-04',academicYear:2026,rooms:[{name:'A',rows:3,columns:3},{name:'B',rows:3,columns:3}],
   sessions:[{id:'math',title:'数学',titleEn:'Mathematics',division:'high',grades:[10],date:'2026-09-23',start:'08:00',end:'09:00',rooms:['A','B']}],
   seats:[{examId:'math',room:'B',row:1,column:2,className:'10.5',name:'王小明',englishName:'Ming'},{examId:'math',room:'A',row:2,column:1,className:'10.5',name:'李华',englishName:'Hua'}]};
@@ -70,6 +73,7 @@ test('the assistant answers from published data, cites real items and sees only 
  // Only published data reaches the model, with the student's own seat but nobody else's.
  const system=state.prompts[0].messages[0].content;
  assert.match(system,/运动会/);assert.match(system,/国庆节/);assert.match(system,/数学/);
+ assert.match(system,/本学期/);assert.match(system,/\(this week\) · term week \d+ (odd|even)/);
  assert.doesNotMatch(system,/秘密草稿|未发布/);
  assert.match(system,/"mySeat":\{"room":"B","row":1,"column":2\}/);assert.match(system,/"inMyExams":true/);
  assert.doesNotMatch(system,/李华|王小明|"room":"A","row":2/);

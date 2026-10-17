@@ -377,3 +377,12 @@ body.detail-closed .workspace{grid-template-columns:180px minmax(0,1fr)}body.edi
   body.airy dialog::backdrop{background:color-mix(in srgb,var(--color-neutral-900) 40%,transparent);backdrop-filter:none}
   body.airy .primary,body.airy .personal-seg button,body.airy .personal-toggle,body.airy .personal-span button,body.airy .personal-buttons button,body.airy .personal-form input:not([type=checkbox]),body.airy .personal-form textarea,body.airy .day-add-personal{border-radius:0}
 }
+/* 学期周次: a narrow first column on each month row (W6 over 单/双), the week view's title and the phone day panel. */
+.week,.weekdays{grid-template-columns:34px repeat(7,minmax(0,1fr))}
+.spans{left:34px}
+.week>.day:nth-child(7){border-right-style:solid;border-right-width:1px}.week>.day:nth-child(8){border-right:0}
+.week>.week-no{display:flex;flex-direction:column;align-items:center;padding-top:8px;gap:1px;font-size:10px;font-weight:600;line-height:1.2;font-variant-numeric:tabular-nums;color:var(--muted);border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--subtle)}
+.airy .week>.week-no{border-color:#c5d1da}
+.week-no small{font-size:10px;font-weight:400}
+.week-all-day>p{display:flex;justify-content:space-between;gap:10px}.week-term{font-size:11px;font-weight:600;color:var(--text)}
+.day-panel-week{font-size:12px;color:var(--muted)}

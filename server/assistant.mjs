@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import {connection,requireFlash,respond,streamChat} from './llm-stream.mjs';
 import {describeRepeat,expandEvents,schoolYearEnd} from '../public/recurrence.mjs';
+import {termWeek} from '../public/terms.mjs';
 
 // 校历问答: answers questions from published calendar data only. Events and exams get short refs
 // (E1, X1…) so the model can cite them as [[E1]]; the client turns citations into cards.
@@ -8,7 +9,7 @@ const input=z.object({messages:z.array(z.object({role:z.enum(['user','assistant'
  .refine(value=>value.messages.at(-1)?.role==='user'&&value.messages.at(-1).content.length<=500,'The last message must be a question of at most 500 characters');
 const weekdays=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
-export function installAssistant(app,db,{session,llm,matching,timeZone,quota,personalEvents=()=>[]}){
+export function installAssistant(app,db,{session,llm,matching,timeZone,quota,personalEvents=()=>[],terms=()=>[]}){
  function context(user){
   const today=new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   const refs=new Map(),data={events:[],dayPlans:[],exams:[],me:null};
@@ -48,7 +49,13 @@ export function installAssistant(app,db,{session,llm,matching,timeZone,quota,per
   // Spell out nearby dates so the model never has to compute weekdays or "next Wednesday" itself.
   const day=offset=>{const d=new Date(today+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+offset);return d;};
   const monday=-((day(0).getUTCDay()+6)%7);
-  data.dates=Array.from({length:70},(_,i)=>{const d=day(i-7),iso=d.toISOString().slice(0,10),week=Math.floor((i-7-monday)/7);return `${iso} ${weekdays[d.getUTCDay()]}${week===0?' (this week)':week===1?' (next week)':week===-1?' (last week)':''}`;});
+  // 学期周次 ride along on each date for the same reason.
+  const termList=terms();
+  data.terms=termList.map(t=>({name:{zh:t.name[0]||undefined,en:t.name[1]||undefined},start:t.start,end:t.end}));
+  data.dates=Array.from({length:70},(_,i)=>{
+   const d=day(i-7),iso=d.toISOString().slice(0,10),week=Math.floor((i-7-monday)/7),term=termWeek(termList,iso);
+   return `${iso} ${weekdays[d.getUTCDay()]}${week===0?' (this week)':week===1?' (next week)':week===-1?' (last week)':''}${term?` · term week ${term.week} ${term.odd?'odd':'even'}`:''}`;
+  });
   return {today,weekday:weekdays[new Date(today+'T12:00:00Z').getUTCDay()],refs,data};
  }
 
@@ -57,6 +64,7 @@ Today is ${today} (${weekday}), school time zone ${timeZone}. Weeks run Monday�
 Rules:
 - Answer in the language of the user's latest message, and use names and places in that language (the zh or en field; fall back to the other only when missing). Be brief: a direct answer first, then at most a short "- " bullet list. Plain text only: no tables, headings or links.
 - After every event or exam you mention, cite it with its ref in double brackets, e.g. "运动会 [[E3]]" or "Physics HL [[X12]]". Cite only refs that exist. Day plans have no refs.
+- terms: the school's 学期. Each term numbers its Monday–Sunday weeks from 1 (the week holding its start date); holiday weeks still count. Odd weeks are 单周, even weeks 双周. DATA.dates shows the term week of nearby dates; for others, count whole weeks from the term's first Monday. Dates outside every term have no week number.
 - dayPlans: kind "off" = no classes; "school" = a make-up school day on a usual day off (followsWeekday = whose timetable it follows); "half" = half day. Dates without a plan follow the normal Monday–Friday week.
 - Cancelled items must be described as cancelled. movedFrom gives the original date of a rescheduled event.
 - A repeating event has "repeats" (its rule) and "dates": every date it is held from today to the end of next school year. An object in dates is a single date that was cancelled this time (the rest of the series still happens) or moved. Use only these dates.

@@ -200,7 +200,12 @@ button.grid-row{cursor:pointer;padding-block:12px}
 .month-bar{display:flex;align-items:center;gap:6px;margin-bottom:10px}
 .month-bar strong{font-family:var(--font-heading);font-weight:600;font-size:24px;min-width:150px}
 .month-bar .btn{height:32px}.month-bar .btn-square{width:32px;padding:0}
-.weekday-row,.month-cells{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.weekday-row,.month-cells{display:grid;grid-template-columns:34px repeat(7,minmax(0,1fr))}
+/* 学期周次: the first column of each month row. */
+.week-no{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--color-neutral-700);border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider)}
+.week-no small{font-size:10px;font-weight:400}
+.term-head{display:flex;align-items:center;justify-content:space-between}
+.term-fields{display:grid;grid-template-columns:1fr 1fr;gap:14px 12px;margin-bottom:12px}
 .weekday-row{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--color-neutral-700);padding-bottom:5px}
 .weekday-row span{padding:0 7px}
 .month-cells{border-top:1px solid var(--color-divider);border-left:1px solid var(--color-divider)}

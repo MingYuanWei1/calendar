@@ -39,6 +39,14 @@ let personalEnabled=false;
 let personalSeries=[];
 let resolveDayPlan=iso=>null;
 function dayPlan(iso){return resolveDayPlan(iso);}
+// 学期周次: the term week a date falls in (null outside every term), and the shared labels for it.
+let termWeekOf=iso=>null,termLabels=null;
+const weekText=iso=>{const info=termWeekOf(iso);return info?termLabels.weekLabel(info,state.lang):'';};
+/** The first column of a month row: W6 over 单/双, empty outside every term. */
+function weekNumberCell(monday){
+  const info=termWeekOf(monday);
+  return info?`<span class="week-no${info.odd?' odd':' even'}" title="${esc(termLabels.weekLabel(info,state.lang))}" aria-label="${esc(termLabels.weekLabel(info,state.lang))}">W${info.week}<small>${esc(termLabels.parityLabel(info,state.lang))}</small></span>`:'<span class="week-no" aria-hidden="true"></span>';
+}
 function dayBadge(plan){return plan?`<span class="day-badge ${plan.kind}">${plan.kind==='off'?(state.lang?'Off':'休'):plan.kind==='half'?(state.lang?'Half day':'上半天'):(state.lang?'All day class':'上全天')}</span>`:'';}
 function followsName(plan){const day=plan?.follows&&[['周一','Monday'],['周二','Tuesday'],['周三','Wednesday'],['周四','Thursday'],['周五','Friday']][plan.follows-1];return day?(state.lang?`${day[1]} schedule`:`按${day[0]}课表`):'';}
 function dayPlanTitle(plan){
@@ -142,7 +150,8 @@ function linesWanted(event,width){
 }
 /** Gives each event a starting row and how many consecutive free rows it may fill. */
 function wrapRows(items,rows){
-  const width=($('#month-grid').clientWidth/7)-24;
+  const grid=$('#month-grid'),gutter=grid.querySelector('.week-no')?.offsetWidth||0;
+  const width=((grid.clientWidth-gutter)/7)-24;
   const blocks=[];let next=0;
   items.forEach((event,index)=>{
     const want=linesWanted(event,width),row=rows[next++];let span=1;
@@ -172,7 +181,7 @@ function renderCalendar(){
   const shownOn=(e,iso)=>iso>=monthStart&&iso<=monthEnd&&onDate(e,iso);
   const monthEvents=events.filter(matches).filter(e=>e.start<=isoDate(last)&&(e.end||e.start)>=isoDate(first));
   $('#month-title').textContent=new Intl.DateTimeFormat(state.lang?'en-GB':'zh-CN',{year:'numeric',month:'long'}).format(first);
-  $('#weekdays').innerHTML=(state.lang?['MON','TUE','WED','THU','FRI','SAT','SUN']:['周一','周二','周三','周四','周五','周六','周日']).map(d=>`<span>${d}</span>`).join('');
+  $('#weekdays').innerHTML='<span class="week-no" aria-hidden="true"></span>'+(state.lang?['MON','TUE','WED','THU','FRI','SAT','SUN']:['周一','周二','周三','周四','周五','周六','周日']).map(d=>`<span>${d}</span>`).join('');
   $('#month-grid').style.setProperty('--week-count',String(count/7));
   let html='';
   for(let w=0;w<count/7;w++){
@@ -209,7 +218,7 @@ function renderCalendar(){
     }).join('');
     // A bar that cannot run the whole week still shows on the dates with a free row, as one piece per run of dates.
     const partial=placements.filter(p=>hiddenMulti.includes(p.event)).map(p=>({...p,rows:[]}));
-    html+=`<div class="week${weekHasBand?' has-band':''}">`;
+    html+=`<div class="week${weekHasBand?' has-band':''}">${weekNumberCell(weekStart)}`;
     for(let i=0;i<7;i++){
       const d=dates[i],iso=isoDate(d),plan=plans[i];const items=events.filter(matches).filter(e=>!isMulti(e)&&shownOn(e,iso)).sort(sortEvents);
       const daySlots=bandRow(i)?bandSlots:monthSlots;
@@ -307,7 +316,7 @@ function renderDayPanel(){
     return sm===em?(state.lang?`${sd}–${ed}`:`${sd}–${ed}日`):`${sm}/${sd}–${em}/${ed}`;
   };
   const rows=items.map(e=>`<button type="button" class="day-row ${e.type}${e.personal?' personal':''}${e.cancelled?' cancelled':''}" data-event="${esc(e.id)}"><span class="day-row-time num">${esc(when(e))}</span><span class="day-row-main"><span class="day-row-title"><span class="dot"></span><strong>${e.cancelled?esc(cancelText(e))+' · ':''}${e.oldDate?esc(t('changed'))+' · ':''}${esc(text(e.title))}</strong></span><small>${[timeText(e),scopeText(e),text(e.location)].filter(Boolean).map(esc).join(' · ')}</small></span></button>`).join('');
-  $('#day-panel').innerHTML=`<div class="day-panel-head"><h3>${esc(heading)}</h3>${plan?`<span class="tag plan-${plan.kind}">${esc(dayPlanName(plan))}</span>`:''}</div>${rows||`<p class="day-panel-empty">${esc(t('noDayEvents'))}</p>`}${personalEnabled?`<button type="button" class="day-add-personal" data-add-on="${iso}">+ ${esc(state.lang?'Add a personal event on this day':'在这天添加个人事件')}</button>`:''}`;
+  $('#day-panel').innerHTML=`<div class="day-panel-head"><h3>${esc(heading)}</h3>${plan?`<span class="tag plan-${plan.kind}">${esc(dayPlanName(plan))}</span>`:''}${weekText(iso)?`<span class="day-panel-week">${esc(weekText(iso))}</span>`:''}</div>${rows||`<p class="day-panel-empty">${esc(t('noDayEvents'))}</p>`}${personalEnabled?`<button type="button" class="day-add-personal" data-add-on="${iso}">+ ${esc(state.lang?'Add a personal event on this day':'在这天添加个人事件')}</button>`:''}`;
   bindEvents($('#day-panel'));
   const add=$('#day-panel [data-add-on]');if(add)add.onclick=()=>openPersonalEditor({date:iso});
 }

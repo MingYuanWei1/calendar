@@ -66,3 +66,6 @@ export const personalEventSchema=z.object({
 export const dayPlanSchema=z.object({start:day,end:day.or(z.literal('')).optional(),kind:z.enum(['off','school','half','default']),title:bilingual(60).default(['','']),follows:z.number().int().min(1).max(5).nullable().default(null)})
   .transform(value=>({...value,end:value.end||value.start,follows:['school','half'].includes(value.kind)?value.follows:null}))
   .refine(value=>value.end>=value.start&&(Date.parse(value.end)-Date.parse(value.start))/86400000<366,'Choose a date range of at most 366 days');
+// A 学期 must have a name in at least one language and cover at most a year.
+export const termSchema=z.object({name:bilingual(40).refine(([zh,en])=>zh||en),start:day,end:day,version:z.number().int().min(1).optional()})
+  .refine(term=>term.end>=term.start&&(Date.parse(term.end)-Date.parse(term.start))/86400000<366);
