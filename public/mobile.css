@@ -135,8 +135,8 @@
  /* — shared dialogs: login, subscribe — */
  .account-login-dialog,#subscribe-dialog{border-radius:0;border:1px solid var(--color-divider);background:var(--color-bg);box-shadow:var(--shadow-lg);font-family:var(--font-body)}
  .account-login-dialog h2,#subscribe-dialog h2{font-family:var(--font-heading);font-weight:600}
- .account-login-dialog input,.account-login-dialog button,#subscribe-dialog button,#subscribe-dialog .subscribe-actions a,#subscribe-dialog .subscribe-url input,#subscribe-dialog .subscribe-warning{border-radius:0}
- .account-login-dialog .microsoft-login,.account-login-dialog .primary{background:var(--color-accent);border-color:var(--color-accent);color:var(--color-bg)}
+ .account-login-dialog button,#subscribe-dialog button,#subscribe-dialog .subscribe-actions a,#subscribe-dialog .subscribe-url input,#subscribe-dialog .subscribe-warning{border-radius:0}
+ .account-login-dialog .microsoft-login{background:transparent;border:1px solid #000;color:#000}
  .account-login-dialog::backdrop,#subscribe-dialog::backdrop{background:color-mix(in srgb,var(--color-neutral-900) 40%,transparent)}
  /* 校历问答 drawer. */
  .assistant{border-radius:0;background:var(--color-bg);font-family:var(--font-body)}

@@ -58,11 +58,10 @@ body.admin-mode #site-header .search,body.admin-mode #site-header #admin-entry{d
 .account-login-dialog::backdrop{background:#182b3a66}
 .account-dialog-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
 .account-dialog-top h2{margin:0;font-size:23px}.account-dialog-top button{border:0;background:transparent;font-size:24px}
-.account-login-dialog form,.account-login-dialog label{display:flex;flex-direction:column;gap:8px}.account-login-dialog form{gap:16px}
-.account-login-dialog input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:7px;font:inherit}
 .account-login-dialog button{cursor:pointer;padding:10px 12px;border-radius:7px;font:inherit}
-.account-login-dialog .microsoft-login{width:100%;background:#243746;color:white;border:0}
-.account-divider{text-align:center;color:var(--muted);font-size:12px;margin:18px 0}
+.account-login-dialog .microsoft-login{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;background:transparent;color:#000;border:1px solid #000}
+.account-login-dialog .microsoft-login:hover{background:var(--soft)}
+#account-login-error:not(:empty){margin:12px 0 0}
 #account-login-error,#account-error{color:#ad3845;font-size:13px;overflow-wrap:anywhere}
 #account-login-error:empty,#account-error:empty{display:none}
 [hidden]{display:none!important}

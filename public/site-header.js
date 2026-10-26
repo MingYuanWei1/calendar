@@ -19,7 +19,7 @@
  const menu=document.getElementById('account-menu');
  const dialog=document.createElement('dialog');
  dialog.id='account-login-dialog';dialog.className='account-login-dialog';dialog.setAttribute('aria-labelledby','account-login-title');
- dialog.innerHTML=`<div class="account-dialog-top"><h2 id="account-login-title">登录</h2><button id="account-close" type="button" aria-label="关闭 / Close">×</button></div><button id="account-microsoft" type="button" class="microsoft-login">使用 Microsoft 登录</button><p id="account-divider" class="account-divider">或使用账号密码</p><form id="account-login-form"><label><span id="account-username-label">账号</span><input name="username" autocomplete="username" required maxlength="64"></label><label><span id="account-password-label">密码</span><input name="password" type="password" autocomplete="current-password" required maxlength="256"></label><p id="account-login-error" role="alert"></p><button id="account-submit" type="submit" class="primary">登录</button></form>`;
+ dialog.innerHTML=`<div class="account-dialog-top"><h2 id="account-login-title">登录</h2><button id="account-close" type="button" aria-label="关闭 / Close">×</button></div><button id="account-microsoft" type="button" class="microsoft-login"><svg class="microsoft-logo" viewBox="0 0 21 21" width="18" height="18" aria-hidden="true"><path fill="#f25022" d="M0 0h10v10H0z"/><path fill="#7fba00" d="M11 0h10v10H11z"/><path fill="#00a4ef" d="M0 11h10v10H0z"/><path fill="#ffb900" d="M11 11h10v10H11z"/></svg><span id="account-microsoft-label">使用 Microsoft 登录</span></button><p id="account-login-error" role="alert"></p>`;
  document.body.append(dialog);
  let session=null;
  const english=()=>document.documentElement.lang.startsWith('en');
@@ -39,8 +39,7 @@
   set('account-console','管理后台','Admin console');
   document.getElementById('site-more')?.setAttribute('aria-label',label('更多','More'));
   set('account-logout','退出登录','Sign out');
-  set('account-login-title','登录','Sign in');set('account-microsoft','使用 Microsoft 登录','Sign in with Microsoft');
-  set('account-divider','或使用账号密码','or use your username and password');set('account-username-label','账号','Username');set('account-password-label','密码','Password');set('account-submit','登录','Sign in');
+  set('account-login-title','登录','Sign in');set('account-microsoft-label','使用 Microsoft 登录','Sign in with Microsoft');
  }
  async function request(path,options={}){
   const response=await fetch('/api'+path,{...options,headers:{'Content-Type':'application/json'}});
@@ -59,17 +58,6 @@
  window.addEventListener('account-login',openLogin);
  document.addEventListener('click',event=>{if(!/** @type {Element} */(event.target).closest('.user-menu'))closeMenu();});
  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!menu.hidden){closeMenu();accountButton.focus();}});
- document.getElementById('account-login-form').onsubmit=async event=>{
-  event.preventDefault();const button=/** @type {HTMLButtonElement} */(document.getElementById('account-submit'));button.disabled=true;
-  try{
-   if(!await canLogin())return;
-   const values=Object.fromEntries(new FormData(/** @type {HTMLFormElement} */(event.target)));
-   await request('/login',{method:'POST',body:JSON.stringify(values)});
-   await loadSession();dialog.close();/** @type {HTMLFormElement} */(event.target).reset();
-   window.dispatchEvent(new CustomEvent('account-changed',{detail:session}));
-  }catch(error){document.getElementById('account-login-error').textContent=error.message;}
-  finally{button.disabled=false;}
- };
  document.getElementById('account-microsoft').onclick=async()=>{
   if(!await canLogin())return;
   sessionStorage.setItem('school-login-scroll',JSON.stringify({url:location.pathname+location.search+location.hash,y:scrollY}));

@@ -1,0 +1,8 @@
+/* Username and password sign-in, kept off the public pages. */
+.admin-login{min-height:100vh;display:grid;place-items:center;padding:16px}
+.admin-login form{width:min(400px,100%);display:flex;flex-direction:column;gap:16px;padding:28px;border:1px solid var(--line);border-radius:16px;background:var(--surface)}
+.admin-login h1{font-size:23px;font-weight:600}
+.admin-login label{display:flex;flex-direction:column;gap:8px}
+.admin-login input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:7px}
+.admin-login a{align-self:center;font-size:13px;color:var(--muted)}
+#admin-login-error{color:#ad3845;font-size:13px;overflow-wrap:anywhere}#admin-login-error:empty{display:none}

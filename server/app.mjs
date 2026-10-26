@@ -16,6 +16,8 @@ export function createApplication(options){
     app.use('/vendor/pdfjs',express.static(join(root,'node_modules/pdfjs-dist'),{index:false}));
     app.get('/vendor/html2canvas.js',(req,res)=>res.sendFile(join(root,'node_modules/html2canvas/dist/html2canvas.min.js')));
     app.get('/vendor/jspdf.js',(req,res)=>res.sendFile(join(root,'node_modules/jspdf/dist/jspdf.umd.min.js')));
+    // Same clean URL that Workers assets serve for admin/login.html.
+    app.get('/admin/login',(req,res)=>res.sendFile(join(root,'public/admin/login.html')));
     app.use(express.static(join(root,'public'),{etag:true,maxAge:0}));
   }});
 }
