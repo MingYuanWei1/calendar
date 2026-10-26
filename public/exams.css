@@ -52,6 +52,9 @@
 .exam-time-grid :is(.exam-card,.exam-group) h3{color:var(--exam-ink)}
 .exam-time-grid .exam-card time,.exam-group time,.exam-level strong{color:var(--text)}
 .exam-time-grid .exam-card p,.exam-level p{color:var(--muted)}
+/* Card times and rooms sit one step above their original 11px / 10px. */
+.exam-time-grid .tt-cell time,.exam-time-grid .exam-card p{font-size:12px}
+.exam-level p{font-size:11px}
 .exam-time-grid .exam-card input,.exam-group input{accent-color:var(--exam-border)}
 .exam-time-grid .exam-card.chosen,.exam-level.chosen{background:var(--exam-selected);box-shadow:inset 0 0 0 1px var(--exam-border)}
 @media(max-width:1200px){
