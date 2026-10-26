@@ -179,8 +179,8 @@ body.detail-closed .workspace{grid-template-columns:180px minmax(0,1fr)}body.edi
 .airy .agenda-search .search:focus-within{border-color:var(--accent)}
 /* Event details: posters, QR codes and registration links. */
 .detail-extra{margin-top:12px}.detail-section p{white-space:pre-wrap}.details h2,.detail-section p{overflow-wrap:anywhere}
-.event-media{margin:16px 0}.poster-image{display:block;width:100%;max-height:330px;object-fit:contain}.poster-button{display:block;width:100%;padding:0;border:0;background:var(--subtle)}.qr-image{display:block;width:180px;max-width:100%;height:auto;background:white}.media-fallback{font-size:12px;padding:18px;background:var(--subtle);border-radius:8px;color:var(--muted)}
-#media-dialog{width:min(760px,calc(100% - 24px));max-height:94vh}#media-image{display:block;width:100%;height:auto}.registration-button{text-decoration:none;display:flex;align-items:center;justify-content:space-between}.span-event.cancelled{text-decoration:line-through;opacity:.7}
+.event-media{margin:16px 0}.poster-image{display:block;width:100%;height:auto}.poster-button{display:block;width:100%;padding:0;border:0;background:var(--subtle)}.qr-image{display:block;width:180px;max-width:100%;height:auto;background:white}.media-fallback{font-size:12px;padding:18px;background:var(--subtle);border-radius:8px;color:var(--muted)}
+#media-dialog{width:fit-content;max-width:calc(100% - 24px);max-height:94vh}#media-image{display:block;width:auto;height:auto;max-width:min(710px,calc(100vw - 76px));max-height:calc(94vh - 110px);margin:0 auto}.registration-button{text-decoration:none;display:flex;align-items:center;justify-content:space-between}.span-event.cancelled{text-decoration:line-through;opacity:.7}
 .load-status{font-size:13px;padding:0 24px}.request-error{color:#a53646;font-size:13px;line-height:1.8;white-space:pre-line}
 
 /* Half school days use amber across calendar views, separate from green holidays. */
