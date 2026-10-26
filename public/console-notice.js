@@ -24,8 +24,8 @@ async function imageData(file){
 export function noticeDialog(){
  let files=[];
  const body=modal(T('从通知生成日程','Turn a notice into calendar changes'),`<p class="muted" style="font-size:13px;line-height:1.7">${T('粘贴公众号文章或通知文字，也可以加入截图、照片或 PDF。AI 会识别新增活动、已有事件的改期或取消，以及放假与调休；核对后再保存，不会自动发布。','Paste a notice, or add screenshots, photos or PDFs. The AI finds new events, reschedules or cancellations of existing events, and school-day changes; you review everything before it is saved.')}</p>
- <textarea class="input" rows="8" data-text placeholder="${T('在此粘贴通知文字…','Paste the notice text here…')}" aria-label="${T('通知文字','Notice text')}"></textarea>
- <label class="dropzone" data-drop><span>${T('拖入通知截图、照片或 PDF（可多选），或点击选择','Drop screenshots, photos or PDFs (several allowed), or click to choose')}</span><input type="file" multiple accept="image/png,image/jpeg,image/webp,.pdf,application/pdf" aria-label="${T('通知文件','Notice files')}"></label>
+ <textarea class="input" rows="8" data-text placeholder="${T('在此粘贴通知文字，或直接粘贴截图…','Paste the notice text here, or paste a screenshot…')}" aria-label="${T('通知文字','Notice text')}"></textarea>
+ <label class="dropzone" data-drop><span>${T('拖入或粘贴通知截图、照片或 PDF（可多选），或点击选择','Drop or paste screenshots, photos or PDFs (several allowed), or click to choose')}</span><input type="file" multiple accept="image/png,image/jpeg,image/webp,.pdf,application/pdf" aria-label="${T('通知文件','Notice files')}"></label>
  <div class="list-box" data-files hidden></div>
  <p class="alert" data-progress hidden></p>${errorLine}
  <div class="dialog-actions"><button type="button" class="btn btn-secondary" data-close>${T('返回','Go back')}</button><button type="button" class="btn btn-primary" data-save>${T('开始识别','Extract')}</button></div>`,{size:'medium'});
@@ -43,6 +43,21 @@ export function noticeDialog(){
  zone.querySelector('input').onchange=e=>{add([...e.target.files]);e.target.value='';};
  zone.ondragover=e=>{e.preventDefault();zone.classList.add('over');};zone.ondragleave=()=>zone.classList.remove('over');
  zone.ondrop=e=>{e.preventDefault();zone.classList.remove('over');add([...e.dataTransfer.files]);};
+ // A copied screenshot pastes as a file, anywhere in the dialog. Copied web content can carry text and an
+ // image together: the text still lands in the box and the image is added beside it.
+ let pastedImages=0;
+ body.addEventListener('paste',event=>{
+  const images=[...event.clipboardData?.files||[]].filter(file=>file.type.startsWith('image/'));
+  if(!images.length)return;
+  if(!event.clipboardData.getData('text/plain'))event.preventDefault();
+  const before=files.length;
+  add(images.map(file=>{
+   const n=++pastedImages,extension=file.type==='image/jpeg'?'jpg':file.type.slice(6);
+   return new File([file],T(`粘贴的图片 ${n}`,`Pasted image ${n}`)+'.'+extension,{type:file.type});
+  }));
+  const added=files.length-before;
+  if(added)toast(T(`已加入 ${added} 张粘贴的图片。`,`Added ${added} pasted image${added===1?'':'s'}.`));
+ });
  list.onclick=e=>{const button=e.target.closest('[data-remove]');if(button){files.splice(Number(button.dataset.remove),1);showFiles();}};
  api('/admin/notice-extract').then(status=>{if(!status.configured){const el=body.querySelector('[data-error]');el.textContent=T('尚未配置 LLM_WORKER_URL 和 LLM_WORKER_TOKEN，请配置后重启服务。','LLM_WORKER_URL and LLM_WORKER_TOKEN are not configured. Configure them and restart the service.');el.hidden=false;}}).catch(()=>{});
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
