@@ -141,7 +141,7 @@ export function installFeeds(app,db,{user,account,origin,timeZone,matching,examE
    for(const s of batch.sessions){
     if(chosen&&!chosen.has(s.id))continue;
     const seat=personal[s.id],name=req.query.lang==='en'?(s.titleEn||s.title):s.title;
-    const seatText=seat?L(req,`${seat.room} 第 ${seat.row} 排，第 ${seat.column} 列`,`${seat.room}, row ${seat.row}, column ${seat.column}`):'';
+    const seatText=!seat?'':seat.row==null?seat.room:L(req,`${seat.room} 第 ${seat.row} 排，第 ${seat.column} 列`,`${seat.room}, row ${seat.row}, column ${seat.column}`);
     const details=[pick(req,[batch.title,batch.titleEn]),s.grades.map(g=>gradeLabel(g,req.query.lang==='en'?1:0)).join(', '),[s.subject,s.level].filter(Boolean).join(' '),seat?L(req,`我的座位：${seatText}`,`My seat: ${seatText}`):'',s.note].filter(Boolean);
     items.push({uid:`exam-${batch.id}-${s.id}@calendar`,when:timed(s.date,s.start,s.end,timeZone),summary:`${s.cancelled?L(req,'[已取消] ','[Cancelled] '):''}${L(req,'考试：','Exam: ')}${name}${seat?` · ${seat.room}`:''}`,location:seatText||s.rooms.join(', '),description:details.join('\n'),url:`${origin}/exams.html?batch=${encodeURIComponent(batch.id)}`,cancelled:s.cancelled});
    }

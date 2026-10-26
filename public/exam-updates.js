@@ -30,7 +30,7 @@ export function examUpdates({getBatch,getUser,isSaving,apply,language,notice}){
  }
  function showChanges(){
   const changes=state.changes,id=getBatch().id,uid=getUser().id,version=generation;
-  const location=seat=>seat?`${seat.room} · ${seat.row} ${T('排','row')} ${seat.column} ${T('列','column')}`:T('无座位','No seat');
+  const location=seat=>!seat?T('无座位','No seat'):seat.row==null?seat.room:`${seat.room} · ${seat.row} ${T('排','row')} ${seat.column} ${T('列','column')}`;
   const labels={added:T('已分配座位','Seat assigned'),changed:T('座位已更改','Seat changed'),removed:T('座位安排已移除','Seat removed'),unavailable:T('座位安排暂不可用','Seating temporarily unavailable'),restored:T('座位安排已恢复','Seating restored')};
   $('#exam-updates-title').textContent=T('考试座位安排有更改','Your exam seating has changed');$('#exam-updates-error').textContent='';
   $('#exam-updates-content').innerHTML=`<ul class="student-changes">${changes.map(change=>{const exam=getBatch().sessions.find(s=>s.id===change.examId);return `<li><strong>${esc(exam?(language()?(exam.titleEn||exam.title):exam.title):change.examId)}</strong><p>${esc(labels[change.kind])}</p>${change.kind==='changed'?`<p>${esc(location(change.before))} → ${esc(location(change.after))}</p>`:change.after?`<p>${esc(location(change.after))}</p>`:''}</li>`;}).join('')}</ul><button id="ack-changes">${T('我知道了','Got it')}</button>`;

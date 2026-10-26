@@ -1,6 +1,6 @@
 import {examUpdates} from './exam-updates.js';
 import {examDatePages} from './exam-dates.mjs';
-import {seatViewTimes} from './exam-seats.mjs';
+import {examMode,seatViewTimes} from './exam-seats.mjs';
 import {examPdfName} from './exam-file-name.mjs';
 import {subjectColors,subjectName} from './exam-subjects.mjs';
 import {examSlotRows,groupExamLevels,slotOf,defaultExamSlots} from './exam-times.mjs';
@@ -226,9 +226,12 @@ async function showDetail(id){
    const times=seatViewTimes(batch,exam,room);if(!times.includes(point))point=exam.start;
    const timeSelect=`<select id="seat-time">${times.map(time=>`<option value="${esc(time)}" ${time===point?'selected':''}>${esc(time)}</option>`).join('')}</select>`;
    const own=seating.personal?.[exam.id],grid=seatingMarkup(batch,seating,exam,room,point,lang,false,own);
+   // 不排序座位 lists the room's students without positions, so only the room is the student's own.
+   const unordered=examMode(seating.seats,exam.id)==='unordered';
+   const mine=own?.room!==room?'':unordered?`<p class="${phone?'mx-my-seat':'my-room'}">${T('你的考场：','Your room: ')}<strong>${esc(own.room)}</strong></p>`:phone?`<p class="mx-my-seat">${T('你的座位：','Your seat: ')}<strong>${esc(own.room)} · ${lang?`row ${own.row}, column ${own.column}`:`第 ${own.row} 排 第 ${own.column} 列`}</strong></p>`:'';
    $('#seating-content').innerHTML=phone
-    ?`<div class="mx-seat-tools"><div class="seg" role="group" aria-label="${esc(T('考场','Room'))}">${exam.rooms.map(r=>`<button type="button" class="seg-opt" data-room="${esc(r)}" aria-pressed="${r===room}">${esc(r)}</button>`).join('')}</div>${times.length>1?`<label class="mx-time">${T('查看时刻','View at')} ${timeSelect}</label>`:`<span class="mx-time">${T('查看时刻','View at')} <span class="num">${esc(point)}</span></span>`}</div>${own?.room===room?`<p class="mx-my-seat">${T('你的座位：','Your seat: ')}<strong>${esc(own.room)} · ${lang?`row ${own.row}, column ${own.column}`:`第 ${own.row} 排 第 ${own.column} 列`}</strong></p>`:''}<div id="seat-grid" class="mx-seat-grid">${grid}</div><p class="mx-caption">${T('排从讲台向后，列从左向右。','Rows run back from the podium; columns run left to right.')}</p>`
-    :`<div class="room-tabs">${exam.rooms.map(r=>`<button data-room="${esc(r)}" aria-pressed="${r===room}">${esc(r)}</button>`).join('')}</div><label class="time-select">${T('查看时刻','View at')}${timeSelect}</label><div id="seat-grid">${grid}</div>`;
+    ?`<div class="mx-seat-tools"><div class="seg" role="group" aria-label="${esc(T('考场','Room'))}">${exam.rooms.map(r=>`<button type="button" class="seg-opt" data-room="${esc(r)}" aria-pressed="${r===room}">${esc(r)}</button>`).join('')}</div>${times.length>1?`<label class="mx-time">${T('查看时刻','View at')} ${timeSelect}</label>`:`<span class="mx-time">${T('查看时刻','View at')} <span class="num">${esc(point)}</span></span>`}</div>${mine}${unordered?`<div id="seat-grid" class="mx-roster">${grid}</div>`:`<div id="seat-grid" class="mx-seat-grid">${grid}</div><p class="mx-caption">${T('排从讲台向后，列从左向右。','Rows run back from the podium; columns run left to right.')}</p>`}`
+    :`<div class="room-tabs">${exam.rooms.map(r=>`<button data-room="${esc(r)}" aria-pressed="${r===room}">${esc(r)}</button>`).join('')}</div><label class="time-select">${T('查看时刻','View at')}${timeSelect}</label>${mine}<div id="seat-grid">${grid}</div>`;
    document.querySelectorAll('[data-room]').forEach(el=>el.addEventListener('click',()=>{room=el.getAttribute('data-room');point=exam.start;renderSeats();}));
    if($('#seat-time'))$('#seat-time').onchange=()=>{point=$('#seat-time').value;renderSeats();};
   };renderSeats();

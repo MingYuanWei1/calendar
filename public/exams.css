@@ -113,7 +113,7 @@
 
 #extract-form label{margin:12px 0}.extract-table{min-width:1000px}.extract-table input:not([type=checkbox]),.extract-table select{width:100%;min-width:105px;margin:2px 0}.extract-table td{vertical-align:top}.extract-table th:nth-child(2){min-width:180px}
 
-.seat.my-seat{outline:3px solid #236346;outline-offset:-3px;background:#e1f4e7;color:#153d2b}.seat.my-seat>small:first-child{font-weight:700}.student-changes{padding-left:1.3rem}.student-changes li{margin:1rem 0}.sync-options{display:flex;gap:.6rem;flex-wrap:wrap}.import-exams-list{display:grid;gap:.8rem;margin:1rem 0}.import-exams-list label{display:flex;gap:.6rem;align-items:flex-start}
+.seat.my-seat{outline:3px solid #236346;outline-offset:-3px;background:#e1f4e7;color:#153d2b}.roster{margin-top:12px}.roster tr.my-seat td{background:#e1f4e7;color:#153d2b;font-weight:600}.roster tr.my-seat td:first-child{box-shadow:inset 3px 0 #236346}.my-room{margin-top:12px;font-size:13px}.seat.my-seat>small:first-child{font-weight:700}.student-changes{padding-left:1.3rem}.student-changes li{margin:1rem 0}.sync-options{display:flex;gap:.6rem;flex-wrap:wrap}.import-exams-list{display:grid;gap:.8rem;margin:1rem 0}.import-exams-list label{display:flex;gap:.6rem;align-items:flex-start}
 
 /* Related-exam and seating notices float as a card instead of blocking the page. */
 #exam-updates:not(:modal){position:fixed;inset:auto auto 16px 16px;margin:0;z-index:30;width:min(380px,calc(100vw - 32px));max-height:min(70vh,520px);overflow:auto;padding:18px 20px;box-shadow:0 14px 36px rgba(20,40,55,.22)}
@@ -238,6 +238,7 @@
  .mx-seat-grid .seat>span,.mx-seat-grid .seat small:last-of-type,.mx-seat-grid .seat.my-seat small:first-of-type{display:none}
  .mx-seat-grid .seat.empty{border-style:dashed;color:var(--color-neutral-500)}
  .mx-seat-grid .seat.my-seat{border-color:var(--color-accent);background:var(--color-accent);color:var(--color-bg)}
+ .mx-roster .roster{margin-top:0}.mx-roster .roster tr.my-seat td{background:var(--color-accent);color:var(--color-bg);box-shadow:none}
  .mx-caption{font-size:12px;color:var(--color-neutral-600)}
 
  /* PDF and update dialogs: square, with Industry radios. */

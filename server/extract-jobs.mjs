@@ -17,8 +17,9 @@ export const localRunner=(ops,config,step=localStep())=>({
 });
 
 /**
- * `tasks.seats` / `tasks.sessions`: {prepare(input Buffer, draft) → {request, context, source?}, finish(context, raw),
- * salvage(context, items) → partial|null, failure(error) → message, itemKey}. `draft(batchId)` returns the batch draft.
+ * `tasks.seats` / `tasks.sessions`: {prepare(input Buffer, draft, options) → {request, context, source?}, finish(context, raw),
+ * salvage(context, items) → partial|null, failure(error) → message, itemKey, options?(req) → the request's settings,
+ * kept with the job so a retry prepares the same way}. `draft(batchId)` returns the batch draft.
  */
 export function installExtractJobs(app,db,{requireAdmin,quota,user,llm,tasks,draft,runner=localRunner}){
  db.exec(`CREATE TABLE IF NOT EXISTS extract_jobs(id TEXT PRIMARY KEY,batch_id TEXT NOT NULL,kind TEXT NOT NULL,status TEXT NOT NULL,file_name TEXT NOT NULL,created_by TEXT NOT NULL,created_at INTEGER NOT NULL,started_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,finished_at INTEGER,run INTEGER NOT NULL,attempt INTEGER NOT NULL,items INTEGER NOT NULL,error TEXT);
@@ -123,13 +124,15 @@ export function installExtractJobs(app,db,{requireAdmin,quota,user,llm,tasks,dra
   const running=db.prepare("SELECT * FROM extract_jobs WHERE batch_id=? AND status='running'").all(batchId).find(r=>status(r)==='running');
   if(running)return refuse(res,409,'本批次已有提取任务正在进行，请等待完成或先取消。');
   let prepared;
-  try{prepared=await task.prepare(input,batch);}catch(error){return refuse(res,422,error.message||'无法读取文件。');}
+  const options=task.options?.(req)??null;
+  try{prepared=await task.prepare(input,batch,options);}catch(error){return refuse(res,422,error.message||'无法读取文件。');}
   const refused=quota.take(req,'extract');if(refused)return res.status(429).json(refused);
   const id=randomUUID(),now=Date.now();
   db.transactionSync(()=>{
    for(const r of db.prepare('SELECT id FROM extract_jobs WHERE batch_id=?').all(batchId))remove(r.id);
    db.prepare("INSERT INTO extract_jobs VALUES(?,?,?,'running',?,?,?,?,?,NULL,1,0,0,NULL)").run(id,batchId,kind,fileName,user(req)?.name||'',now,now,now);
    putBlob(id,'input',input);
+   if(options!=null)putJson(id,'options',options);
   });
   await launch(id,prepared,{fresh:true});
   res.status(201).json(summary(job(id)));
@@ -158,7 +161,7 @@ export function installExtractJobs(app,db,{requireAdmin,quota,user,llm,tasks,dra
   if(status(r)==='running')return refuse(res,409,'提取任务仍在进行。');
   const batch=draft(r.batch_id);if(!batch)return refuse(res,404,'考试批次不存在。');
   let prepared;
-  try{prepared=await tasks[r.kind].prepare(getBlob(r.id,'input'),batch);}catch(error){return refuse(res,422,error.message||'无法读取文件。');}
+  try{prepared=await tasks[r.kind].prepare(getBlob(r.id,'input'),batch,getJson(r.id,'options'));}catch(error){return refuse(res,422,error.message||'无法读取文件。');}
   const refused=quota.take(req,'extract');if(refused)return res.status(429).json(refused);
   await launch(r.id,prepared,{fresh:false});
   res.json(summary(job(r.id)));

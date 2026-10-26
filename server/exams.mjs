@@ -1,7 +1,7 @@
 import {installExamMatching} from './exam-matching.mjs';
 import {installStudents} from './students.mjs';
 import {installExamExtract,sessionInputError,prepareSessions,finishSessions,salvageSessions,extractionFailure} from './exam-extract.mjs';
-import {extractSeats,prepareSeats,finishSeats,salvageSeats,SEAT_TIMEOUT} from './seat-extract.mjs';
+import {extractSeats,prepareSeats,finishSeats,salvageSeats,seatMode,SEAT_TIMEOUT} from './seat-extract.mjs';
 import {installExtractJobs} from './extract-jobs.mjs';
 import {respond} from './llm-stream.mjs';
 import {installSubjects} from './exam-subjects.mjs';
@@ -12,6 +12,7 @@ import {adaptRooms,batchEvent,batchSchema,numberGrades,seatErrors,schedule,sched
 import {seatTemplate,parseSeats} from './exam-files.mjs';
 import {examTimetablePdf} from './exam-timetable-pdf.mjs';
 import {examPdfName} from '../public/exam-file-name.mjs';
+import {modeConflicts} from '../public/exam-seats.mjs';
 export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,user,origin,timeZone,quota,sso={},llm={},extractRunner}){
  db.exec(`CREATE TABLE IF NOT EXISTS exam_batches(id TEXT PRIMARY KEY,version INTEGER NOT NULL,draft TEXT NOT NULL,published TEXT,seating TEXT);
  CREATE TABLE IF NOT EXISTS exam_choices(user_id TEXT NOT NULL,batch_id TEXT NOT NULL,exam_id TEXT NOT NULL,PRIMARY KEY(user_id,batch_id,exam_id));`);
@@ -110,14 +111,16 @@ export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,use
   db.prepare('UPDATE exam_batches SET seating=?,version=? WHERE id=?').run(JSON.stringify({rooms:b.rooms,seats:students.publishSeats(b),publishedAt:new Date().toISOString()}),r.version+1,r.id);res.json(info(row(r.id)));
  });
  app.get('/api/admin/exams/:id/template',requireAdmin,async(req,res)=>{const r=row(req.params.id);if(!r)return res.sendStatus(404);res.set({'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','Content-Disposition':'attachment; filename="exam-seats-template.xlsx"'}).send(Buffer.from(await seatTemplate(JSON.parse(r.draft))));});
+ // Imported seats keep the mode of the draft seats they sit with (按座位排序 or 不排序); a mismatch blocks the import.
+ const draftConflicts=(draft,seats)=>modeConflicts(draft.sessions,draft.seats,seats);
  const seatFailure=error=>{const message=error.message||'';if(error.name==='TimeoutError')return `模型超过 ${SEAT_TIMEOUT/1000} 秒没有返回新内容，提取已停止。请把工作簿拆成较少的工作表后重试。`;return /^(请|仅|Excel|最多|表格|工作簿|LLM Worker|模型)/.test(message)?message:`与 LLM Worker 的连接中断（${error.name||'Error'}），请稍后重试；如反复出现，请拆分工作簿。`;};
  // Extracted seats are matched to students against the draft as it is when the extraction finishes.
- const organizeSeats=(batchId,result)=>{const r=row(batchId);return r?{...result,seats:students.organize({...JSON.parse(r.draft),seats:result.seats},false).seats}:result;};
+ const organizeSeats=(batchId,result)=>{const r=row(batchId);if(!r)return result;const draft=JSON.parse(r.draft);return {...result,seats:students.organize({...draft,seats:result.seats},false).seats,errors:[...draftConflicts(draft,result.seats),...result.errors]};};
  const jobs=installExtractJobs(app,db,{requireAdmin,quota,user:req=>user(req)||null,llm,runner:extractRunner,
   draft:id=>{const r=row(id);return r?{...JSON.parse(r.draft),id:r.id}:null;},
   tasks:{
-   seats:{itemKey:'seats',failure:seatFailure,
-    async prepare(input,batch){const prepared=await prepareSeats(input,batch);return {...prepared,context:{...prepared.context,batchId:batch.id}};},
+   seats:{itemKey:'seats',failure:seatFailure,options:req=>({mode:seatMode(req.headers['x-seat-mode'])}),
+    async prepare(input,batch,options){const prepared=await prepareSeats(input,batch,seatMode(options?.mode));return {...prepared,context:{...prepared.context,batchId:batch.id}};},
     finish:(context,raw)=>organizeSeats(context.batchId,finishSeats(context,raw)),
     salvage:(context,items)=>{const partial=salvageSeats(context,items);return partial&&organizeSeats(context.batchId,partial);}},
    sessions:{itemKey:'sessions',failure:extractionFailure,validate:sessionInputError,
@@ -131,7 +134,7 @@ export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,use
   const refused=quota.take(req,'extract');if(refused)return res.status(429).json(refused);
   await respond(req,res,async progress=>{
    const organize=result=>({...result,seats:students.organize({...JSON.parse(r.draft),seats:result.seats},false).seats});
-   try{return organize(await extractSeats(req.body,JSON.parse(r.draft),llm,progress));}
+   try{return organize(await extractSeats(req.body,JSON.parse(r.draft),llm,progress,seatMode(req.headers['x-seat-mode'])));}
    catch(error){if(error.partial)error.partial=organize(error.partial);throw error;}
   },seatFailure,422);
  });
@@ -139,11 +142,11 @@ export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,use
   const r=row(req.params.id);if(conflict(req,res,r))return;
   const draft=JSON.parse(r.draft),{rooms,changes}=adaptRooms(draft,Array.isArray(req.body.seats)?req.body.seats.filter(s=>Number.isInteger(s?.row)&&Number.isInteger(s?.column)):[]);
   const parsed=batchSchema.safeParse({...draft,rooms,seats:req.body.seats});if(!parsed.success)return fail(res,parsed.error.issues.map(i=>i.message).join('；'));
-  res.json({seats:students.organize(parsed.data,false).seats,roomChanges:changes,errors:seatErrors(parsed.data),warnings:[]});
+  res.json({seats:students.organize(parsed.data,false).seats,roomChanges:changes,errors:[...draftConflicts(draft,parsed.data.seats),...seatErrors(parsed.data)],warnings:[]});
  });
  app.post('/api/admin/exams/:id/import-preview',requireAdmin,express.raw({type:'application/octet-stream',limit:'10mb'}),async(req,res)=>{
   const r=row(req.params.id);if(!r)return res.sendStatus(404);if(!Buffer.isBuffer(req.body))return fail(res,'请上传 Excel 文件。');
-  try{const result=await parseSeats(req.body,JSON.parse(r.draft));res.json({...result,seats:students.organize({...JSON.parse(r.draft),seats:result.seats},false).seats});}catch(error){return fail(res,error.message||'无法读取 Excel 文件。');}
+  try{const draft=JSON.parse(r.draft),result=await parseSeats(req.body,draft);res.json({...result,seats:students.organize({...draft,seats:result.seats},false).seats,errors:[...draftConflicts(draft,result.seats),...result.errors]});}catch(error){return fail(res,error.message||'无法读取 Excel 文件。');}
  });
  // 考试批次事件: every published batch also appears on the school calendar as one exam event.
  const events=()=>db.prepare('SELECT published FROM exam_batches WHERE published IS NOT NULL').all().map(r=>batchEvent(JSON.parse(r.published)));

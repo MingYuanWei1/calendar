@@ -1,5 +1,5 @@
 import {$,$$,esc,corners,icon,app,T,tx,SCOPES,api,toast,modal,closeModal,busy,errorLine,fail,go,refreshNav,md,mdw,stamp,loadBatches,loadSubjects,loadJobs} from './console-core.js';
-import {adaptRooms,examsLabel,mergeSeats,moveSeat,roomExamsAt,seatExamIds,seatViewTimes,withoutExam} from './exam-seats.mjs';
+import {adaptRooms,examMode,examsLabel,mergeSeats,moveSeat,placed,roomExamsAt,seatExamIds,seatViewTimes,withoutExam} from './exam-seats.mjs';
 import {subjectName} from './exam-subjects.mjs';
 import {defaultExamSlots,slotOf} from './exam-times.mjs';
 import {importPreview} from './exam-import-preview.js';
@@ -8,6 +8,8 @@ import {DIVISION_GRADES,gradeLabel,parseGrade} from './grades.mjs';
 import {followJob,reviewView,pagePane,sheetPane} from './ai-review.js';
 
 const view={id:'',tab:'sessions',room:0,exam:'',time:''};
+/** 批量删除: the seat indexes picked while bulk deleting, or null outside selection mode. */
+let picking=null;
 const divisions=['primary','middle','high'];
 const batch=()=>app.data.batches.find(b=>b.id===view.id);
 const bTitle=b=>app.lang?(b.titleEn||b.title):b.title;
@@ -87,7 +89,7 @@ ${jobStrip(jobOf(b))}
  const page=main.querySelector('.page');
  page.onclick=e=>onBatchClick(e,b);
  if(view.tab==='rooms')bindSeats(b);
- $$('[data-import]').forEach(input=>input.onchange=()=>{importSeats(input.files[0],input.dataset.import==='llm');input.value='';});
+ $$('[data-import]').forEach(input=>input.onchange=()=>{importSeats(input.files[0]);input.value='';});
  watchJob(b);
 }
 
@@ -108,30 +110,43 @@ function seatContext(b){
  const times=exam?seatViewTimes(editable,exam,room.name):[];
  const time=times.includes(view.time)?view.time:exam?.start;
  const active=exam?roomExamsAt(editable,exam,room.name,time):[];
- return {room,exams,exam,times,time,active,ids:active.map(s=>s.id)};
+ // Exams sharing the room at this moment share one mode; 不排序座位 lists the room's students instead of a grid.
+ const unordered=active.some(s=>examMode(b.seats,s.id)==='unordered');
+ return {room,exams,exam,times,time,active,ids:active.map(s=>s.id),unordered};
 }
 const sizeTag=()=>`<span class="tag tag-outline small">${T('尺寸待确认','Check size')}</span>`;
 const roomChangeNotes=changes=>(changes||[]).map(c=>T(`教室 ${c.name} 已从 ${c.from.rows}×${c.from.columns} 调整为 ${c.to.rows}×${c.to.columns}，导入后需在教室设置中人工确认。`,`Room ${c.name} grows from ${c.from.rows}×${c.from.columns} to ${c.to.rows}×${c.to.columns}; confirm its size in the room settings after importing.`));
 function roomsTab(b){
  const ctx=seatContext(b);
  if(!ctx)return `<div class="empty"><p style="font-size:14px">${T('暂无教室，请先新增教室。','No rooms yet. Add a room first.')}</p><button type="button" class="btn btn-secondary" data-act="add-room">+ ${T('新增教室','Add room')}</button></div>`;
- const {room,exams,exam,times,time,active,ids}=ctx;
+ const {room,exams,exam,times,time,active,ids,unordered}=ctx;
  let seats='',filled=0;
  for(let r=1;r<=room.rows;r++)for(let c=1;c<=room.columns;c++){
   const index=b.seats.findIndex(s=>s.room===room.name&&s.row===r&&s.column===c&&seatExamIds(s).some(id=>ids.includes(id))),seat=b.seats[index];
   if(seat)filled++;
   const label=seat?(tx([seat.name,seat.englishName])||'—'):T('空位','Empty');
   const examNote=seat&&(active.length>1||seat.examIds)?' · '+seatExamName(b,seat):'';
-  seats+=`<button type="button" class="seat${seat?' taken':''}" data-row="${r}" data-column="${c}"${seat?` data-index="${index}"`:''} title="${esc(`${T(`第 ${r} 排 · 第 ${c} 列`,`Row ${r}, column ${c}`)}${examNote}`)}"><strong>${esc(label)}</strong><span>${esc(seat?seat.className:`${r}-${c}`)}</span></button>`;
+  seats+=`<button type="button" class="seat${seat?' taken':''}${seat&&picking?.has(index)?' picked':''}" data-row="${r}" data-column="${c}"${seat?` data-index="${index}"`:''} title="${esc(`${T(`第 ${r} 排 · 第 ${c} 列`,`Row ${r}, column ${c}`)}${examNote}`)}"><strong>${esc(label)}</strong><span>${esc(seat?seat.className:`${r}-${c}`)}</span></button>`;
  }
  return `<div class="rooms-layout"><div class="room-list">${b.rooms.map((r,i)=>`<button type="button" data-room="${i}" aria-pressed="${r===room}"><strong>${esc(r.name)}</strong><small>${r.rows} × ${r.columns} · ${count(b.sessions.filter(s=>s.rooms.includes(r.name)).length,'场','sessions')}</small>${r.sizeReview?sizeTag():''}</button>`).join('')}<button type="button" class="btn btn-ghost" data-act="add-room" style="align-self:flex-start;margin-top:8px">+ ${T('新增教室','Add room')}</button></div>
  <div class="room-detail"><div class="head"><h4>${esc(room.name)}</h4><span class="muted" style="font-size:13px">${T(`${room.rows} 排 × ${room.columns} 列`,`${room.rows} rows × ${room.columns} columns`)}</span>${room.sizeReview?`${sizeTag()}<button type="button" class="btn btn-secondary" data-act="confirm-room" style="font-size:13px" title="${T('尺寸由座位表自动扩大，请核对排数和列数与实际教室一致','The size was grown to fit the seating sheet; check the rows and columns match the real room')}">${T('确认尺寸','Confirm size')}</button>`:''}<button type="button" class="btn btn-ghost" data-act="edit-room" style="margin-left:auto;font-size:13px">${T('编辑教室','Edit room')}</button></div>
  ${exams.length?`<div class="chips">${exams.map(s=>`<button type="button" class="chip plain" data-room-exam="${esc(s.id)}" aria-pressed="${s===exam}">${esc(md(s.date))} ${s.start} · ${esc(sName(s))}${b.sessions.find(x=>x.id===s.id).cancelled?T('（已取消）',' (cancelled)'):''}</button>`).join('')}</div>
  ${times.length>1?`<div class="chips" aria-label="${T('查看时刻','View time')}"><span class="muted" style="font-size:12px;align-self:center">${T('查看时刻','View at')}</span>${times.map(t=>`<button type="button" class="chip plain" data-time="${t}" aria-pressed="${t===time}">${t}</button>`).join('')}</div>`:''}
- <div class="seat-scroll"><div class="seat-map"><div class="podium">${T('讲 台','FRONT')}</div><div class="seat-grid" id="seat-grid" style="grid-template-columns:repeat(${room.columns},92px)">${seats}</div></div></div>`
+ ${unordered?rosterList(b,ctx):`<div class="seat-scroll"><div class="seat-map"><div class="podium">${T('讲 台','FRONT')}</div><div class="seat-grid${picking?' picking':''}" id="seat-grid" style="grid-template-columns:repeat(${room.columns},92px)">${seats}</div></div></div>`}`
  :`<p class="muted" style="font-size:13px">${T('此教室暂无考试。请先在场次中分配此教室。','No sessions use this room yet. Assign it to a session first.')}</p>`}
- <div class="seat-foot"><span class="muted">${exam?T(`该时刻 ${filled} 人 · 点击座位编辑，拖动可换位 · 排从讲台向后，列从左到右`,`${filled} students · click a seat to edit, drag to move · rows run front to back, columns left to right`):''}</span>
- <a class="btn btn-secondary" href="/api/admin/exams/${encodeURIComponent(b.id)}/template" download>${T('下载 Excel 模板','Excel template')}</a><label class="btn btn-secondary file-btn">${T('导入 Excel','Import Excel')}<input type="file" accept=".xlsx" data-import="xlsx"></label><label class="btn btn-secondary file-btn" title="${T('将工作簿文字与布局发送到配置的 LLM Worker','Sends the workbook text and layout to the configured LLM Worker')}">${T('LLM 提取座位表','Extract seats with LLM')}<input type="file" accept=".xlsx" data-import="llm"></label></div></div></div>`;
+ <div class="seat-foot">${picking
+  ?`<span class="muted">${T(`已选 ${picking.size} 人 · 点击${unordered?'行':'座位'}选择或取消`,`${picking.size} selected · click ${unordered?'a row':'a seat'} to select or unselect`)}</span><button type="button" class="btn btn-secondary" data-act="pick-cancel">${T('取消','Cancel')}</button><button type="button" class="btn btn-primary" data-act="pick-delete"${picking.size?'':' disabled'}>${T(`删除所选（${picking.size}）`,`Delete selected (${picking.size})`)}</button>`
+  :`<span class="muted">${!exam?'':unordered?T(`该时刻 ${roster(b,ctx).length} 人 · 不排序座位 · 点击学生编辑`,`${roster(b,ctx).length} students · unordered seating · click a student to edit`):T(`该时刻 ${filled} 人 · 点击座位编辑，拖动可换位 · 排从讲台向后，列从左到右`,`${filled} students · click a seat to edit, drag to move · rows run front to back, columns left to right`)}</span>
+ ${exam&&unordered?`<button type="button" class="btn btn-secondary" data-act="add-student">+ ${T('添加学生','Add student')}</button>`:''}${exam?`<button type="button" class="btn btn-secondary" data-act="pick">${T('批量删除','Bulk delete')}</button><button type="button" class="btn btn-ghost btn-danger" data-act="clear-exam">${T('清空本场座位','Clear this exam\'s seats')}</button>`:''}
+ <a class="btn btn-secondary" href="/api/admin/exams/${encodeURIComponent(b.id)}/template" download>${T('下载 Excel 模板','Excel template')}</a><label class="btn btn-secondary file-btn">${T('导入 Excel','Import Excel')}<input type="file" accept=".xlsx" data-import="xlsx"></label><button type="button" class="btn btn-secondary" data-act="extract-seats" title="${T('将工作簿文字与布局发送到配置的 LLM Worker','Sends the workbook text and layout to the configured LLM Worker')}">${T('LLM 提取座位表','Extract seats with LLM')}</button>`}</div></div></div>`;
+}
+/** The indexes of the seats listed in the room at this moment, in seating-sheet order (不排序座位). */
+const roster=(b,ctx)=>b.seats.flatMap((s,i)=>s.room===ctx.room.name&&seatExamIds(s).some(id=>ctx.ids.includes(id))?[i]:[]);
+function rosterList(b,ctx){
+ const list=roster(b,ctx),several=ctx.active.length>1,all=picking&&list.length&&list.every(i=>picking.has(i));
+ const check=(on,attr)=>`<button type="button" class="checkbox" ${attr} aria-pressed="${!!on}" aria-label="${T('选择','Select')}"></button>`;
+ return `<div class="roster-list${picking?' picking':''}"><div class="roster-head">${picking?check(all,'data-pick-all'):''}<span>${T('班级','Class')}</span><span>${T('中文名','Chinese name')}</span><span>${T('英文名','English name')}</span>${several?`<span>${T('考试','Exam')}</span>`:''}</div>
+ ${list.map(i=>{const s=b.seats[i];return `<button type="button" class="roster-row${picking?.has(i)?' picked':''}" data-student="${i}">${picking?`<span class="checkbox" aria-hidden="true" aria-pressed="${picking.has(i)}"></span>`:''}<span>${esc(s.className)}</span><span>${esc(s.name)}</span><span>${esc(s.englishName)}</span>${several?`<span class="muted">${esc(seatExamName(b,s))}</span>`:''}</button>`;}).join('')||`<p class="muted" style="font-size:13px;padding:10px 0">${T('本考场暂无学生。','No students in this room yet.')}</p>`}</div>`;
 }
 
 function slotsTab(b){
@@ -143,18 +158,22 @@ function onBatchClick(e,b){
  const t=e.target.closest('button');if(!t)return;
  const d=t.dataset;
  if(d.jobAct)jobAction(jobOf(b),d.jobAct);
- else if(d.tab){view.tab=d.tab;rerender();$(`[data-tab=${d.tab}]`)?.focus();}
+ else if(d.tab){view.tab=d.tab;picking=null;rerender();$(`[data-tab=${d.tab}]`)?.focus();}
  else if(d.exam)examDialog(b.sessions.find(s=>s.id===d.exam));
- else if(d.room){view.room=Number(d.room);view.exam='';view.time='';rerender();}
- else if(d.roomExam){view.exam=d.roomExam;view.time='';rerender();}
- else if(d.time){view.time=d.time;rerender();}
+ else if(d.room){view.room=Number(d.room);view.exam='';view.time='';picking=null;rerender();}
+ else if(d.roomExam){view.exam=d.roomExam;view.time='';picking=null;rerender();}
+ else if(d.time){view.time=d.time;picking=null;rerender();}
+ else if(picking&&(d.index!==undefined||d.student!==undefined)){const i=Number(d.index??d.student);if(!picking.delete(i))picking.add(i);rerender();}
+ else if(picking&&t.hasAttribute('data-pick-all')){const list=roster(b,seatContext(b)),all=list.every(i=>picking.has(i));list.forEach(i=>all?picking.delete(i):picking.add(i));rerender();}
+ else if(picking&&d.row){}
+ else if(d.student!==undefined)seatDialog(b,null,null,Number(d.student));
  else if(d.row&&!t.dataset.dragged)seatDialog(b,Number(d.row),Number(d.column),d.index===undefined?-1:Number(d.index));
- else ({meta:()=>batchMetaDialog(b),delete:()=>deleteDialog(b),'pub-schedule':()=>publishDialog(b,false),'pub-seating':()=>publishDialog(b,true),extract:()=>extractDialog(b),'add-exam':()=>examDialog(null),'add-room':()=>roomDialog(-1),'edit-room':()=>roomDialog(b.rooms.indexOf(seatContext(b).room)),'confirm-room':()=>{const name=seatContext(b).room.name;update(next=>{const room=next.rooms.find(r=>r.name===name);if(room)delete room.sizeReview;},T(`已确认教室 ${name} 的尺寸。`,`Confirmed the size of room ${name}.`)).catch(error=>toast(error.message,{bad:true}));},slots:()=>slotsDialog(b)})[d.act]?.();
+ else ({meta:()=>batchMetaDialog(b),delete:()=>deleteDialog(b),'pub-schedule':()=>publishDialog(b,false),'pub-seating':()=>publishDialog(b,true),extract:()=>extractDialog(b),'extract-seats':()=>seatExtractDialog(b),'add-student':()=>seatDialog(b,null,null,-1),pick:()=>{picking=new Set();rerender();},'pick-cancel':()=>{picking=null;rerender();},'pick-delete':()=>pickDeleteDialog(b),'clear-exam':()=>clearExamDialog(b),'add-exam':()=>examDialog(null),'add-room':()=>roomDialog(-1),'edit-room':()=>roomDialog(b.rooms.indexOf(seatContext(b).room)),'confirm-room':()=>{const name=seatContext(b).room.name;update(next=>{const room=next.rooms.find(r=>r.name===name);if(room)delete room.sizeReview;},T(`已确认教室 ${name} 的尺寸。`,`Confirmed the size of room ${name}.`)).catch(error=>toast(error.message,{bad:true}));},slots:()=>slotsDialog(b)})[d.act]?.();
 }
 
 /* Drag a taken seat onto another seat to move or swap it. */
 function bindSeats(b){
- const grid=$('#seat-grid');if(!grid)return;
+ const grid=$('#seat-grid');if(!grid||picking)return;
  const ctx=seatContext(b);
  $$('.seat.taken',grid).forEach(el=>{
   el.onpointerdown=event=>{
@@ -293,25 +312,48 @@ function roomDialog(index){
  });
 }
 
+/** Edits or adds a seat; a null row and column is a student of 不排序座位, listed in the room without a position. */
 function seatDialog(b,row,column,index){
- const ctx=seatContext(b),seat=b.seats[index];
+ const ctx=seatContext(b),seat=b.seats[index],unordered=row==null,noun=unordered?T('学生','student'):T('座位','seat');
  // "Undecided" keeps the seat under all the exams it may belong to (the sheet's own candidates, else every exam here now).
  const undecided=seat?.examIds||ctx.active.map(s=>s.id),undecidedName=seatExamName(b,{examId:undecided[0],examIds:undecided});
- const body=modal(seat?T('编辑座位','Edit seat'):T('添加座位','Add seat'),`<p class="muted" style="font-size:13px">${esc(ctx.room.name)} · ${T(`第 ${row} 排 · 第 ${column} 列`,`Row ${row}, column ${column}`)}</p>
+ const body=modal(unordered?(seat?T('编辑学生','Edit student'):T('添加学生','Add student')):seat?T('编辑座位','Edit seat'):T('添加座位','Add seat'),`<p class="muted" style="font-size:13px">${esc(ctx.room.name)}${unordered?T(' · 不排序座位',' · unordered seating'):' · '+T(`第 ${row} 排 · 第 ${column} 列`,`Row ${row}, column ${column}`)}</p>
  ${ctx.active.length>1?field(T('考试（本教室当前时段）','Exam (this room, this time)'),`<select class="input" name="examId" style="width:100%">${ctx.active.map(s=>`<option value="${esc(s.id)}"${!seat?.examIds&&(seat?.examId||ctx.exam.id)===s.id?' selected':''}>${esc(sName(s))} ${s.start}–${s.end}</option>`).join('')}<option value="*"${seat?.examIds?' selected':''}>${esc(T(`待定：${undecidedName}`,`Undecided: ${undecidedName}`))}</option></select>`):''}
  <div class="two">${field(T('班级 *','Class *'),input('className',seat?.className,'maxlength="60" placeholder="11-1"'))}${field(T('年级（可留空推算）','Grade (optional)'),input('grade',seat?.grade,'type="number" min="1" max="12"'))}</div>
  <div class="two">${field(T('中文名','Chinese name'),input('name',seat?.name,'maxlength="80"'))}${field(T('英文名','English name'),input('englishName',seat?.englishName,'maxlength="120"'))}</div>
- ${actions({left:seat?`<button type="button" class="btn btn-ghost btn-danger left" data-del>${T('清空座位','Clear seat')}</button>`:''})}`);
- confirmButton(body,'[data-del]',T('清空座位','Clear seat'),async()=>{await update(next=>next.seats.splice(index,1),T('已在草稿中清空座位。','Seat cleared in draft.'));closeModal();});
+ ${actions({left:seat?`<button type="button" class="btn btn-ghost btn-danger left" data-del>${unordered?T('移除学生','Remove student'):T('清空座位','Clear seat')}</button>`:''})}`);
+ confirmButton(body,'[data-del]',unordered?T('移除学生','Remove student'):T('清空座位','Clear seat'),async()=>{await update(next=>next.seats.splice(index,1),T(`已在草稿中移除${noun}。`,`The ${noun} was removed in the draft.`));closeModal();});
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
   const v=values(body);
   if(!v.className)fail(T('请填写班级。','Class is required.'));
   if(!v.name&&!v.englishName)fail(T('至少填写一种姓名。','Enter at least one name.'));
   const examIds=v.examId==='*'?undecided:null,examId=examIds?examIds[0]:v.examId||seat?.examId||ctx.exam.id;
   const same=seat&&seat.name===v.name&&seat.className===v.className;
-  const {examIds:_,...kept}=seat||{};
-  const value={...kept,...(examIds?{examIds}:{}),examId,room:ctx.room.name,row,column,className:v.className,name:v.name,englishName:v.englishName,grade:v.grade?Number(v.grade):null,studentId:same?seat.studentId:undefined};
+  const {examIds:_,row:_row,column:_column,...kept}=seat||{};
+  const value={...kept,...(examIds?{examIds}:{}),examId,room:ctx.room.name,...(unordered?{}:{row,column}),className:v.className,name:v.name,englishName:v.englishName,grade:v.grade?Number(v.grade):null,studentId:same?seat.studentId:undefined};
   await update(next=>{if(seat)next.seats[index]=value;else next.seats.push(value);},draftMsg());
+  closeModal();
+ });
+}
+
+/** 批量删除: removes the picked seats of this room and moment. */
+function pickDeleteDialog(b){
+ const ctx=seatContext(b),chosen=[...picking].filter(i=>b.seats[i]),unordered=ctx.unordered;
+ const names=chosen.map(i=>b.seats[i]).map(s=>[s.className,s.name,s.englishName].filter(Boolean).join(' '));
+ const body=modal(T('删除所选？','Delete the selected?'),`<p class="dialog-text">${T(`将从草稿删除 ${ctx.room.name} 的 ${chosen.length} 个${unordered?'学生':'座位'}：`,`This removes ${chosen.length} ${unordered?'students':'seats'} of ${ctx.room.name} from the draft:`)}</p><p class="muted" style="font-size:13px">${esc(names.slice(0,30).join('、'))}${names.length>30?T(` 等 ${names.length} 人`,` and ${names.length-30} more`):''}</p>${actions({saveLabel:T(`删除 ${chosen.length} 个`,`Delete ${chosen.length}`)})}`);
+ body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
+  const drop=new Set(chosen),kept=picking;picking=null;
+  try{await update(next=>{next.seats=next.seats.filter((_,i)=>!drop.has(i));},T(`已在草稿中删除 ${chosen.length} 个${unordered?'学生':'座位'}。`,`Deleted ${chosen.length} in the draft.`));}
+  catch(error){picking=kept;throw error;}
+  closeModal();
+ });
+}
+/** 清空本场座位: removes the selected exam from every seat in every room; undecided seats keep their other exams. */
+function clearExamDialog(b){
+ const exam=seatContext(b).exam,n=b.seats.filter(s=>seatExamIds(s).includes(exam.id)).length;
+ const body=modal(T('清空本场座位？','Clear this exam\'s seats?'),`<p class="dialog-text">${T(`将从草稿清空「${sName(exam)}」在所有教室的 ${n} 个座位。待定座位只移除本场考试，保留其他候选考试。`,`This clears all ${n} seats of “${sName(exam)}” in every room from the draft. Undecided seats only drop this exam and keep their other candidates.`)}</p>${actions({saveLabel:T('清空','Clear')})}`);
+ body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
+  await update(next=>{next.seats=next.seats.map(s=>seatExamIds(s).includes(exam.id)?withoutExam(s,exam.id):s).filter(Boolean);},T(`已在草稿中清空「${sName(exam)}」的座位。`,`Cleared the seats of “${sName(exam)}” in the draft.`));
   closeModal();
  });
 }
@@ -424,22 +466,42 @@ function reviewExtracted(b,result,review,{preset=false,elapsed=null,job=null}={}
  };
 }
 
-async function importSeats(file,llm){
+const xlsxProblem=file=>!/\.xlsx$/i.test(file.name)?T('仅支持 .xlsx 文件。','Only .xlsx files are supported.'):file.size>10*1024*1024?T('Excel 文件最大 10 MB。','Excel files must be at most 10 MB.'):'';
+/** LLM 提取座位表: choose the seating workbook and the mode, then extract in the background. */
+function seatExtractDialog(b){
+ let file=null,mode='ordered';
+ const hint=T('拖入座位表 Excel（.xlsx），或点击选择','Drop the seating workbook (.xlsx), or click to choose');
+ const body=modal(T('LLM 提取座位表','Extract seats with LLM'),`<label class="dropzone tall" data-drop><span data-file>${hint}</span><input type="file" accept=".xlsx" aria-label="Excel"></label>
+ <div class="field"><span class="label">${T('提取模式','Extraction mode')}</span>${segHtml('mode',[['ordered',T('按座位排序','By seat')],['unordered',T('不排序座位','Unordered')]],mode)}</div>
+ <p class="muted" data-mode-note style="font-size:13px;line-height:1.7"></p>
+ <p class="muted" style="font-size:13px;line-height:1.7">${T('最大 10 MB。工作簿文字与布局将发送到配置的 LLM Worker，提取后可核对修改，不会自动保存或发布。同一场考试的座位须全部按座位排序或全部不排序，与已有座位模式不同时无法导入。','Up to 10 MB. The workbook text and layout go to the configured LLM Worker; you review results before importing. Nothing is saved or published automatically. All seats of one exam are either by seat or unordered; an import that differs from the existing seats cannot be imported.')}</p>
+ ${actions({saveLabel:T('开始提取','Extract')})}`,{size:'medium'});
+ const notes={ordered:T('返回每位学生所在的教室、排和列。','Returns each student\'s room, row and column.'),unordered:T('仅返回每个教室的学生名单，不返回具体座位。','Returns only the student list of each room, without seats.')};
+ const showMode=()=>{body.querySelector('[data-mode-note]').textContent=notes[mode];};showMode();
+ pickOne(body,'mode',value=>{mode=value;showMode();});
+ const zone=body.querySelector('[data-drop]'),choose=f=>{file=f||null;body.querySelector('[data-file]').textContent=file?file.name:hint;};
+ zone.querySelector('input').onchange=e=>choose(e.target.files[0]);
+ zone.ondragover=e=>{e.preventDefault();zone.classList.add('over');};zone.ondragleave=()=>zone.classList.remove('over');
+ zone.ondrop=e=>{e.preventDefault();zone.classList.remove('over');choose(e.dataTransfer.files[0]);};
+ body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
+  if(!file)fail(T('请选择座位表 Excel。','Choose the seating workbook.'));
+  const problem=xlsxProblem(file);if(problem)fail(problem);
+  const job=await startJob(b,'seats',file,{'Content-Type':'application/octet-stream','X-File-Name':encodeURIComponent(file.name),'X-Seat-Mode':mode});
+  closeModal();openJob(job);
+ });
+}
+async function importSeats(file){
  const b=batch();if(!file)return;
- if(!/\.xlsx$/i.test(file.name))return toast(T('仅支持 .xlsx 文件。','Only .xlsx files are supported.'),{bad:true});
- if(file.size>10*1024*1024)return toast(T('Excel 文件最大 10 MB。','Excel files must be at most 10 MB.'),{bad:true});
- if(llm){
-  try{openJob(await startJob(b,'seats',file,{'Content-Type':'application/octet-stream','X-File-Name':encodeURIComponent(file.name)}));}
-  catch(error){toast(error.message,{bad:true});}
-  return;
- }
+ const problem=xlsxProblem(file);if(problem)return toast(problem,{bad:true});
  try{
   const result=await api(`/admin/exams/${encodeURIComponent(b.id)}/import-preview`,{method:'POST',body:file,headers:{'Content-Type':'application/octet-stream','X-File-Name':encodeURIComponent(file.name),'X-Draft-Version':String(b.version)}});
   $('#toast').hidden=true;
   seatPreview(b,result,T('Excel 导入预览','Excel import preview'));
  }catch(error){toast(error.message,{bad:true});}
 }
-const seatLine=(b,s,i)=>`<div class="seat-line" data-pick="${i}" tabindex="0"><span class="num">${esc(s.room)} · ${T(`第 ${s.row} 排 ${s.column} 列`,`Row ${s.row} · Col ${s.column}`)}</span><span>${esc([s.className,s.name,s.englishName].filter(Boolean).join(' '))}</span><span class="muted">${esc(seatExamName(b,s))}</span></div>`;
+/** Where a seat is: its room, plus row and column unless it is 不排序座位. */
+const place=s=>placed(s)?`${s.room} · ${T(`第 ${s.row} 排 ${s.column} 列`,`Row ${s.row} · Col ${s.column}`)}`:s.room;
+const seatLine=(b,s,i)=>`<div class="seat-line" data-pick="${i}" tabindex="0"><span class="num">${esc(place(s))}</span><span>${esc([s.className,s.name,s.englishName].filter(Boolean).join(' '))}</span><span class="muted">${esc(seatExamName(b,s))}</span></div>`;
 function seatResults(b,result,review,{elapsed=null,preset=false,job=null}={}){
  const groups=new Map();
  result.seats.forEach((seat,i)=>{const key=`${seatExamIds(seat).join()}\u0000${seat.room}`;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(i);});
@@ -465,7 +527,7 @@ function seatPreview(b,result,title,onImported=()=>{}){
   }else mergeDialog(b,seats,onImported);
  }});
 }
-const seatText=s=>`${s.room} · ${T(`第 ${s.row} 排 ${s.column} 列`,`Row ${s.row} · Col ${s.column}`)} · ${[s.className,s.name,s.englishName].filter(Boolean).join(' ')}`;
+const seatText=s=>`${place(s)} · ${[s.className,s.name,s.englishName].filter(Boolean).join(' ')}`;
 /** The draft already has seats: show what the import adds and corrects, then merge it in or replace the draft. */
 function mergeDialog(b,seats,onImported){
  const merge=mergeSeats(b.seats,seats);

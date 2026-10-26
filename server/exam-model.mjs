@@ -1,7 +1,7 @@
 import {z} from 'zod';
 import {defaultExamSlots} from '../public/exam-times.mjs';
 import {DIVISION_GRADES,normalizeGrades,parseGrade} from '../public/grades.mjs';
-import {seatExamIds} from '../public/exam-seats.mjs';
+import {modeConflicts,placed,seatExamIds} from '../public/exam-seats.mjs';
 export {adaptRooms} from '../public/exam-seats.mjs';
 const text=n=>z.string().trim().max(n);
 const required=n=>text(n).min(1);
@@ -9,7 +9,7 @@ const id=z.string().regex(/^[A-Za-z0-9_-]{1,80}$/);
 const day=z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(v=>{const d=new Date(v+'T12:00:00Z');return !isNaN(+d)&&d.toISOString().slice(0,10)===v;});
 const time=z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 export const sessionSchema=z.object({id,title:required(180),titleEn:text(180).default(''),subject:text(100).default(''),subjectEn:text(100).default(''),level:text(40).default(''),division:z.enum(['primary','middle','high']),grades:z.array(z.number().int().min(1).max(12)).min(1).max(12),gradesUnverified:z.boolean().optional(),date:day,start:time,end:time,rooms:z.array(required(60)).min(1).max(30),cancelled:z.boolean().default(false),note:text(1000).default('')}).refine(s=>s.end>s.start,'考试结束必须晚于开始').refine(s=>s.grades.every(g=>DIVISION_GRADES[s.division].includes(g)),'考试年级须属于所选学部').transform(s=>({...s,grades:[...new Set(s.grades)].sort((a,b)=>a-b)}));
-export const seatSchema=z.object({examId:id,examIds:z.array(id).min(2).max(10).optional(),room:required(60),row:z.number().int().min(1).max(40),column:z.number().int().min(1).max(40),className:required(60),name:text(80),englishName:text(120),grade:z.number().int().min(1).max(12).nullable().optional(),studentId:id.optional()}).refine(s=>s.name||s.englishName,'至少填写一种姓名').refine(s=>!s.examIds||(s.examIds[0]===s.examId&&new Set(s.examIds).size===s.examIds.length),'待定考试编号无效');
+export const seatSchema=z.object({examId:id,examIds:z.array(id).min(2).max(10).optional(),room:required(60),row:z.number().int().min(1).max(40).optional(),column:z.number().int().min(1).max(40).optional(),className:required(60),name:text(80),englishName:text(120),grade:z.number().int().min(1).max(12).nullable().optional(),studentId:id.optional()}).refine(s=>(s.row===undefined)===(s.column===undefined),'排和列须同时填写或同时留空').refine(s=>s.name||s.englishName,'至少填写一种姓名').refine(s=>!s.examIds||(s.examIds[0]===s.examId&&new Set(s.examIds).size===s.examIds.length),'待定考试编号无效');
 export const batchSchema=z.object({academicYear:z.number().int().min(2000).max(2199).optional(),division:z.enum(['primary','middle','high']).optional(),title:required(180),titleEn:text(180).default(''),start:day,end:day,version:z.number().int().min(1).optional(),timeSlots:z.array(z.object({start:time,end:time})).min(1).max(20).default(defaultExamSlots),sessions:z.array(sessionSchema).max(500),rooms:z.array(z.object({name:required(60),rows:z.number().int().min(1).max(40),columns:z.number().int().min(1).max(40),sizeReview:z.boolean().optional()})).max(100),seats:z.array(seatSchema).max(20000)}).superRefine((b,ctx)=>{
  const fail=message=>ctx.addIssue({code:'custom',message});
  const slots=[...b.timeSlots].sort((a,b)=>a.start.localeCompare(b.start));
@@ -26,12 +26,15 @@ export function seatErrors(batch,seats=batch.seats){
   if(candidates.some(c=>!c||!c.rooms.includes(seat.room))){errors.push(`${prefix}：考试编号或教室不匹配`);return;}
   // An undecided seat names exams that share its room at the same time; otherwise it would sit in two places at once.
   if(candidates.some(c=>c.date!==s.date||!(c.start<s.end&&s.start<c.end))){errors.push(`${prefix}：待定的几场考试不在同一时段`);return;}
-  if(!room||seat.row>room.rows||seat.column>room.columns){errors.push(`${prefix}：排或列超出教室范围`);return;}
+  if(!room){errors.push(`${prefix}：考试编号或教室不匹配`);return;}
+  // A seat without a row and column only lists the student in the room (不排序座位).
+  if(!placed(seat))return;
+  if(seat.row>room.rows||seat.column>room.columns){errors.push(`${prefix}：排或列超出教室范围`);return;}
   const key=`${s.date}|${seat.room}|${seat.row}|${seat.column}`,previous=occupied.get(key)||[];
   if(previous.some(p=>p.start<s.end&&s.start<p.end))errors.push(`${prefix}：同一时段座位重复占用`);
   previous.push(s);occupied.set(key,previous);
  });
- return errors.slice(0,100);
+ return [...modeConflicts(batch.sessions,[],seats),...errors].slice(0,100);
 }
 const publicRooms=rooms=>rooms.map(({sizeReview,...room})=>room);
 // Fields students see once published; `changed` flags and timestamps are publication metadata.

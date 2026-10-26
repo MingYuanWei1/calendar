@@ -3,6 +3,35 @@
  * student sits, the seat lists them all in `examIds` (its `examId` is the first) and is shown as e.g. "Chinese B / Honor".
  */
 export const seatExamIds=seat=>seat.examIds?.length?seat.examIds:[seat.examId];
+/**
+ * Whether a seat has a place in the room. An exam is seated either in order (every seat has a row and column) or
+ * without order (each room only lists its students); exams sharing a room at the same time use the same mode.
+ */
+export const placed=seat=>Number.isInteger(seat.row)&&Number.isInteger(seat.column);
+/** 'ordered', 'unordered', or null for an exam with no seats yet. */
+export function examMode(seats,examId){
+ const seat=seats.find(s=>seatExamIds(s).includes(examId));
+ return seat?(placed(seat)?'ordered':'unordered'):null;
+}
+/**
+ * The incoming seats that do not match the mode of the seats around them: other seats of the same exam, or seats of
+ * exams sharing the room at the same time. Returns one message per exam and room.
+ */
+export function modeConflicts(sessions,existing,incoming){
+ const exams=new Map(sessions.map(s=>[s.id,s])),modes=new Map(),key=(id,room)=>id+'\u0000'+(room??'');
+ const note=(id,room,mode)=>{for(const k of [key(id),key(id,room)]){if(!modes.has(k))modes.set(k,new Set());modes.get(k).add(mode);}};
+ for(const seat of [...existing,...incoming])for(const id of seatExamIds(seat))note(id,seat.room,placed(seat));
+ const messages=new Map();
+ for(const seat of incoming){
+  const mode=placed(seat),ids=seatExamIds(seat),exam=exams.get(ids[0]);if(!exam)continue;
+  const other=k=>modes.get(k)?.has(!mode);
+  const sharing=sessions.filter(s=>s.date===exam.date&&s.start<exam.end&&exam.start<s.end&&s.rooms.includes(seat.room)&&!ids.includes(s.id));
+  if(!ids.some(id=>other(key(id)))&&!sharing.some(s=>other(key(s.id,seat.room))))continue;
+  const label=`${exam.title} · ${seat.room}`;
+  if(!messages.has(label))messages.set(label,`${label}：与该场考试其他座位冲突（已有${mode?'不排序':'按座位排序'}的座位）`);
+ }
+ return [...messages.values()];
+}
 /** Removes one exam from a seat: an undecided seat narrows to the rest, a seat left without an exam becomes null. */
 export function withoutExam(seat,id){
  const ids=seatExamIds(seat).filter(x=>x!==id);
@@ -48,7 +77,7 @@ export const ROOM_MAX=40;
 export function adaptRooms(batch,seats=batch.seats){
  const changes=[];
  const rooms=batch.rooms.map(room=>{
-  const own=seats.filter(s=>s.room===room.name);
+  const own=seats.filter(s=>s.room===room.name&&placed(s));
   const rows=Math.max(room.rows,...own.map(s=>s.row)),columns=Math.max(room.columns,...own.map(s=>s.column));
   if((rows===room.rows&&columns===room.columns)||rows>ROOM_MAX||columns>ROOM_MAX)return room;
   changes.push({name:room.name,from:{rows:room.rows,columns:room.columns},to:{rows,columns}});
@@ -68,7 +97,7 @@ export function mergeSeats(existing,incoming){
  const same=(a,b)=>fields.every(f=>(a[f]??'')===(b[f]??''))&&seatExamIds(a).join()===seatExamIds(b).join()&&(a.grade==null||b.grade==null||a.grade===b.grade);
  const replaced=new Set(),added=[],changed=[];let unchanged=0;
  for(const seat of incoming){
-  const before=existing.filter((s,i)=>!replaced.has(i)&&s.examId===seat.examId&&(sameStudent(s,seat)||(s.room===seat.room&&s.row===seat.row&&s.column===seat.column)));
+  const before=existing.filter((s,i)=>!replaced.has(i)&&s.examId===seat.examId&&(sameStudent(s,seat)||(placed(s)&&placed(seat)&&s.room===seat.room&&s.row===seat.row&&s.column===seat.column)));
   before.forEach(s=>replaced.add(existing.indexOf(s)));
   if(!before.length)added.push(seat);
   else if(before.length===1&&same(before[0],seat))unchanged++;

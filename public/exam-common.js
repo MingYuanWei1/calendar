@@ -1,4 +1,4 @@
-import {examsLabel,roomExamsAt,seatExamIds} from './exam-seats.mjs';
+import {examMode,examsLabel,roomExamsAt,seatExamIds} from './exam-seats.mjs';
 export const $=selector=>/** @type {any} */(document.querySelector(selector));
 export const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export async function api(path,options={}){
@@ -17,6 +17,15 @@ export function seatingMarkup(batch,seating,exam,roomName,point=exam.start,lang=
  const active=roomExamsAt(batch,exam,roomName,point);
  const occupants=seating.seats.filter(seat=>seat.room===roomName&&active.some(s=>seatExamIds(seat).includes(s.id)));
  const title=s=>lang?(s.titleEn||s.title):s.title;
+ // 不排序座位: the room only lists its students, in the order of the seating sheet.
+ if(active.some(s=>examMode(seating.seats,s.id)==='unordered')){
+  const several=active.length>1;
+  const rows=occupants.map(seat=>{
+   const own=!!personal&&personal.room===roomName&&seat.studentId===personal.studentId&&seatExamIds(seat).includes(exam.id);
+   return `<tr${own?' class="my-seat"':''}><td>${esc(seat.className)}</td><td>${esc(seat.name)}</td><td>${esc(seat.englishName)}</td>${several?`<td>${esc(examsLabel(active.filter(s=>seatExamIds(seat).includes(s.id)).map(title)))}</td>`:''}</tr>`;
+  }).join('');
+  return `<div class="table-scroll roster"><table><thead><tr><th>${lang?'Class':'班级'}</th><th>${lang?'Chinese name':'中文名'}</th><th>${lang?'English name':'英文名'}</th>${several?`<th>${lang?'Exam':'考试'}</th>`:''}</tr></thead><tbody>${rows||`<tr><td colspan="${several?4:3}" class="muted">${lang?'No students in this room':'本考场暂无学生'}</td></tr>`}</tbody></table></div>`;
+ }
  let cells=`<span class="seat-label"></span>`;
  for(let c=1;c<=room.columns;c++)cells+=`<span class="seat-label">${lang?'Col '+c:'第 '+c+' 列'}</span>`;
  for(let r=1;r<=room.rows;r++){
