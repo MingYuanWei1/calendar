@@ -70,3 +70,10 @@ export const dayPlanSchema=z.object({start:day,end:day.or(z.literal('')).optiona
 // A 学期 must have a name in at least one language and cover at most a year.
 export const termSchema=z.object({name:bilingual(40).refine(([zh,en])=>zh||en),start:day,end:day,version:z.number().int().min(1).optional()})
   .refine(term=>term.end>=term.start&&(Date.parse(term.end)-Date.parse(term.start))/86400000<366);
+// 更新说明: a release number such as 0.0.2, its Chinese text, optional English text, and how many days it pops up.
+export const releaseNoteSchema=z.object({
+  release:z.string().regex(/^(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})$/),
+  zh:z.string().trim().min(1).max(4000),en:z.string().trim().max(4000).default(''),
+  days:z.number().int().min(1).max(365),status:z.enum(['draft','published']),
+  renotify:z.boolean().default(false),version:z.number().int().min(1).optional()
+});

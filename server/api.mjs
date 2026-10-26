@@ -14,6 +14,7 @@ import {installAssistant} from './assistant.mjs';
 import {installStats} from './stats.mjs';
 import {installTerms} from './terms.mjs';
 import {installEventTypes} from './event-types.mjs';
+import {installReleaseNotes} from './release-notes.mjs';
 export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/Shanghai',trustProxy='',sso={},llm={},extractRunner}){
   new Intl.DateTimeFormat('en',{timeZone}).format();
   const base=new URL(origin);if(!['http:','https:'].includes(base.protocol)||base.origin!==origin)throw new Error('APP_ORIGIN must contain only scheme and host/port');
@@ -271,6 +272,7 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   const terms=installTerms(app,db,{requireAdmin});
   installAssistant(app,db,{session,llm,matching:exams.matching,timeZone,quota,personalEvents:listPersonal,terms:terms.list,types:eventTypes.list});
   installStats(app,db,{session,requireAdmin,timeZone});
+  installReleaseNotes(app,db,{session,requireSystemAdmin:requireRole(3),secure:base.protocol==='https:',timeZone});
   app.use('/api',(req,res)=>res.status(404).json({error:'接口不存在。'}));
   app.use((req,res,next)=>{
     const moved=pageRedirect(new URL(origin+req.originalUrl));
