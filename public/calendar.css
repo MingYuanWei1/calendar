@@ -197,7 +197,9 @@ body.detail-closed .workspace{grid-template-columns:180px minmax(0,1fr)}body.edi
 
 @media(min-width:761px){
   /* A title with free rows below it wraps onto up to three lines. */
-  .airy .day-event-slot.lines-2 .event,.airy .day-event-slot.lines-3 .event{height:100%;align-items:flex-start;padding-top:2px}
+  /* n rows are 23n-3px tall and n lines are 17n px, so (6n-3)/2 above centres the text. */
+  .airy .day-event-slot.lines-2 .event,.airy .day-event-slot.lines-3 .event{height:100%;align-items:flex-start;padding-top:4.5px;padding-bottom:0}
+  .airy .day-event-slot.lines-3 .event{padding-top:7.5px}
   .day-event-slot.lines-2 .event-text,.day-event-slot.lines-3 .event-text{white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:17px}
   .day-event-slot.lines-3 .event-text{-webkit-line-clamp:3}
   .day-event-slot.lines-2 .event .dot,.day-event-slot.lines-3 .event .dot{margin-top:5px;flex:none}
