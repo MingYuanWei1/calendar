@@ -20,7 +20,8 @@ export function nextHue(subjects){
 }
 // Exam cards render in plain black and white; subject hues stay stored but no longer tint the timetable.
 const monochrome='--exam-bg:#fff;--exam-border:#000;--exam-line:#d4d4d4;--exam-selected:#ededed;--exam-ink:#000;--exam-edge:#7d909d';
-export function subjectColors(){return ()=>monochrome;}
+/** @param {unknown} [_sessions] @param {unknown} [_subjects] @returns {(exam?:unknown)=>string} */
+export function subjectColors(_sessions,_subjects){return ()=>monochrome;}
 
 // Course numbers belong to a subject, never to the subject catalog itself. The IB curriculum (the
 // "ib" school rules template) also fixes its own course names; other schools keep only the generic rule.
