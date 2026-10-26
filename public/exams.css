@@ -10,16 +10,56 @@
 #detail>.dialog-top button{flex-shrink:0}
 #detail-content{min-height:0;overflow:auto;overscroll-behavior:contain;padding:18px 24px 24px}
 
-.exam-time-grid{table-layout:fixed;min-width:calc(100px + var(--day-count,5)*240px);width:100%;border-collapse:separate;border-spacing:0}
-.exam-time-grid th,.exam-time-grid td{padding:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);vertical-align:top}
-.exam-time-grid thead th{position:sticky;top:0;z-index:2;background:#f7fafc;padding:12px 10px}
-.exam-time-grid .time-axis{vertical-align:middle;position:sticky;left:0;width:100px;z-index:1;background:#f7fafc;text-align:center;padding:20px 8px;color:var(--muted);font-weight:500}
-.exam-time-grid thead .time-axis{z-index:3;vertical-align:middle}
-.exam-time-grid .time-axis time,.exam-time-grid .time-axis span{display:block}
-.exam-time-grid td{height:110px;background:white}
-.exam-time-grid td.weekend{background:#f5f7f9}
-.exam-time-grid .empty-slot{display:block;text-align:center;padding:35px 0;color:#abb9c2}
+/* The time-slot grid. Like the exported PDF, a cell's cards share its height evenly, so a quiet day
+   fills the row a busy day sets. */
+.exam-time-grid{display:grid;grid-template-columns:66px repeat(var(--day-count,5),minmax(0,1fr));grid-template-rows:max-content;grid-auto-rows:minmax(64px,auto);width:100%}
+.tt-row{display:contents}
+.exam-time-grid .time-axis,.exam-day-header,.tt-cell{min-width:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.tt-row:first-child>*{position:sticky;top:0;z-index:2;padding:6px 8px;background:#f7fafc}
+.exam-time-grid .time-axis{position:sticky;left:0;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 4px;background:#f7fafc;color:var(--muted);font-weight:500;text-align:center}
+.tt-row:first-child>.time-axis{z-index:3}
+.exam-day-header small{display:block;font-size:11px;color:var(--muted)}
+.exam-day-header strong{font-size:18px;font-weight:500;line-height:1.3}
+/* Both axes, the slot times and the dates, are set bold in pure black. */
+.exam-time-grid .time-axis,.exam-time-grid .time-axis time,.exam-day-header small,.exam-day-header strong{font-weight:700;color:#000}
+.exam-time-grid .today strong{color:white}
 .exam-time-grid .today strong{background:var(--accent);color:white;border-radius:6px;padding:1px 6px}
+.tt-cell{display:flex;flex-direction:column;justify-content:center;padding:3px 0;background:white}
+.tt-cell.weekend{background:#f5f7f9}
+.exam-time-grid .empty-slot{display:block;text-align:center;padding:12px 0;color:#abb9c2}
+
+/* Cards are black and white: subject first, then level, then time; rooms recede. */
+.exam-time-grid .exam-card,.exam-time-grid .exam-group{flex:1 1 auto;margin:3px}
+.exam-time-grid .exam-card{display:flex;padding:0 0 0 7px;line-height:1.35;background:var(--exam-bg);border-left-color:var(--exam-edge)}
+.exam-time-grid .exam-card label{flex:1;align-items:stretch}
+.exam-time-grid .exam-card h3{margin:2px 0 3px;font-size:14px;font-weight:700;line-height:1.3}
+.exam-time-grid .exam-card p{margin-top:2px;line-height:1.35}
+.exam-group{display:grid;grid-template-columns:minmax(0,30%) minmax(0,1fr);border:1px solid var(--exam-line);border-left:3px solid var(--exam-edge);border-radius:7px;overflow:hidden;background:var(--exam-bg)}
+.exam-group>header{display:flex;flex-direction:column;justify-content:center;padding:5px;border-right:1px solid var(--exam-line);overflow-wrap:anywhere}
+.exam-group h3{font-size:15px;font-weight:700;line-height:1.25}
+.exam-levels{display:flex;flex-direction:column;min-width:0}
+.exam-level{flex:1 1 auto;display:flex;gap:5px;padding:0 0 0 5px;line-height:1.25;background:var(--exam-bg)}
+.exam-level+.exam-level{border-top:1px solid var(--exam-line)}
+.exam-level>button{border:0;border-radius:0;background:none;flex:1;min-width:0;text-align:left;overflow-wrap:anywhere}
+/* A stretched card's whole height is its click target, with the text still centred. */
+.exam-time-grid :is(.exam-card,.exam-level) button{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;padding:6px 7px 6px 0}
+.exam-level button{padding:5px 5px 5px 0}
+.exam-time-grid input{align-self:center;margin:0;flex-shrink:0}
+.exam-level strong{display:block;font-size:13px;font-weight:600}
+.exam-level p{font-size:10px;margin-top:2px;line-height:1.25}
+.exam-level.cancelled strong{text-decoration:line-through}
+.exam-time-grid time{display:block;font-size:11px;font-weight:500;white-space:nowrap}
+.exam-time-grid :is(.exam-card,.exam-group) h3{color:var(--exam-ink)}
+.exam-time-grid .exam-card time,.exam-group time,.exam-level strong{color:var(--text)}
+.exam-time-grid .exam-card p,.exam-level p{color:var(--muted)}
+.exam-time-grid .exam-card input,.exam-group input{accent-color:var(--exam-border)}
+.exam-time-grid .exam-card.chosen,.exam-level.chosen{background:var(--exam-selected);box-shadow:inset 0 0 0 1px var(--exam-border)}
+@media(max-width:1200px){
+ .exam-group{grid-template-columns:minmax(0,1fr)}
+ .exam-group>header{border-right:0;border-bottom:1px solid var(--exam-line);padding:4px 5px}
+ .exam-level{padding-left:5px}
+ .exam-level button{padding:4px 5px 4px 0}
+}
 
 /* Use all space below the shared header, with scrolling inside the timetable. */
 .exam-page .exam-shell{max-width:none;width:100%;margin:0;padding:8px 16px 12px}
@@ -32,52 +72,11 @@
  .exam-page .schedule-panel{min-height:0;display:flex;flex-direction:column}
  .exam-page .selection-toolbar,.exam-page #conflicts,.exam-page .schedule-panel footer{flex-shrink:0}
  .exam-page .schedule{flex:1;min-height:0;max-height:none}
- .exam-page .exam-time-grid{height:100%}
+ .exam-page .exam-time-grid{min-height:100%}
 }
 
-.exam-group{display:grid;grid-template-columns:minmax(0,30%) minmax(0,1fr);margin:10px 6px;border:1px solid #ddd9eb;border-left:3px solid #7869a1;border-radius:7px;overflow:hidden;background:#f7f6fb}
-.exam-group>header{display:flex;align-items:center;padding:10px;border-right:1px solid #e3dfec;background:#eff0fa}
-.exam-group h3{font-size:12px;overflow-wrap:anywhere}
-.exam-group time{font-size:11px;color:var(--accent);font-weight:600}
-.exam-levels{min-width:0}
-.exam-level{display:flex;align-items:flex-start;gap:7px;padding:10px;background:#fff}
-.exam-level+.exam-level{border-top:1px solid var(--line)}
-.exam-level>input{margin:5px 0 0;flex-shrink:0}
-.exam-level>button{border:0;border-radius:0;padding:0;background:none;flex:1;min-width:0;text-align:left;overflow-wrap:anywhere}
-.exam-level strong{display:block;font-size:13px;color:var(--accent)}
-.exam-level p{font-size:11px;color:var(--muted);margin-top:3px}
-.exam-level.chosen{background:#e4f0f5}
-.exam-level.cancelled strong{text-decoration:line-through}
-
-/* Every exam group keeps its palette when filtered or selected. */
-.exam-time-grid .exam-card,.exam-time-grid .exam-group{background:var(--exam-bg);border-color:var(--exam-line);border-left-color:var(--exam-border)}
-.exam-group>header{background:var(--exam-bg);border-color:var(--exam-line)}
-.exam-level{background:var(--exam-bg)}
-.exam-level+.exam-level{border-color:var(--exam-line)}
-.exam-time-grid .exam-card time,.exam-group time,.exam-level strong{color:var(--exam-ink)}
-.exam-time-grid .exam-card input,.exam-group input{accent-color:var(--exam-border)}
-.exam-time-grid .exam-card.chosen,.exam-level.chosen{background:var(--exam-selected);box-shadow:inset 0 0 0 1px var(--exam-border)}
-
-/* Compact timetable: keep time and room information visible without tall cards. */
-.exam-time-grid thead th{padding:6px 8px}
-.exam-time-grid .exam-day-header strong{font-size:18px;line-height:1.3}
-.exam-time-grid .time-axis{padding:10px 6px;width:84px}
-.exam-time-grid .exam-card,.exam-time-grid .exam-group{margin:5px 4px}
-.exam-time-grid .exam-card{padding:6px 7px;line-height:1.35}
-.exam-time-grid .exam-card h3{margin:3px 0;font-size:12px;line-height:1.35}
-.exam-time-grid .exam-card p{margin-top:2px;line-height:1.35}
-.exam-group>header{padding:6px 7px}
-.exam-group h3{line-height:1.4}
-.exam-level{gap:5px;padding:5px 6px;line-height:1.35}
-.exam-level>input{margin-top:2px}
-.exam-level strong{display:block;font-size:12px}
-.exam-level time{display:block;white-space:nowrap}
-.exam-level p{margin-top:2px;line-height:1.35}
-.exam-time-grid td{height:76px;vertical-align:middle}
-.exam-time-grid .empty-slot{padding:22px 0}
 .exam-page .selection-toolbar{padding:6px 12px}
 .exam-page .schedule-panel footer{padding:7px 12px}
-.exam-group-grade{margin-top:4px;font-size:11px;line-height:1.35;color:var(--muted)}
 
 .room-picker{min-width:0;margin:0;padding:0;border:0}
 .room-picker legend{padding:0;margin-bottom:8px;font-size:12px}
@@ -87,10 +86,6 @@
 #edit-form .checkbox-row{flex-direction:row;align-items:center;justify-content:flex-start;gap:8px}
 #edit-form .room-option input,#edit-form .checkbox-row input{width:16px;height:16px;flex:0 0 16px;margin:0;padding:0}
 
-/* Level sections fill their shared card even when only one selected level remains. */
-.exam-levels{display:flex;flex-direction:column;align-self:stretch}
-.exam-level{flex:1;align-items:center}
-
 #pdf-dialog .pdf-scope-options>label{display:flex;flex-direction:row;align-items:center;gap:9px;padding:10px 0;margin:0}
 #pdf-dialog input{margin:0;flex-shrink:0}
 #pdf-grades,#pdf-languages{margin:0 0 10px;padding:10px;border:1px solid var(--line);border-radius:6px;background:#f7fafc}
@@ -99,28 +94,6 @@
 #pdf-grade-options legend{font-size:12px;color:var(--muted)}
 #pdf-dialog .pdf-grade-option{display:flex;flex-direction:row;align-items:center;gap:6px;margin:0;padding:4px}
 #pdf-error:not(:empty){margin:10px 0}
-
-/* Both schedule views fit all visible days using the same compact cards. */
-#schedule .exam-time-grid{min-width:0;width:100%}
-#schedule .time-axis{width:66px;padding:6px 4px}
-#schedule .exam-group,#schedule .exam-card{margin:3px}
-#schedule .exam-group{grid-template-columns:minmax(0,30%) minmax(0,1fr)}
-#schedule .exam-group>header{padding:5px}
-#schedule .exam-group h3{font-size:11px;line-height:1.25}
-#schedule .exam-group-grade{margin-top:2px;font-size:10px}
-#schedule .exam-level{padding:5px;line-height:1.25}
-#schedule .exam-level strong{font-size:11px}
-#schedule .exam-level time{font-size:10px}
-#schedule .exam-level p{font-size:10px;line-height:1.25}
-#schedule td{height:64px}
-#schedule .empty-slot{padding:12px 0}
-@media(max-width:1200px){
- #schedule .exam-group{grid-template-columns:minmax(0,1fr)}
- #schedule .exam-group>header{border-right:0;border-bottom:1px solid var(--exam-line);padding:4px 5px}
- #schedule .exam-group-grade{display:inline;margin-left:4px}
- #schedule .exam-group h3{display:inline}
- #schedule .exam-level{padding:4px 5px}
-}
 
 .subject-list{display:grid;gap:8px;margin:16px 0 24px}.subject-row{display:grid;grid-template-columns:24px 70px minmax(100px,1fr) auto;gap:10px;align-items:center}.subject-swatch{width:24px;height:24px;border:3px solid;border-radius:6px}.subject-row input{min-width:0;width:100%}
 
@@ -136,7 +109,6 @@
 .room-exam-tag{display:inline-block;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft)}.room-exam-tag small{color:var(--muted);margin-left:6px}
 
 #extract-form label{margin:12px 0}.extract-table{min-width:1000px}.extract-table input:not([type=checkbox]),.extract-table select{width:100%;min-width:105px;margin:2px 0}.extract-table td{vertical-align:top}.extract-table th:nth-child(2){min-width:180px}
-
 
 .seat.my-seat{outline:3px solid #236346;outline-offset:-3px;background:#e1f4e7;color:#153d2b}.seat.my-seat>small:first-child{font-weight:700}.student-changes{padding-left:1.3rem}.student-changes li{margin:1rem 0}.sync-options{display:flex;gap:.6rem;flex-wrap:wrap}.import-exams-list{display:grid;gap:.8rem;margin:1rem 0}.import-exams-list label{display:flex;gap:.6rem;align-items:flex-start}
 
@@ -195,7 +167,6 @@
  .mx-group>header{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--color-faint)}
  .mx-swatch{width:8px;height:8px;flex:none;background:var(--exam-border)}
  .mx-subject{font-family:var(--font-heading);font-weight:600;font-size:16px;line-height:1.2}
- .mx-grades{font-size:12px;color:var(--color-neutral-700)}
  .mx-row{display:flex;align-items:stretch}
  .mx-row+.mx-row{border-top:1px solid var(--color-faint)}
  .mx-row.chosen{background:color-mix(in srgb,var(--color-accent) 7%,transparent)}

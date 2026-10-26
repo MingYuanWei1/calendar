@@ -18,11 +18,9 @@ export function nextHue(subjects){
  hues.forEach((v,i)=>{const end=hues[i+1]??hues[0]+360;if(end-v>gap){gap=end-v;hue=(v+gap/2)%360;}});
  return hue;
 }
-export function subjectColors(sessions,subjects){
- const colors=new Map(subjects.map(s=>[s.name,s.hue]));
- for(const name of [...new Set(sessions.map(s=>subjectName(s,subjects)))].sort())if(!colors.has(name))colors.set(name,nextHue([...colors].map(([name,hue])=>({name,hue}))));
- return exam=>{const hue=colors.get(subjectName(exam,subjects));return `--exam-bg:hsl(${hue} 55% 95%);--exam-border:hsl(${hue} 27% 50%);--exam-line:hsl(${hue} 30% 82%);--exam-selected:hsl(${hue} 48% 88%);--exam-ink:hsl(${hue} 36% 32%)`;};
-}
+// Exam cards render in plain black and white; subject hues stay stored but no longer tint the timetable.
+const monochrome='--exam-bg:#fff;--exam-border:#000;--exam-line:#d4d4d4;--exam-selected:#ededed;--exam-ink:#000;--exam-edge:#7d909d';
+export function subjectColors(){return ()=>monochrome;}
 
 // Course numbers belong to a subject, never to the subject catalog itself. The IB curriculum (the
 // "ib" school rules template) also fixes its own course names; other schools keep only the generic rule.

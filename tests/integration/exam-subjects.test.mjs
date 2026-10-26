@@ -6,13 +6,11 @@ import {join} from 'node:path';
 import {createApplication} from '../../server/app.mjs';
 import {setAdminPassword} from '../../server/store.mjs';
 import {subjectColors,presetSubjects,normalizeCourse} from '../../public/exam-subjects.mjs';
-test('subject colors stay consistent across papers, levels, aliases and custom subjects',()=>{
- const sessions=[{subject:'数学',paper:'Paper 1'},{subject:'数学',paper:'Paper 2'},{subject:'商管'},{subject:'商务管理'},{subject:'自定义甲'},{subject:'自定义乙'},{title:'[示例] 英语阅读与写作'}];
+test('exam cards render every subject in black and white',()=>{
+ const sessions=[{subject:'数学'},{subject:'商管'},{subject:'自定义甲'},{title:'[示例] 英语阅读与写作'}];
  const color=subjectColors(sessions,presetSubjects);
- assert.equal(color(sessions[0]),color(sessions[1]));assert.equal(color(sessions[2]),color(sessions[3]));
- assert.notEqual(color(sessions[4]),color(sessions[5]));
- assert.equal(color(sessions[6]),color({subject:'英语'}));
- assert.equal(color(sessions[4]),subjectColors([...sessions].reverse(),presetSubjects)(sessions[4]));
+ assert.equal(new Set(sessions.map(color)).size,1);
+ assert.doesNotMatch(color(sessions[0]),/hsl/);
 });
 test('subject management requires admin and persists custom subjects with distinct colors',async()=>{
  const directory=await mkdtemp(join(tmpdir(),'calendar-subjects-')),instance=createApplication({dataDir:directory,origin:'http://calendar.test'}),server=instance.app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));

@@ -6,6 +6,8 @@ import {subjectColors,subjectName} from './exam-subjects.mjs';
 import {examSlotRows,groupExamLevels,slotOf,defaultExamSlots} from './exam-times.mjs';
 import {gradeLabel} from './grades.mjs';
 import {$,esc,api,date,monday,divisions,sorted,seatingMarkup} from './exam-common.js';
+// Exam cards lead with the grade as G10 in both languages, set in the subject's own type.
+const gradeTags=s=>s.grades.map(g=>gradeLabel(g,1)).join(' / ');
 let detailExamId=null;
 let lang=Number(localStorage.getItem('exam-language')||0),batch=null,batches=[],week='',division='high',grade=/** @type {number|''} */(''),mine=false,chosen=new Set(),seats={},school={configured:false,user:null},config={timeZone:'Asia/Shanghai'},saving=false,loadNumber=0,detailLoadNumber=0;
 const T=(zh,en)=>lang?en:zh;
@@ -97,7 +99,7 @@ function renderMobile(){
  };
  const group=(items,early)=>{
   const first=items[0],levelled=Boolean(first.subject&&first.level);
-  return `<article class="mx-group" style="${colorStyle(first)}"><header><i class="mx-swatch"></i><span class="mx-subject">${esc(subjectLabel(first))}</span><span class="mx-grades">${esc(first.grades.map(g=>gradeLabel(g,lang)).join(' / '))}</span></header>${items.map(s=>item(s,early,levelled)).join('')}</article>`;
+  return `<article class="mx-group" style="${colorStyle(first)}"><header><i class="mx-swatch"></i><span class="mx-subject">${esc(gradeTags(first))} ${esc(subjectLabel(first))}</span></header>${items.map(s=>item(s,early,levelled)).join('')}</article>`;
  };
  const empty=(heading,help='')=>`<div class="mx-empty"><h4>${esc(heading)}</h4>${help?`<p>${esc(help)}</p>`:''}</div>`;
  const body=!visible.length?(mine&&!chosenCount?empty(T('还没有选择考试','No exams chosen yet'),T('在「全部考试」中勾选场次，即可加入我的考试。','Tick sessions under “All exams” to add them to My exams.')):empty(T('当前范围暂无考试','No exams in this selection')))
@@ -169,16 +171,23 @@ function scheduleMarkup(visible,shownDays,highlightSelected=true){
  const today=new Intl.DateTimeFormat('en-CA',{timeZone:config.timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
  // Use the full batch so filtering, language and selection never reshuffle colors.
  const colorStyle=subjectColors(batch.sessions,batch.subjects||[]);
- const card=(s,early)=>`<article style="${colorStyle(s)}" class="exam-card${highlightSelected&&chosen.has(s.id)?' chosen':''}${s.cancelled?' cancelled':''}"><label>${mine?'':`<input type="checkbox" data-choice="${esc(s.id)}" ${chosen.has(s.id)?'checked':''} ${!school.user||saving?'disabled':''} aria-label="${esc(T('选择 ','Select ')+title(s))}">`}<button data-exam="${esc(s.id)}">${slotTime(s,early)}<h3>${esc(title(s))}</h3><p>${esc(roomsOf(s).join(' / '))} · ${esc(s.grades.map(g=>gradeLabel(g,lang)).join(' / '))}</p>${s.cancelled?`<span class="status">${T('已取消','Cancelled')}</span>`:s.changed?`<span class="status">${T('已变更','Updated')}</span>`:''}</button></label></article>`;
+ // Like the exported PDF, a cell's cards share its height evenly, so a quiet day fills the row a busy day sets.
+ // Each level keeps its own time beside the subject's overall span.
+ const status=s=>s.cancelled?`<span class="status">${T('已取消','Cancelled')}</span>`:s.changed?`<span class="status">${T('已变更','Updated')}</span>`:'';
+ // Only a signed-in student can add exams to My exams, so signed-out visitors see no checkboxes.
+ const pick=s=>mine||!school.user?'':`<input type="checkbox" data-choice="${esc(s.id)}" ${chosen.has(s.id)?'checked':''} ${saving?'disabled':''} aria-label="${esc(T('选择 ','Select ')+title(s))}">`;
+ const marks=s=>`${highlightSelected&&chosen.has(s.id)?' chosen':''}${s.cancelled?' cancelled':''}`;
+ const card=(s,early)=>`<article style="${colorStyle(s)}" class="exam-card${marks(s)}"><label>${pick(s)}<button data-exam="${esc(s.id)}">${slotTime(s.start,s.end,early.has(s.id))}<h3>${esc(gradeTags(s))} ${esc(title(s))}</h3><p>${esc(roomsOf(s).join(' / '))}</p>${status(s)}</button></label></article>`;
  // A session that starts before its slot still sits in it, with its time flagged.
- const slotTime=(s,early)=>early.has(s.id)?`<time class="early" title="${T('提前开考','Starts early')}">${s.start}–${s.end}<span class="visually-hidden"> ${T('提前开考','starts early')}</span></time>`:`<time>${s.start}–${s.end}</time>`;
+ const slotTime=(start,end,early)=>early?`<time class="early" title="${T('提前开考','Starts early')}">${start}–${end}<span class="visually-hidden"> ${T('提前开考','starts early')}</span></time>`:`<time>${start}–${end}</time>`;
  const levelGroup=(items,early)=>{
   if(!items[0].subject||!items[0].level)return items.map(s=>card(s,early)).join('');
   const first=items[0];
-  return `<article class="exam-group" style="${colorStyle(first)}"><header><div><h3>${esc(lang?(first.subjectEn||first.subject):first.subject.replaceAll('商务管理','商管'))}</h3><p class="exam-group-grade">${esc(first.grades.map(g=>gradeLabel(g,lang)).join(' / '))}</p></div></header><div class="exam-levels">${items.map(s=>`<div class="exam-level${highlightSelected&&chosen.has(s.id)?' chosen':''}${s.cancelled?' cancelled':''}">${mine?'':`<input type="checkbox" data-choice="${esc(s.id)}" ${chosen.has(s.id)?'checked':''} ${!school.user||saving?'disabled':''} aria-label="${esc(T('选择 ','Select ')+title(s))}">`}<button data-exam="${esc(s.id)}" aria-label="${esc(title(s))}"><strong>${esc(s.level).replace(/ (?=\d+$)/,'&nbsp;')}</strong>${slotTime(s,early)}<p>${esc(roomsOf(s).join(' / '))}</p>${s.cancelled?`<span class="status">${T('已取消','Cancelled')}</span>`:s.changed?`<span class="status">${T('已变更','Updated')}</span>`:''}</button></div>`).join('')}</div></article>`;
+  const from=items.map(s=>s.start).sort()[0],to=items.map(s=>s.end).sort().at(-1);
+  return `<article class="exam-group" style="${colorStyle(first)}"><header><h3>${esc(gradeTags(first))} ${esc(lang?(first.subjectEn||first.subject):first.subject.replaceAll('商务管理','商管'))}</h3>${slotTime(from,to,items.some(s=>early.has(s.id)))}</header><div class="exam-levels">${items.map(s=>`<div class="exam-level${marks(s)}">${pick(s)}<button data-exam="${esc(s.id)}" aria-label="${esc(title(s))}"><strong>${esc(s.level).replace(/ (?=\d+$)/,'&nbsp;')}</strong>${slotTime(s.start,s.end,early.has(s.id))}<p>${esc(roomsOf(s).join(' / '))}</p>${status(s)}</button></div>`).join('')}</div></article>`;
  };
- const rows=examSlotRows(batch.timeSlots,thisWeek);
- return `<table class="exam-time-grid" style="--day-count:${shownDays.length}"><thead><tr><th class="time-axis">${T('时间段','Time slot')}</th>${shownDays.map(day=>`<th class="exam-day-header${day===today?' today':''}"><small>${new Intl.DateTimeFormat(lang?'en-GB':'zh-CN',{weekday:'short'}).format(date(day))}</small><strong>${date(day).getDate()}</strong></th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr><th scope="row" class="time-axis"><time>${row.start}</time><span>–</span><time>${row.end}</time></th>${shownDays.map(day=>`<td class="${[0,6].includes(date(day).getDay())?'weekend':''}">${groupExamLevels(row.sessions.filter(s=>s.date===day)).map(items=>levelGroup(items,row.early)).join('')||`<span class="empty-slot" aria-label="${T('暂无考试','No exams')}">—</span>`}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  const rows=examSlotRows(batch.timeSlots,thisWeek);
+ return `<div class="exam-time-grid" role="table" style="--day-count:${shownDays.length}"><div class="tt-row" role="row"><div class="time-axis" role="columnheader">${T('时间段','Time slot')}</div>${shownDays.map(day=>`<div class="exam-day-header${day===today?' today':''}" role="columnheader"><small>${new Intl.DateTimeFormat(lang?'en-GB':'zh-CN',{weekday:'short'}).format(date(day))}</small><strong>${date(day).getDate()}</strong></div>`).join('')}</div>${rows.map(row=>`<div class="tt-row" role="row"><div class="time-axis" role="rowheader"><time>${row.start}</time><span>–</span><time>${row.end}</time></div>${shownDays.map(day=>`<div class="tt-cell${[0,6].includes(date(day).getDay())?' weekend':''}" role="cell">${groupExamLevels(row.sessions.filter(s=>s.date===day).sort((a,b)=>a.start.localeCompare(b.start))).map(items=>levelGroup(items,row.early)).join('')||`<span class="empty-slot" aria-label="${T('暂无考试','No exams')}">—</span>`}</div>`).join('')}</div>`).join('')}</div>`;
 }
 const updates=examUpdates({getBatch:()=>batch,getUser:()=>school.user,isSaving:()=>saving,language:()=>lang,notice,apply:(data,ids,personal={})=>{const changed=batch?.seatingPublishedAt!==data.seatingPublishedAt||batch?.publishedAt!==data.publishedAt;batch=data;chosen=new Set(ids);seats=personal;render();if(changed&&$('#detail').open&&detailExamId)showDetail(detailExamId);}});
 async function loadBatch(id){
