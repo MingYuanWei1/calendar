@@ -15,7 +15,17 @@ const types = {
   exam:{label:['考试','Exams'],color:'var(--exam)'}, competition:{label:['比赛','Competitions'],color:'var(--competition)'}, activity:{label:['活动','Activities'],color:'var(--activity)'}, deadline:{label:['截止日','Deadlines'],color:'var(--deadline)'}
 };
 const divisions = ['primary','middle','high'];
-const state = {lang:Number(localStorage.getItem('exam-language')||0),year:new Date().getFullYear(),month:new Date().getMonth(),divisions:new Set(),hiddenGrades:new Set(),personal:true,types:new Set(Object.keys(types)),query:'',view:'month',anchor:'',selected:null,day:'',sheet:null};
+/** The sidebar filters a visitor last chose, kept in a cookie so the calendar opens on the same view next time. */
+const filterCookie='calendar-filters';
+const savedFilters=(()=>{
+  try{
+    const raw=document.cookie.split('; ').find(c=>c.startsWith(filterCookie+'='));
+    const value=raw&&JSON.parse(decodeURIComponent(raw.slice(filterCookie.length+1)));
+    return value&&typeof value==='object'?value:{};
+  }catch{return {};}
+})();
+const listOf=(value,keep)=>Array.isArray(value)?value.filter(keep):[];
+const state = {lang:Number(localStorage.getItem('exam-language')||0),year:new Date().getFullYear(),month:new Date().getMonth(),divisions:new Set(listOf(savedFilters.divisions,d=>divisions.includes(d))),hiddenGrades:new Set(listOf(savedFilters.hiddenGrades,Number.isInteger)),personal:savedFilters.personal!==false,types:new Set(Object.keys(types)),query:'',view:'month',anchor:'',selected:null,day:'',sheet:null};
 const mobileQuery = matchMedia('(max-width:760px)');
 /** Events as published: a repeating event appears once, with its 重复规则. */
 /** @type {SchoolEvent[]} */
@@ -74,6 +84,11 @@ function applyTypes(list){
   for(const type of list)types[type.id]={label:type.name,color:type.color,hidden:type.hidden};
   for(const key of [...state.types])if(!types[key]||!known.has(key)&&types[key].hidden)state.types.delete(key);
   for(const key of Object.keys(types))if(!known.has(key)&&!types[key].hidden)state.types.add(key);
+  // The first load also brings back the types the visitor ticked or unticked against their defaults last time.
+  if(!typesLoaded){
+    for(const key of listOf(savedFilters.typesOff,k=>typeof k==='string'))state.types.delete(key);
+    for(const key of listOf(savedFilters.typesOn,k=>typeof k==='string'))if(types[key])state.types.add(key);
+  }
   typesLoaded=true;
   const style=$('#event-type-colors')||document.head.appendChild(Object.assign(document.createElement('style'),{id:'event-type-colors'}));
   style.textContent=list.filter(type=>/^[a-z][a-z0-9]*$/.test(type.id)&&/^#[0-9a-f]{6}$/i.test(type.color)).map(type=>`.${type.id}{--event-color:${type.color};--event-bg:color-mix(in srgb,${type.color} 13%,white)}`).join('\n');
@@ -106,14 +121,24 @@ function label(event){return `${text(event.title)} · ${formatDate(event.start)}
 function eventLabelText(event){return `${event.cancelled?cancelText(event)+' · ':''}${event.oldDate?t('changed')+' · ':''}${event.type==='deadline'&&event.time?t('till')+' ':''}${event.time?event.time+' ':''}${text(event.title)}`;}
 function eventButton(event){return `<button class="event ${event.type}${event.personal?' personal':''}${event.cancelled?' cancelled':''}${state.selected===event.id?' selected':''}" data-event="${event.id}" title="${esc(label(event))}" aria-label="${esc(label(event))}"><span class="dot"></span><span class="event-text">${event.cancelled?esc(cancelText(event))+' · ':''}${event.oldDate?esc(t('changed'))+' · ':''}${event.type==='deadline'&&event.time?esc(t('till'))+' ':''}${event.time?`<time>${event.time}</time> `:''}${esc(text(event.title))}</span></button>`;}
 function agendaButton(event){return `<button class="agenda-event ${event.type}${event.personal?' personal':''}${event.cancelled?' cancelled':''}${state.selected===event.id?' selected':''}" data-event="${event.id}"><span class="dot"></span><span><strong>${event.cancelled?esc(cancelText(event))+' · ':''}${event.oldDate?esc(t('changed'))+' · ':''}${esc(text(event.title))}</strong><small>${esc(timeText(event))} · ${esc(scopeText(event))}${event.location?' · '+esc(text(event.location)):''}</small></span></button>`;}
+/**
+ * Remembers the filters for a year. Types are kept as changes from their defaults, so a type the school adds later
+ * still starts at its own default; until the school's types load, the saved type choices stay as they were.
+ */
+function saveFilters(){
+  const defaults=defaultTypes(),value={divisions:[...state.divisions],hiddenGrades:[...state.hiddenGrades],personal:state.personal,
+    typesOn:typesLoaded?[...state.types].filter(key=>!defaults.has(key)):savedFilters.typesOn||[],
+    typesOff:typesLoaded?[...defaults].filter(key=>!state.types.has(key)):savedFilters.typesOff||[]};
+  document.cookie=`${filterCookie}=${encodeURIComponent(JSON.stringify(value))};path=/;max-age=31536000;SameSite=Lax`;
+}
 function toggleDivision(division){
   if(state.divisions.has(division)){state.divisions.delete(division);gradeTools?.DIVISION_GRADES[division].forEach(g=>state.hiddenGrades.delete(g));}
   else state.divisions.add(division);
-  state.selected=null;render();
+  saveFilters();state.selected=null;render();
 }
-function toggleGrade(grade){state.hiddenGrades.has(grade)?state.hiddenGrades.delete(grade):state.hiddenGrades.add(grade);state.selected=null;render();}
-function togglePersonal(){state.personal=!state.personal;state.selected=null;render();}
-function toggleType(type){state.types.has(type)?state.types.delete(type):state.types.add(type);state.selected=null;render();}
+function toggleGrade(grade){state.hiddenGrades.has(grade)?state.hiddenGrades.delete(grade):state.hiddenGrades.add(grade);saveFilters();state.selected=null;render();}
+function togglePersonal(){state.personal=!state.personal;saveFilters();state.selected=null;render();}
+function toggleType(type){state.types.has(type)?state.types.delete(type):state.types.add(type);saveFilters();state.selected=null;render();}
 function resetFilters(){state.divisions=new Set();state.hiddenGrades=new Set();state.personal=true;state.types=defaultTypes();state.query='';$('#search').value='';state.selected=null;render();}
 function renderFilters(){
   // 适用学部: tick any divisions; each ticked division lists its grades, all ticked until a student unticks one.
@@ -371,7 +396,7 @@ function renderSheet(){
   on('[data-sheet-grade]',b=>toggleGrade(Number(b.dataset.sheetGrade)));
   on('[data-sheet-type]',b=>toggleType(b.dataset.sheetType));
   on('[data-sheet-personal]',()=>togglePersonal());
-  on('[data-sheet-reset]',()=>resetFilters());
+  on('[data-sheet-reset]',()=>{resetFilters();saveFilters();});
   on('[data-sheet-done]',()=>sheet.close());
   on('[data-menu=subscribe]',()=>{sheet.close();/** @type {any} */(window).siteHeader?.openFeed('calendar');});
   on('[data-menu=language]',()=>{sheet.close();$('#language').click();});
@@ -401,7 +426,8 @@ function render(){
 }
 $('#search').oninput=e=>{state.query=e.target.value;state.selected=null;renderCalendar();renderDetail();};
 $('#language').onclick=()=>{state.lang=1-state.lang;localStorage.setItem('exam-language',String(state.lang));render();};
-$$('.reset').forEach(b=>b.onclick=resetFilters);
+// A link that opens one event resets the filters for that visit only; the reset buttons also clear the saved choice.
+$$('.reset').forEach(b=>b.onclick=()=>{resetFilters();saveFilters();});
 function changeView(view){state.view=view;renderCalendar();}
 $('#month-view').onclick=()=>changeView('month');$('#list-view').onclick=()=>changeView('list');$('#week-view').onclick=()=>{
   if(!state.anchor){const today=dateValue(schoolToday());state.anchor=isoDate(new Date(state.year,state.month,today.getFullYear()===state.year&&today.getMonth()===state.month?today.getDate():1,12));}
