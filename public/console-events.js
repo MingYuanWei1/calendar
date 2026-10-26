@@ -104,7 +104,7 @@ const SPARE_COLORS=['#237b58','#0f7c8c','#c0507a','#8a6d1d','#4f5bd5','#5a6b7d',
 function typesDialog(){
  const rows=app.data.types.map(t=>({...t,name:[...t.name],saved:t,removed:false}));
  const used=id=>app.data.events.filter(e=>e.type===id).length;
- const body=modal(T('管理事件类型','Event types'),`<p class="dialog-text">${T('事件类型显示在校历筛选、事件详情和编辑页中。考试、活动和截止日由系统使用，只能修改名称和颜色。','Types appear in the calendar filters, event details and the editor. Exam, Activity and Deadline are used by the system: they can be renamed and recoloured, not removed.')}</p>
+ const body=modal(T('管理事件类型','Event types'),`<p class="dialog-text">${T('事件类型显示在校历筛选、事件详情和编辑页中。考试、活动和截止日由系统使用，只能修改名称和颜色。','Types appear in the calendar filters, event details and the editor. Exam, Activity and Deadline are used by the system: they can be renamed and recoloured, not removed.')}${T('勾选“默认不勾选”的类型在校历首页默认不显示，访客在筛选中勾选后才显示其事件。','A type marked “Off by default” starts unticked on the calendar; its events show once a visitor ticks it in the filters.')}</p>
  <div class="type-rows" data-rows></div>
  <button type="button" class="btn btn-secondary" data-add style="align-self:flex-start">${icon.plus}${T('新增类型','Add type')}</button>
  <p class="callout" data-note hidden></p>${errorLine}
@@ -117,6 +117,7 @@ function typesDialog(){
    <input type="color" class="type-color" data-k="color" value="${esc(r.color)}" aria-label="${T('颜色','Colour')}"${off}>
    <input class="input" data-k="0" value="${esc(r.name[0])}" maxlength="20" placeholder="${T('中文名称','Chinese name')}" aria-label="${T('中文名称','Chinese name')}"${off}>
    <input class="input" data-k="1" value="${esc(r.name[1])}" maxlength="20" placeholder="${T('英文名称','English name')}" aria-label="${T('英文名称','English name')}"${off}>
+   <label class="type-hidden" title="${T('在校历首页默认不勾选此类型','Start this type unticked on the calendar')}"><input type="checkbox" data-k="hidden"${r.hidden?' checked':''}${off}>${T('默认不勾选','Off by default')}</label>
    <span class="type-count">${r.id?T(`${count} 个事件`,`${count} event${count===1?'':'s'}`):T('新增','New')}</span>
    ${r.fixed?`<span class="tag tag-outline small" title="${T('系统类型不能删除','System types cannot be removed')}">${T('系统','System')}</span>`
     :r.removed?`<button type="button" class="btn btn-ghost" data-undo>${T('撤销','Undo')}</button>`
@@ -129,7 +130,7 @@ function typesDialog(){
  draw();
  list.oninput=event=>{
   const input=event.target,row=rows[Number(input.closest('[data-i]').dataset.i)];
-  if(input.dataset.k==='color')row.color=input.value;else row.name[Number(input.dataset.k)]=input.value;
+  if(input.dataset.k==='color')row.color=input.value;else if(input.dataset.k==='hidden')row.hidden=input.checked;else row.name[Number(input.dataset.k)]=input.value;
  };
  list.onclick=event=>{
   const button=event.target.closest('[data-remove],[data-undo]');if(!button)return;
@@ -140,13 +141,13 @@ function typesDialog(){
  };
  body.querySelector('[data-add]').onclick=()=>{
   const color=SPARE_COLORS.find(c=>!rows.some(r=>r.color===c))||SPARE_COLORS[0];
-  rows.push({id:'',name:['',''],color,fixed:false,removed:false});draw();
+  rows.push({id:'',name:['',''],color,hidden:false,fixed:false,removed:false});draw();
   list.querySelector('.type-row:last-child input[data-k="0"]').focus();
  };
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
   const name=r=>[r.name[0].trim(),r.name[1].trim()];
   if(rows.some(r=>!r.removed&&!name(r).some(Boolean)))fail(T('每个类型至少填写一种语言的名称。','Give every type a name in at least one language.'));
-  const changed=r=>r.color!==r.saved.color||name(r).join('\n')!==r.saved.name.join('\n');
+  const changed=r=>r.color!==r.saved.color||r.hidden!==r.saved.hidden||name(r).join('\n')!==r.saved.name.join('\n');
   let saved=null,moved=0;
   // Each step updates the rows, so a retry after a failure repeats only what is left.
   for(const r of rows.filter(r=>r.removed&&r.id)){
@@ -154,13 +155,13 @@ function typesDialog(){
    saved=result.types;moved+=result.moved;rows.splice(rows.indexOf(r),1);
   }
   for(const r of rows.filter(r=>r.id&&changed(r))){
-   saved=await api('/admin/event-types/'+encodeURIComponent(r.id),{method:'PUT',body:JSON.stringify({name:name(r),color:r.color})});
-   r.saved={color:r.color,name:name(r)};
+   saved=await api('/admin/event-types/'+encodeURIComponent(r.id),{method:'PUT',body:JSON.stringify({name:name(r),color:r.color,hidden:r.hidden})});
+   r.saved={color:r.color,hidden:r.hidden,name:name(r)};
   }
   for(const r of rows.filter(r=>!r.id)){
    const known=new Set(rows.map(x=>x.id));
-   saved=await api('/admin/event-types',{method:'POST',body:JSON.stringify({name:name(r),color:r.color})});
-   Object.assign(r,saved.find(t=>!known.has(t.id)));r.saved={color:r.color,name:r.name};
+   saved=await api('/admin/event-types',{method:'POST',body:JSON.stringify({name:name(r),color:r.color,hidden:r.hidden})});
+   Object.assign(r,saved.find(t=>!known.has(t.id)));r.saved={color:r.color,hidden:r.hidden,name:r.name};
   }
   if(saved)setTypes(saved);
   if(moved)await loadEvents();

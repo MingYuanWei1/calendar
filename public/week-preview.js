@@ -93,7 +93,7 @@ async function start(){
     const responses=await Promise.all(['/api/events','/api/day-plans','/api/config','/api/event-types'].map(path=>fetch(path)));
     if(responses.some(response=>!response.ok))throw new Error('加载失败');
     const [data,dayPlans,settings,typeList]=await Promise.all(responses.map(response=>response.json()));
-    names=Object.fromEntries(typeList.map(type=>[type.id,type.name.find(part=>part)]));enabled=new Set(Object.keys(names));
+    names=Object.fromEntries(typeList.map(type=>[type.id,type.name.find(part=>part)]));enabled=new Set(typeList.filter(type=>!type.hidden).map(type=>type.id));
     document.head.appendChild(document.createElement('style')).textContent=typeList.filter(type=>/^[a-z][a-z0-9]*$/.test(type.id)&&/^#[0-9a-f]{6}$/i.test(type.color)).map(type=>`.${type.id}{--event-color:${type.color};--event-bg:color-mix(in srgb,${type.color} 13%,white)}`).join('\n');
     events=data;plans=Object.fromEntries(dayPlans.map(plan=>[plan.date,plan]));resolvePlan=createDayPlanResolver(plans);
     today=new Intl.DateTimeFormat('en-CA',{timeZone:settings.timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());

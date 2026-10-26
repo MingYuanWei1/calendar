@@ -30,10 +30,17 @@ test('event types are the school’s own list: editable, coloured, and removed w
   assert.equal(created.status,201);
   const talk=(await created.json()).at(-1);
   assert.match(talk.id,/^t[0-9a-f]{8}$/);assert.equal(talk.color,'#0f7c8c');assert.equal(talk.fixed,false);
+  assert.equal(talk.hidden,false);assert.ok(defaults.every(t=>t.hidden===false));
+  // 默认不勾选 is kept per type, set on creation or later.
+  const quiet=(await (await call('/admin/event-types','POST',{name:['社团','Clubs'],color:'#5a6b7d',hidden:true},admin)).json()).at(-1);
+  assert.equal(quiet.hidden,true);
+  const shown=await (await call(`/admin/event-types/${quiet.id}`,'PUT',{name:['社团','Clubs'],color:'#5a6b7d'},admin)).json();
+  assert.equal(shown.find(t=>t.id===quiet.id).hidden,false);
+  assert.equal((await call(`/admin/event-types/${quiet.id}`,'PUT',{name:['社团','Clubs'],color:'#5a6b7d',hidden:'yes'},admin)).status,422);
 
   // Fixed types may be renamed and recoloured.
   const renamed=await (await call('/admin/event-types/activity','PUT',{name:['校园活动','Campus life'],color:'#123456'},admin)).json();
-  assert.deepEqual(renamed.find(t=>t.id==='activity'),{id:'activity',name:['校园活动','Campus life'],color:'#123456',fixed:true});
+  assert.deepEqual(renamed.find(t=>t.id==='activity'),{id:'activity',name:['校园活动','Campus life'],color:'#123456',hidden:false,fixed:true});
   assert.equal((await call('/admin/event-types/activity','DELETE',undefined,admin)).status,422);
   assert.equal((await call('/admin/event-types/missing','PUT',{name:['x',''],color:'#000000'},admin)).status,404);
 

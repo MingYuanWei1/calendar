@@ -10,7 +10,7 @@ const copy = {
   publicCalendar:['属于每一位同学的校园日程','A calendar for every student'], searchLabel:['搜索','Search'], september:['2026 年 9 月','September 2026'], autumn:['秋季学期','Autumn term'], scope:['适用学部','School division'], reset:['重置','Reset'], types:['事件类型','Event types'], scopeNote:['选择学部时，同时显示全校事件。','School-wide events are included in every division.'], publicNote:['公开校历 · 无需登录','Public calendar · No sign-in'], schoolLife:['校园生活 / SCHOOL LIFE','SCHOOL LIFE'], term:['2026—2027 学年 · 秋季学期','2026–2027 · Autumn term'], today:['今天','Today'], monthView:['月历','Month'], weekView:['周历','Week'], listView:['日程','Agenda'], emptyTitle:['没有符合条件的事件','No matching events'], emptyHelp:['试试其他关键词，或重置筛选。','Try another search or reset your filters.'], dayEvents:['当天事件','EVENTS ON THIS DAY'], registrationPreview:['报名入口示意','Registration preview'], registrationNotice:['正式发布时，此处打开管理员填写的外部报名表。当前设计稿未连接真实表单。','In the published calendar, this opens the external form provided by an administrator. This design is not connected to a real form.'], understood:['知道了','Got it'], detail:['事件详情','EVENT DETAILS'], close:['关闭详情','Close details'], when:['时间','When'], where:['地点','Where'], for:['适用','For'], host:['主办','Host'], about:['事件说明','About this event'], allDay:['全天','All day'], till:['截止','Due'], cancelled:['已取消','Cancelled'], cancelledOnce:['本次取消','Cancelled this time'], repeats:['重复','Repeats'], changed:['已改期','Rescheduled'], registration:['查看报名表','Open registration form'], external:['通过外部表单报名，本平台仅展示信息。','Registration is handled by an external form.'], updated:['更新于 9 月 18 日 16:30','Updated 18 Sep, 16:30'], chooseEvent:['选择一项事件查看详情','Select an event to see the details'], missingLocation:['未设置地点','No location specified'], allSchools:['全部学部','All divisions'], schoolwide:['全校','School-wide'], primary:['小学部','Primary'], middle:['初中部','Middle'], high:['高中部','High'], noDayEvents:['当天没有符合条件的事件','No matching events on this day'], searchPlaceholder:['搜索事件','Search events'], previous:['上个月','Previous month'], next:['下个月','Next month'], closeDay:['关闭当天事件','Close day events'], personal:['个人','Personal'], personalEvents:['个人事件','Personal events'], addPersonal:['添加个人事件','Add personal event'], grades:['年级','Grades']
 };
 /** 事件类型 in the school's order; replaced by applyTypes once the server's list loads. */
-/** @type {Record<string,{label:string[],color:string}>} */
+/** @type {Record<string,{label:string[],color:string,hidden?:boolean}>} */
 const types = {
   exam:{label:['考试','Exams'],color:'var(--exam)'}, competition:{label:['比赛','Competitions'],color:'var(--competition)'}, activity:{label:['活动','Activities'],color:'var(--activity)'}, deadline:{label:['截止日','Deadlines'],color:'var(--deadline)'}
 };
@@ -60,13 +60,21 @@ function dayPlanName(plan){return plan?[dayPlanTitle(plan),followsName(plan)].fi
 /** A borrowed timetable sets the whole name on a highlighted band so students notice it. */
 function dayPlanMarkup(plan){return plan?.follows?`<span class="day-follows">${esc(dayPlanName(plan))}</span>`:esc(dayPlanName(plan));}
 
-/** Takes the school's 事件类型: each type's class gets its colour, and a new type starts out shown. */
+/** The types ticked when the page opens or the filters are reset: all but those marked 默认不勾选. */
+function defaultTypes(){return new Set(Object.keys(types).filter(key=>!types[key].hidden));}
+/** Whether the school's list has loaded; until then the built-in types stand in. */
+let typesLoaded=false;
+/**
+ * Takes the school's 事件类型: each type's class gets its colour. The first load sets the ticked types to their
+ * defaults; a reload keeps the visitor's choices and gives a type new since then its default.
+ */
 function applyTypes(list){
-  const known=new Set(Object.keys(types));
+  const known=new Set(typesLoaded?Object.keys(types):[]);
   for(const key of Object.keys(types))delete types[key];
-  for(const type of list)types[type.id]={label:type.name,color:type.color};
-  for(const key of [...state.types])if(!types[key])state.types.delete(key);
-  for(const key of Object.keys(types))if(!known.has(key))state.types.add(key);
+  for(const type of list)types[type.id]={label:type.name,color:type.color,hidden:type.hidden};
+  for(const key of [...state.types])if(!types[key]||!known.has(key)&&types[key].hidden)state.types.delete(key);
+  for(const key of Object.keys(types))if(!known.has(key)&&!types[key].hidden)state.types.add(key);
+  typesLoaded=true;
   const style=$('#event-type-colors')||document.head.appendChild(Object.assign(document.createElement('style'),{id:'event-type-colors'}));
   style.textContent=list.filter(type=>/^[a-z][a-z0-9]*$/.test(type.id)&&/^#[0-9a-f]{6}$/i.test(type.color)).map(type=>`.${type.id}{--event-color:${type.color};--event-bg:color-mix(in srgb,${type.color} 13%,white)}`).join('\n');
   renderFilters();
@@ -106,7 +114,7 @@ function toggleDivision(division){
 function toggleGrade(grade){state.hiddenGrades.has(grade)?state.hiddenGrades.delete(grade):state.hiddenGrades.add(grade);state.selected=null;render();}
 function togglePersonal(){state.personal=!state.personal;state.selected=null;render();}
 function toggleType(type){state.types.has(type)?state.types.delete(type):state.types.add(type);state.selected=null;render();}
-function resetFilters(){state.divisions=new Set();state.hiddenGrades=new Set();state.personal=true;state.types=new Set(Object.keys(types));state.query='';$('#search').value='';state.selected=null;render();}
+function resetFilters(){state.divisions=new Set();state.hiddenGrades=new Set();state.personal=true;state.types=defaultTypes();state.query='';$('#search').value='';state.selected=null;render();}
 function renderFilters(){
   // 适用学部: tick any divisions; each ticked division lists its grades, all ticked until a student unticks one.
   const gradesOf=d=>gradeTools?.DIVISION_GRADES[d]||[];
@@ -119,7 +127,7 @@ function renderFilters(){
   $('#inline-types').innerHTML=Object.entries(types).map(([key,value])=>`<button class="type-chip ${key}" data-type="${key}" aria-pressed="${state.types.has(key)}"><span class="dot"></span>${esc(text(value.label))}</button>`).join('')+(personalEnabled?`<button class="type-chip personal" data-personal-filter aria-pressed="${state.personal}"><span class="dot"></span>${esc(t('personalEvents'))}</button>`:'');
   $('#add-personal').hidden=!personalEnabled;$('#add-personal').title=t('addPersonal');$('#add-personal').setAttribute('aria-label',t('addPersonal'));$('#add-personal .add-personal-label').textContent=t('addPersonal');
   // Phones gather the filters into a sheet; its button counts the types turned off and the divisions chosen.
-  const filtersOn=Object.keys(types).length-state.types.size+(personalEnabled&&!state.personal?1:0)+state.divisions.size;
+  const shownByDefault=defaultTypes(),filtersOn=Object.keys(types).filter(key=>state.types.has(key)!==shownByDefault.has(key)).length+(personalEnabled&&!state.personal?1:0)+state.divisions.size;
   $('#mobile-filter').innerHTML=`${icons.filter}<span>${esc(state.lang?'Filter':'筛选')}${filtersOn?' · '+filtersOn:''}</span>`;
   $('#mobile-filter').dataset.active=String(filtersOn>0);
   const bind=(selector,action)=>$$(selector).forEach(b=>b.tagName==='INPUT'?b.onchange=()=>action(b):b.onclick=()=>action(b));

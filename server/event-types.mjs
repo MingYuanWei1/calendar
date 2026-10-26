@@ -3,7 +3,8 @@ import {randomBytes} from 'node:crypto';
 
 // 事件类型: the school's own list of event categories and the colour each is drawn in.
 // 考试 (exam batches), 活动 (the fallback) and 截止日 (the deadline time format) carry meaning in code,
-// so they can be renamed and recoloured but never deleted.
+// so they can be renamed and recoloured but never deleted. A type marked hidden starts unticked in the
+// calendar's filters, so its events show only once a visitor ticks it.
 export const FIXED_TYPES=['exam','activity','deadline'];
 export const DEFAULT_TYPES=[
  {id:'exam',name:['考试','Exam'],color:'#7055a2'},
@@ -12,12 +13,13 @@ export const DEFAULT_TYPES=[
  {id:'deadline',name:['截止日','Deadline'],color:'#b24c55'}
 ];
 const label=z.string().trim().max(20);
-const schema=z.object({name:z.tuple([label,label]).refine(([zh,en])=>zh||en),color:z.string().regex(/^#[0-9a-fA-F]{6}$/).transform(value=>value.toLowerCase())});
+const schema=z.object({name:z.tuple([label,label]).refine(([zh,en])=>zh||en),color:z.string().regex(/^#[0-9a-fA-F]{6}$/).transform(value=>value.toLowerCase()),hidden:z.boolean().default(false)});
 
 export function installEventTypes(app,db,{requireAdmin}){
  db.exec('CREATE TABLE IF NOT EXISTS event_types(id TEXT PRIMARY KEY,name TEXT NOT NULL,color TEXT NOT NULL,position INTEGER NOT NULL)');
- if(!db.prepare('SELECT COUNT(*) AS n FROM event_types').get().n)DEFAULT_TYPES.forEach((t,i)=>db.prepare('INSERT INTO event_types VALUES(?,?,?,?)').run(t.id,JSON.stringify(t.name),t.color,i));
- const list=()=>db.prepare('SELECT id,name,color FROM event_types ORDER BY position,id').all().map(row=>({...row,name:JSON.parse(row.name),fixed:FIXED_TYPES.includes(row.id)}));
+ if(!db.prepare('PRAGMA table_info(event_types)').all().some(column=>column.name==='hidden'))db.exec('ALTER TABLE event_types ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0');
+ if(!db.prepare('SELECT COUNT(*) AS n FROM event_types').get().n)DEFAULT_TYPES.forEach((t,i)=>db.prepare('INSERT INTO event_types(id,name,color,position) VALUES(?,?,?,?)').run(t.id,JSON.stringify(t.name),t.color,i));
+ const list=()=>db.prepare('SELECT id,name,color,hidden FROM event_types ORDER BY position,id').all().map(row=>({...row,name:JSON.parse(row.name),hidden:Boolean(row.hidden),fixed:FIXED_TYPES.includes(row.id)}));
  const has=id=>Boolean(db.prepare('SELECT 1 FROM event_types WHERE id=?').get(id));
  /** A name already used by another type in either language, ignoring case. */
  const taken=(name,except)=>list().some(t=>t.id!==except&&name.some((part,i)=>part&&part.toLowerCase()===t.name[i].toLowerCase()));
@@ -25,18 +27,18 @@ export function installEventTypes(app,db,{requireAdmin}){
  app.get('/api/event-types',(req,res)=>res.json(list()));
  app.post('/api/admin/event-types',requireAdmin,(req,res)=>{
   const parsed=schema.safeParse(req.body);if(!parsed.success)return invalid(res);
-  const {name,color}=parsed.data;
+  const {name,color,hidden}=parsed.data;
   if(taken(name))return res.status(409).json({error:'已有同名的事件类型。'});
   const position=(db.prepare('SELECT MAX(position) AS n FROM event_types').get().n??-1)+1;
-  db.prepare('INSERT INTO event_types VALUES(?,?,?,?)').run('t'+randomBytes(4).toString('hex'),JSON.stringify(name),color,position);
+  db.prepare('INSERT INTO event_types(id,name,color,position,hidden) VALUES(?,?,?,?,?)').run('t'+randomBytes(4).toString('hex'),JSON.stringify(name),color,position,Number(hidden));
   res.status(201).json(list());
  });
  app.put('/api/admin/event-types/:id',requireAdmin,(req,res)=>{
   if(!has(req.params.id))return res.status(404).json({error:'事件类型不存在。'});
   const parsed=schema.safeParse(req.body);if(!parsed.success)return invalid(res);
-  const {name,color}=parsed.data;
+  const {name,color,hidden}=parsed.data;
   if(taken(name,req.params.id))return res.status(409).json({error:'已有同名的事件类型。'});
-  db.prepare('UPDATE event_types SET name=?,color=? WHERE id=?').run(JSON.stringify(name),color,req.params.id);
+  db.prepare('UPDATE event_types SET name=?,color=?,hidden=? WHERE id=?').run(JSON.stringify(name),color,Number(hidden),req.params.id);
   res.json(list());
  });
  // Events of a deleted type become 活动, school events and 个人事件 alike, so none is left without a type.
