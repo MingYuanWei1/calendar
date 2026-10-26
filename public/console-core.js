@@ -18,7 +18,7 @@ export const app={
  user:null,today:'',
  /** Set by a page that holds unsaved input; the router asks before leaving. */
  dirty:false,
- data:{events:null,plans:null,batches:null,subjects:null,jobs:null},
+ data:{events:null,plans:null,batches:null,subjects:null,jobs:null,types:null},
  rerender:()=>{},
  /** Incremented on every route change, so pages can drop state left from an earlier visit. */
  visit:0,
@@ -33,7 +33,10 @@ export const refreshNav=()=>window.dispatchEvent(new Event('console-counts'));
 export const T=(zh,en)=>app.lang?en:zh;
 /** Pick the current language from a [zh, en] pair, falling back to the other. */
 export const tx=pair=>(pair&&(pair[app.lang]||pair[1-app.lang]))||'';
+/** 事件类型 by id as [zh, en], in the school's order; filled from the server by loadTypes. */
 export const TYPES={exam:['考试','Exam'],competition:['比赛','Competition'],activity:['活动','Activity'],deadline:['截止日','Deadline']};
+/** The colour each 事件类型 is drawn in. */
+export const TYPE_COLORS={};
 export const SCOPES={schoolwide:['全校','School-wide'],primary:['小学部','Primary'],middle:['初中部','Middle school'],high:['高中部','High school']};
 const WK=[['周一','Mon'],['周二','Tue'],['周三','Wed'],['周四','Thu'],['周五','Fri'],['周六','Sat'],['周日','Sun']];
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -119,6 +122,14 @@ export async function loadPlans(){app.data.plans=Object.fromEntries((await api('
 export async function loadBatches(){app.data.batches=await api('/admin/exams');return app.data.batches;}
 /** Background AI extractions (提取任务) of every batch. */
 export async function loadJobs(){app.data.jobs=await api('/admin/extract-jobs');return app.data.jobs;}
+/** Replaces the 事件类型 catalog in place, so every importer sees the new names, order and colours. */
+export function setTypes(list){
+ app.data.types=list;
+ for(const key of Object.keys(TYPES))delete TYPES[key];
+ for(const t of list){TYPES[t.id]=t.name;TYPE_COLORS[t.id]=t.color;}
+ return list;
+}
+export async function loadTypes(){return setTypes(await api('/event-types'));}
 export async function loadSubjects(){app.data.subjects=await api('/exam-subjects');return app.data.subjects;}
 
 /** Group configured day plans into runs of consecutive days with the same setting. */

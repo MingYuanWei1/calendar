@@ -17,7 +17,7 @@ function eventDetails(event) {
     const original = previous ? `${formatDate(previous.start)}${previous.end && previous.end !== previous.start ? ' — ' + formatDate(previous.end) : ''} · ${timeText(previous)}` : formatDate(event.oldDate);
     notice = `<div class="change-notice reschedule-notice blueprint">${frame}<strong>${esc(t('changed'))}</strong><p>${state.lang ? 'Previously: ' : '原定：'}${esc(original)}</p><p>${state.lang ? 'Now: ' : '现定：'}${esc(when)} · ${esc(timeText(event))}</p></div>`;
   }
-  return `<span class="detail-type ${esc(event.type)}"><span class="dot"></span>${esc(text(types[event.type].label))}</span>
+  return `<span class="detail-type ${esc(event.type)}"><span class="dot"></span>${esc(text(types[event.type]?.label))}</span>
     <h2>${esc(text(event.title))}</h2><p class="detail-subtitle">${esc(scopeText(event))} · ${state.lang ? 'School event' : '校园公共事件'}</p>${notice}
     <div class="detail-meta">
       ${row('when', `${esc(when)}<small>${esc(timeText(event))} · ${state.lang ? 'School local time' : '学校当地时间'}</small>`)}

@@ -17,7 +17,7 @@ function personalDetails(event) {
   const when = formatDate(event.start, true) + (isMulti(event) ? ' — ' + formatDate(event.end, true) : '');
   const row = (name, value) => value ? `<div class="meta-row"><span class="meta-label">${esc(t(name))}</span><div class="meta-value">${value}</div></div>` : '';
   const note = personalSource(event)?.exceptions?.[event.occurrence]?.note ?? event.note;
-  return `<span class="detail-type ${esc(event.type)} personal"><span class="dot"></span>${esc(text(types[event.type].label))} · ${esc(t('personal'))}</span>
+  return `<span class="detail-type ${esc(event.type)} personal"><span class="dot"></span>${esc(text(types[event.type]?.label))} · ${esc(t('personal'))}</span>
     <h2>${esc(text(event.title))}</h2><p class="detail-subtitle">${P('个人事件 · 仅自己可见', 'Personal event · Only you can see it')}</p>
     <div class="detail-meta">
       ${row('when', `${esc(when)}<small>${esc(timeText(event))}</small>`)}

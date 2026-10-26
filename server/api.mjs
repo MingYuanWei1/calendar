@@ -13,6 +13,7 @@ import {installNoticeExtract} from './notice-extract.mjs';
 import {installAssistant} from './assistant.mjs';
 import {installStats} from './stats.mjs';
 import {installTerms} from './terms.mjs';
+import {installEventTypes} from './event-types.mjs';
 export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/Shanghai',trustProxy='',sso={},llm={},extractRunner}){
   new Intl.DateTimeFormat('en',{timeZone}).format();
   const base=new URL(origin);if(!['http:','https:'].includes(base.protocol)||base.origin!==origin)throw new Error('APP_ORIGIN must contain only scheme and host/port');
@@ -44,6 +45,7 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   app.use('/api/admin/extract-jobs/sessions',express.json({limit:'20mb'}));
   app.use('/api/admin/exams',express.json({limit:'4mb'}));
   app.use('/api',express.json({limit:'128kb'}));
+  const eventTypes=installEventTypes(app,db,{requireAdmin});
   app.get('/api/page-access',(req,res)=>{
     const required=pageRole(new URL(origin+(typeof req.query.path==='string'&&req.query.path.startsWith('/')?req.query.path:'/')));
     const user=required?session(req):null;
@@ -135,6 +137,7 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
    // A single date follows the series' rule, which need not hold on the date it moves to.
    const parsed=store.schema.safeParse(req.body?.occurrence?.span==='one'?{...req.body,repeat:undefined}:req.body);
    if(!parsed.success)return res.status(422).json({error:'请检查事件内容。',fields:parsed.error.issues.map(i=>({field:i.path[0],message:i.message}))});
+   if(!eventTypes.has(parsed.data.type))return res.status(422).json({error:'该事件类型已被删除，请重新选择类型。',fields:[{field:'type',message:'Unknown event type'}]});
    // 个人事件 are never drafts and are never cancelled, only deleted.
    const value=store.school?parsed.data:{...parsed.data,status:'published',personal:true};
    if(existing&&value.version!==existing.version)return conflict(res);
@@ -264,9 +267,9 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   const exams=installExams(app,db,{requireAdmin,requireSystemAdmin:requireRole(3),isAdmin:req=>session(req)?.role>=2,user:session,origin,timeZone,llm,quota,extractRunner});
   examEvents=exams.events;
   installFeeds(app,db,{user:session,account:schoolAuth.account,origin,timeZone,matching:exams.matching,examEvents,personalEvents:listPersonal});
-  installNoticeExtract(app,db,{requireAdmin,llm,timeZone,quota});
+  installNoticeExtract(app,db,{requireAdmin,llm,timeZone,quota,types:eventTypes.list});
   const terms=installTerms(app,db,{requireAdmin});
-  installAssistant(app,db,{session,llm,matching:exams.matching,timeZone,quota,personalEvents:listPersonal,terms:terms.list});
+  installAssistant(app,db,{session,llm,matching:exams.matching,timeZone,quota,personalEvents:listPersonal,terms:terms.list,types:eventTypes.list});
   installStats(app,db,{session,requireAdmin,timeZone});
   app.use('/api',(req,res)=>res.status(404).json({error:'接口不存在。'}));
   app.use((req,res,next)=>{

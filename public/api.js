@@ -18,7 +18,8 @@ function setLoadMessage(message,error=false){const el=$('#load-status');el.textC
 async function loadEvents(){
   // 个人事件 come only for a signed-in visitor; a 401 simply means there are none to show.
   const mine=api('/personal-events').then(list=>{personalEnabled=true;return list;},error=>{if(error.status!==401)throw error;personalEnabled=false;return [];});
-  const [list,own,plans,{createDayPlanResolver},recurrence,grades,terms,termTools]=await Promise.all([api('/events'),mine,api('/day-plans'),import('./day-plans.mjs'),import('./recurrence.mjs'),import('./grades.mjs'),api('/terms'),import('./terms.mjs')]);
+  const [list,own,plans,{createDayPlanResolver},recurrence,grades,terms,termTools,typeList]=await Promise.all([api('/events'),mine,api('/day-plans'),import('./day-plans.mjs'),import('./recurrence.mjs'),import('./grades.mjs'),api('/terms'),import('./terms.mjs'),api('/event-types')]);
+  applyTypes(typeList);
   const byDate=Object.fromEntries(plans.map(plan=>[plan.date,plan]));
   resolveDayPlan=createDayPlanResolver(byDate);
   termWeekOf=iso=>termTools.termWeek(terms,iso);termLabels=termTools;

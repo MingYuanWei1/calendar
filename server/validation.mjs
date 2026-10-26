@@ -26,7 +26,8 @@ const repeatSchema=z.object({
 });
 const media=z.string().regex(/^\/api\/media\/[a-f0-9-]{36}$/).or(z.literal('')).default('');
 const timing={
-  type:z.enum(['exam','competition','activity','deadline']),
+  // Which types exist is the school's own list (事件类型); the store checks the id against it.
+  type:z.string().regex(/^[a-z][a-z0-9]{0,31}$/),
   timeMode:z.enum(['timed','allDay','multi','deadline']),start:day,end:day.optional(),time:time.optional(),endTime:time.optional(),
   repeat:repeatSchema.nullable().optional(),
   version:z.number().int().positive().optional()

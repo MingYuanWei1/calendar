@@ -505,3 +505,15 @@ mark.src-hit{background:color-mix(in srgb,#f2c94c 55%,transparent);outline:1px s
 .stat-tip small{color:var(--color-neutral-700)}
 .stat-table .num{text-align:right;font-variant-numeric:tabular-nums}
 @media (max-width:760px){.stat-tiles{grid-template-columns:1fr}}
+
+/* — 事件类型 — */
+.type-cell{display:inline-flex;align-items:center;gap:7px;font-size:13px}
+.type-dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--type-color)}
+.type-rows{display:flex;flex-direction:column;gap:8px}
+.type-row{display:grid;grid-template-columns:36px minmax(0,1fr) minmax(0,1fr) 64px 52px;gap:8px;align-items:center}
+.type-row>:last-child{justify-self:end}
+.type-row.removed input{text-decoration:line-through;opacity:.5}
+.type-color{width:36px;height:36px;padding:3px;border:1px solid var(--color-divider);border-radius:0;background:var(--color-bg);cursor:pointer}
+.type-color:disabled{cursor:default;opacity:.5}
+.type-count{font-size:12px;color:var(--color-neutral-700);white-space:nowrap}
+@media (max-width:560px){.type-row{grid-template-columns:36px minmax(0,1fr) 52px}.type-row>[data-k="1"]{grid-column:2}.type-count{display:none}.type-row>:last-child{grid-row:1;grid-column:3}}

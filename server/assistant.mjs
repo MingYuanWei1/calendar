@@ -9,7 +9,7 @@ const input=z.object({messages:z.array(z.object({role:z.enum(['user','assistant'
  .refine(value=>value.messages.at(-1)?.role==='user'&&value.messages.at(-1).content.length<=500,'The last message must be a question of at most 500 characters');
 const weekdays=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
-export function installAssistant(app,db,{session,llm,matching,timeZone,quota,personalEvents=()=>[],terms=()=>[]}){
+export function installAssistant(app,db,{session,llm,matching,timeZone,quota,personalEvents=()=>[],terms=()=>[],types=()=>[]}){
  function context(user){
   const today=new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   const refs=new Map(),data={events:[],dayPlans:[],exams:[],me:null};
@@ -51,6 +51,7 @@ export function installAssistant(app,db,{session,llm,matching,timeZone,quota,per
   const monday=-((day(0).getUTCDay()+6)%7);
   // 学期周次 ride along on each date for the same reason.
   const termList=terms();
+  data.eventTypes=Object.fromEntries(types().map(t=>[t.id,{zh:t.name[0]||undefined,en:t.name[1]||undefined}]));
   data.terms=termList.map(t=>({name:{zh:t.name[0]||undefined,en:t.name[1]||undefined},start:t.start,end:t.end}));
   data.dates=Array.from({length:70},(_,i)=>{
    const d=day(i-7),iso=d.toISOString().slice(0,10),week=Math.floor((i-7-monday)/7),term=termWeek(termList,iso);
@@ -71,6 +72,7 @@ Rules:
 - If the DATA does not contain the answer, say so plainly and suggest checking with the school office. Never guess times, places or seats.
 - Answer exactly the question asked. Do not add notes guessing what else the user might have meant, and never contradict yourself.
 - ${signedIn?'myEvents are the signed-in person\'s own 个人事件, visible only to them. Include them when asked about their schedule, say they are personal (个人 / personal), and cite them like events, e.g. [[P2]].':'Nobody is signed in, so there are no personal events.'}
+- An event's type is an id from eventTypes; call it by that type's name.
 - An event's "for" lists divisions; forGrades, when present, narrows them to those grades (1–12). A deadline without a time is due any time that day.
 - Exam seats: ${signedIn?'the signed-in student\'s exams are sessions with inMyExams or mySeat. mySeat is their own seat: row counts from the front (podium), column from the left; say it naturally in the user\'s language, e.g. "3101 教室第 2 排第 3 列". You have no data about other students\' seats; refuse to speculate about them.':'nobody is signed in, so you have no personal exams or seats. If asked about "my" exams or seat, say they need to sign in with their school account (the 登录 / Sign in button at the top right) to see them.'}
 - Politely decline requests unrelated to this school's calendar, holidays or exams (homework, essays, general chat) and mention what you can help with.

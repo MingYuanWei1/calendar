@@ -1,4 +1,4 @@
-import {$,$$,esc,app,T,api,toast,loadEvents,loadPlans,loadBatches,loadJobs,planRanges} from './console-core.js';
+import {$,$$,esc,app,T,api,toast,loadEvents,loadPlans,loadBatches,loadJobs,loadTypes,planRanges} from './console-core.js';
 import {showEvents,showEditor} from './console-events.js';
 import {showDays} from './console-days.js';
 import {showExams,showBatch} from './console-exams.js';
@@ -69,7 +69,7 @@ async function start(){
  const session=await api('/session');
  if(!(session.user?.role>=2)){document.body.hidden=true;location.replace('/');return;}
  app.user=session.user;
- app.config=await api('/config');
+ [app.config]=await Promise.all([api('/config'),loadTypes()]);
  app.today=new Intl.DateTimeFormat('en-CA',{timeZone:app.config.timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
  setLanguage(app.lang);
  await navigate();

@@ -1,4 +1,4 @@
-import {$,$$,esc,corners,icon,app,T,tx,TYPES,SCOPES,api,toast,modal,closeModal,busy,errorLine,go,refreshNav,md,mdw,dateRange,monthLabel,statusOf,statusTag,statusLabel,loadEvents,loadPlans} from './console-core.js';
+import {$,$$,esc,corners,icon,app,T,tx,TYPES,TYPE_COLORS,SCOPES,api,toast,modal,closeModal,busy,errorLine,fail,setTypes,go,refreshNav,md,mdw,dateRange,monthLabel,statusOf,statusTag,statusLabel,loadEvents,loadPlans} from './console-core.js';
 import {describeRepeat,isLastOfMonth,lastDate,occurrence,ordinalOf,repeatProblem,schoolYearEnd,seriesDates,weekdayOf} from './recurrence.mjs';
 import {noticeDialog} from './console-notice.js';
 import {DIVISION_GRADES,audienceParts,gradeLabel,normalizeGrades} from './grades.mjs';
@@ -11,12 +11,14 @@ const timeLine=e=>e.time?(e.type==='deadline'?T('截止 ','Due '):'')+e.time+(e.
 const scopeLine=e=>audienceParts(e.scope,e.grades,s=>tx(SCOPES[s]),app.lang).join(app.lang?' / ':'、');
 const movedLine=e=>e.oldDate?T(`改期 · 原 ${md(e.oldDate)}`,`Moved from ${md(e.oldDate)}`):'';
 const whenOf=e=>`${dateLine(e)} · ${timeLine(e)}`;
+const typeCell=type=>`<i class="type-dot" style="--type-color:${esc(TYPE_COLORS[type]||'currentColor')}"></i>${esc(tx(TYPES[type]))}`;
 
 export async function showEvents(main){
+ if(view.type!=='all'&&!TYPES[view.type])view.type='all';
  if(!app.data.events){main.innerHTML=`<p class="loading">${T('正在加载事件…','Loading events…')}</p>`;await loadEvents();}
  main.innerHTML=`<div class="page">
  <header class="page-head"><div><div class="kicker">${T('管理后台','Admin console')}</div><h1>${T('事件','Events')}</h1><p class="sub">${T('全部学部 · 无需审核，直接发布','All divisions · Publish without approval')}</p></div>
- <div class="page-actions"><button type="button" class="btn btn-secondary" data-act="refresh">${T('刷新','Refresh')}</button><button type="button" class="btn btn-secondary" data-act="notice">${T('✨ 从通知生成','✨ From a notice')}</button><a class="btn btn-primary blueprint" href="#events/new">${corners}${icon.plus}${T('新增事件','New event')}</a></div></header>
+ <div class="page-actions"><button type="button" class="btn btn-secondary" data-act="refresh">${T('刷新','Refresh')}</button><button type="button" class="btn btn-secondary" data-act="types">${T('管理分类','Event types')}</button><button type="button" class="btn btn-secondary" data-act="notice">${T('✨ 从通知生成','✨ From a notice')}</button><a class="btn btn-primary blueprint" href="#events/new">${corners}${icon.plus}${T('新增事件','New event')}</a></div></header>
  <div class="tabs" role="tablist" id="ev-tabs"></div>
  <div class="toolbar">
   <label class="search">${icon.search}<input class="input" id="ev-q" type="search" value="${esc(view.q)}" placeholder="${T('搜索名称、地点或主办方','Search title, location or organiser')}" aria-label="${T('搜索事件','Search events')}"></label>
@@ -69,12 +71,12 @@ function rowHtml(e){
  if(e.examBatch)return `<div class="grid-row">
  <div class="num"><div class="cell-main">${esc(dateLine(e))}</div><div class="cell-sub">${esc(timeLine(e))}</div></div>
  <div class="clip"><div style="display:flex;align-items:center;gap:8px;min-width:0"><span class="cell-main clip">${esc(tx(e.title))}</span><span class="tag tag-outline small">${T('来自考试安排','From exams')}</span></div><div class="cell-sub clip">${T('随考试批次发布自动更新','Follows the published exam batch')}</div></div>
- <span style="font-size:13px">${esc(tx(TYPES[e.type]))}</span><span style="font-size:13px">${esc(scopeLine(e))}</span><span class="${statusTag(status)}">${statusLabel(status)}</span>
+ <span class="type-cell">${typeCell(e.type)}</span><span style="font-size:13px">${esc(scopeLine(e))}</span><span class="${statusTag(status)}">${statusLabel(status)}</span>
  <div class="row-actions"><a class="btn btn-ghost" href="#exams/${encodeURIComponent(e.examBatch)}">${T('在考试页管理','Manage in Exams')}</a></div></div>`;
  return `<div class="grid-row">
  <div class="num"><div class="cell-main">${esc(dateLine(e))}</div><div class="cell-sub">${esc(timeLine(e))}</div></div>
  <div class="clip"><div style="display:flex;align-items:center;gap:8px;min-width:0"><span class="cell-main clip${status==='cancelled'?' struck':''}">${esc(tx(e.title))}</span>${moved?`<span class="tag tag-outline small">${esc(moved)}</span>`:''}${repeatTag(e)}</div><div class="cell-sub clip">${esc([e.title[1-app.lang],tx(e.location)].filter(Boolean).join(' · '))}</div></div>
- <span style="font-size:13px">${esc(tx(TYPES[e.type]))}</span><span style="font-size:13px">${esc(scopeLine(e))}</span><span class="${statusTag(status)}">${statusLabel(status)}</span>
+ <span class="type-cell">${typeCell(e.type)}</span><span style="font-size:13px">${esc(scopeLine(e))}</span><span class="${statusTag(status)}">${statusLabel(status)}</span>
  <div class="row-actions"><a class="btn btn-ghost" href="#events/${encodeURIComponent(e.id)}">${T('编辑','Edit')}</a><button type="button" class="btn btn-ghost btn-icon" data-act="menu" data-id="${esc(e.id)}" aria-label="${T('更多','More')}" aria-expanded="${open}" style="color:var(--color-accent)">${icon.more}</button>
  ${open?`<div class="menu" role="menu"><button type="button" role="menuitem" data-act="preview" data-id="${esc(e.id)}">${T('预览','Preview')}</button>${status==='published'?`<button type="button" role="menuitem" data-act="cancel" data-id="${esc(e.id)}">${T('取消事件','Cancel event')}</button>`:''}<button type="button" role="menuitem" class="sep" data-act="delete" data-id="${esc(e.id)}">${T('删除','Delete')}</button></div>`:''}</div></div>`;
 }
@@ -87,6 +89,7 @@ async function onListClick(event){
  if(act==='menu'){view.menu=view.menu===e.id?null:e.id;renderResults();$(`[data-act=menu][data-id="${CSS.escape(e.id)}"]`)?.focus();}
  else if(act==='refresh'){target.disabled=true;try{await loadEvents();refreshNav();renderResults();toast(T('列表已刷新。','List refreshed.'));}catch(error){toast(error.message,{bad:true});}finally{target.disabled=false;}}
  else if(act==='notice')noticeDialog();
+ else if(act==='types')typesDialog();
  else if(act==='sort'){view.desc=!view.desc;renderResults();}
  else if(act==='reset'){Object.assign(view,{q:'',type:'all',div:'all',tab:'all'});$('#ev-q').value='';$('#ev-type').value='all';$('#ev-div').value='all';renderResults();}
  else if(act==='preview'){renderResults();previewEvent(e);}
@@ -94,6 +97,77 @@ async function onListClick(event){
 }
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&view.menu){view.menu=null;renderResults();}});
 document.addEventListener('click',event=>{if(view.menu&&!/** @type {Element} */(event.target).closest('.row-actions'))(view.menu=null,renderResults());});
+
+/* — 事件类型 — */
+// Edits are kept in the dialog until saved; a removed type's events become 活动 on saving.
+const SPARE_COLORS=['#237b58','#0f7c8c','#c0507a','#8a6d1d','#4f5bd5','#5a6b7d','#c2410c','#6d28d9'];
+function typesDialog(){
+ const rows=app.data.types.map(t=>({...t,name:[...t.name],saved:t,removed:false}));
+ const used=id=>app.data.events.filter(e=>e.type===id).length;
+ const body=modal(T('管理事件类型','Event types'),`<p class="dialog-text">${T('事件类型显示在校历筛选、事件详情和编辑页中。考试、活动和截止日由系统使用，只能修改名称和颜色。','Types appear in the calendar filters, event details and the editor. Exam, Activity and Deadline are used by the system: they can be renamed and recoloured, not removed.')}</p>
+ <div class="type-rows" data-rows></div>
+ <button type="button" class="btn btn-secondary" data-add style="align-self:flex-start">${icon.plus}${T('新增类型','Add type')}</button>
+ <p class="callout" data-note hidden></p>${errorLine}
+ <div class="dialog-actions"><button type="button" class="btn btn-secondary" data-close>${T('取消','Cancel')}</button><button type="button" class="btn btn-primary" data-save>${T('保存','Save')}</button></div>`,{size:'medium'});
+ const list=body.querySelector('[data-rows]'),note=body.querySelector('[data-note]');
+ const draw=()=>{
+  list.innerHTML=rows.map((r,i)=>{
+   const count=r.id?used(r.id):0,off=r.removed?' disabled':'';
+   return `<div class="type-row${r.removed?' removed':''}" data-i="${i}">
+   <input type="color" class="type-color" data-k="color" value="${esc(r.color)}" aria-label="${T('颜色','Colour')}"${off}>
+   <input class="input" data-k="0" value="${esc(r.name[0])}" maxlength="20" placeholder="${T('中文名称','Chinese name')}" aria-label="${T('中文名称','Chinese name')}"${off}>
+   <input class="input" data-k="1" value="${esc(r.name[1])}" maxlength="20" placeholder="${T('英文名称','English name')}" aria-label="${T('英文名称','English name')}"${off}>
+   <span class="type-count">${r.id?T(`${count} 个事件`,`${count} event${count===1?'':'s'}`):T('新增','New')}</span>
+   ${r.fixed?`<span class="tag tag-outline small" title="${T('系统类型不能删除','System types cannot be removed')}">${T('系统','System')}</span>`
+    :r.removed?`<button type="button" class="btn btn-ghost" data-undo>${T('撤销','Undo')}</button>`
+    :`<button type="button" class="btn btn-ghost btn-icon" data-remove aria-label="${T('删除','Remove')}">${icon.close}</button>`}</div>`;
+  }).join('');
+  const moving=rows.filter(r=>r.removed&&r.id).reduce((n,r)=>n+used(r.id),0);
+  note.hidden=!moving;
+  note.textContent=T(`保存后，已删除类型下的 ${moving} 个事件将改为“${tx(TYPES.activity)}”；用户的个人事件同样改为“${tx(TYPES.activity)}”。`,`On saving, ${moving} event${moving===1?'':'s'} of the removed types become “${tx(TYPES.activity)}”, and so do people’s personal events.`);
+ };
+ draw();
+ list.oninput=event=>{
+  const input=event.target,row=rows[Number(input.closest('[data-i]').dataset.i)];
+  if(input.dataset.k==='color')row.color=input.value;else row.name[Number(input.dataset.k)]=input.value;
+ };
+ list.onclick=event=>{
+  const button=event.target.closest('[data-remove],[data-undo]');if(!button)return;
+  const i=Number(button.closest('[data-i]').dataset.i);
+  // A type added in this dialog and never saved simply goes away.
+  if(!rows[i].id)rows.splice(i,1);else rows[i].removed=button.hasAttribute('data-remove');
+  draw();
+ };
+ body.querySelector('[data-add]').onclick=()=>{
+  const color=SPARE_COLORS.find(c=>!rows.some(r=>r.color===c))||SPARE_COLORS[0];
+  rows.push({id:'',name:['',''],color,fixed:false,removed:false});draw();
+  list.querySelector('.type-row:last-child input[data-k="0"]').focus();
+ };
+ body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
+  const name=r=>[r.name[0].trim(),r.name[1].trim()];
+  if(rows.some(r=>!r.removed&&!name(r).some(Boolean)))fail(T('每个类型至少填写一种语言的名称。','Give every type a name in at least one language.'));
+  const changed=r=>r.color!==r.saved.color||name(r).join('\n')!==r.saved.name.join('\n');
+  let saved=null,moved=0;
+  // Each step updates the rows, so a retry after a failure repeats only what is left.
+  for(const r of rows.filter(r=>r.removed&&r.id)){
+   const result=await api('/admin/event-types/'+encodeURIComponent(r.id),{method:'DELETE'});
+   saved=result.types;moved+=result.moved;rows.splice(rows.indexOf(r),1);
+  }
+  for(const r of rows.filter(r=>r.id&&changed(r))){
+   saved=await api('/admin/event-types/'+encodeURIComponent(r.id),{method:'PUT',body:JSON.stringify({name:name(r),color:r.color})});
+   r.saved={color:r.color,name:name(r)};
+  }
+  for(const r of rows.filter(r=>!r.id)){
+   const known=new Set(rows.map(x=>x.id));
+   saved=await api('/admin/event-types',{method:'POST',body:JSON.stringify({name:name(r),color:r.color})});
+   Object.assign(r,saved.find(t=>!known.has(t.id)));r.saved={color:r.color,name:r.name};
+  }
+  if(saved)setTypes(saved);
+  if(moved)await loadEvents();
+  closeModal();app.rerender();refreshNav();
+  toast(saved?T('事件类型已保存。','Event types saved.'):T('没有需要保存的修改。','Nothing to save.'));
+ });
+}
 
 function previewEvent(e){
  modal(T('学生视图','Student view')+' · '+tx(TYPES[e.type]),`<h2 class="${statusOf(e)==='cancelled'?'struck':''}">${esc(tx(e.title)||'—')}</h2>
