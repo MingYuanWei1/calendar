@@ -1,6 +1,7 @@
 import {randomBytes} from 'node:crypto';
 import {isSeriesDate,lastDate,matchesPattern,occurrence,weekdayOf} from '../public/recurrence.mjs';
 import {gradeLabel} from '../public/grades.mjs';
+import {feedMatches,gradesSummary,readFeedFilter} from '../public/calendar-filter.mjs';
 
 // 日历订阅: iCalendar (RFC 5545) feeds that phone and desktop calendars poll. The school calendar and all
 // published exams are public; "my exams" and the school calendar with one's own 个人事件 belong to one person
@@ -109,7 +110,9 @@ export function installFeeds(app,db,{user,account,origin,timeZone,matching,examE
    return {uid:`${e.personal?'personal':'event'}-${e.seriesId||e.id}@calendar`,when,summary:`${tag}${e.type==='deadline'?L(req,'截止：','Due: '):''}${pick(req,pair(e.title))}`,location:pick(req,pair(e.location)),description:notes.join('\n\n'),url,sequence:e.version,cancelled,transparent:e.type==='deadline'};
   };
   const school=db.prepare("SELECT body FROM events WHERE status IN ('published','cancelled')").all().map(row=>JSON.parse(row.body));
-  for(const e of [...school,...examEvents(),...(owner?personalEvents(owner):[])]){
+  // ?hide= and ?grades= narrow the events as the calendar's filters do; day plans below concern everyone.
+  const filter=readFeedFilter(req.query);
+  for(const e of [...school,...examEvents(),...(owner?personalEvents(owner):[])].filter(e=>feedMatches(e,filter))){
    if(!e.repeat){items.push(entry(e));continue;}
    // A repeating event wears wall-clock times so its dates follow the school's clock.
    const local=(date,time)=>`;TZID=${timeZone}:${compact(date)}T${time.replace(':','')}00`;
@@ -161,8 +164,10 @@ export function installFeeds(app,db,{user,account,origin,timeZone,matching,examE
  app.get('/api/feeds',(req,res)=>res.json(links(user(req))));
  app.post('/api/feeds/mine/reset',(req,res)=>{const u=user(req);if(!u)return res.status(401).json({error:'请先登录。'});tokenFor(u,true);res.json(links(u));});
 
- app.get('/api/feeds/calendar.ics',(req,res)=>send(res,{name:L(req,'日历 · 校历','Calendar · School calendar'),description:L(req,'学校活动、比赛、截止日与放假调休安排','School events, deadlines, days off and make-up days'),items:calendarItems(req),timeZone}));
- app.get('/api/feeds/exams.ics',(req,res)=>send(res,{name:L(req,'日历 · 考试安排','Calendar · Exams'),description:L(req,'已发布的全部考试场次','Every published exam session'),items:examItems(req)}));
+ // A filtered link names its grades, so a family subscribed for two children can tell the calendars apart.
+ const calendarName=(req,zh,en)=>{const {grades}=readFeedFilter(req.query);return `KeydionCalendar- ${L(req,zh,en)}${grades?`(${gradesSummary(grades)})`:''}`;};
+ app.get('/api/feeds/calendar.ics',(req,res)=>send(res,{name:calendarName(req,'校历','School'),description:L(req,'学校活动、比赛、截止日与放假调休安排','School events, deadlines, days off and make-up days'),items:calendarItems(req),timeZone}));
+ app.get('/api/feeds/exams.ics',(req,res)=>send(res,{name:L(req,'KeydionCalendar- 考试安排','KeydionCalendar- Exams'),description:L(req,'已发布的全部考试场次','Every published exam session'),items:examItems(req)}));
  const owner=file=>{
   const token=file.replace(/\.ics$/,'');
   const row=tokenPattern.test(token)&&db.prepare('SELECT user_id FROM feed_tokens WHERE token=?').get(token);
@@ -171,13 +176,13 @@ export function installFeeds(app,db,{user,account,origin,timeZone,matching,examE
  app.get('/api/feeds/calendar/:file',(req,res)=>{
   const u=owner(req.params.file);
   if(!u)return res.status(404).type('text/plain').send('Subscription not found');
-  send(res,{name:L(req,`日历 · 校历与个人事件（${u.name}）`,`Calendar · School calendar and my events (${u.name})`),description:L(req,'学校活动、放假调休安排，以及我的个人事件','School events, days off and my own events'),items:calendarItems(req,u.id),timeZone});
+  send(res,{name:calendarName(req,'校历与个人事件','School & my events'),description:L(req,'学校活动、放假调休安排，以及我的个人事件','School events, days off and my own events'),items:calendarItems(req,u.id),timeZone});
  });
  app.get('/api/feeds/mine/:file',(req,res)=>{
   const u=owner(req.params.file);
   if(!u)return res.status(404).type('text/plain').send('Subscription not found');
   // "My exams" is first filled from the student's matched seats, exactly as on the exams page.
   const only=bid=>{matching.prepare(u,bid);return new Set(db.prepare('SELECT exam_id FROM exam_choices WHERE user_id=? AND batch_id=?').all(u.id,bid).map(r=>r.exam_id));};
-  send(res,{name:L(req,`日历 · 我的考试（${u.name}）`,`Calendar · My exams (${u.name})`),description:L(req,'我关注的考试，含本人考场与座位','The exams I follow, with my room and seat'),items:examItems(req,{only,seats:bid=>matching.personal(u,bid)})});
+  send(res,{name:L(req,'KeydionCalendar- 我的考试','KeydionCalendar- My exams'),description:L(req,'我关注的考试，含本人考场与座位','The exams I follow, with my room and seat'),items:examItems(req,{only,seats:bid=>matching.personal(u,bid)})});
  });
 }

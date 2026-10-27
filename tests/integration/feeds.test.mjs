@@ -126,3 +126,35 @@ test('a disabled account loses its personal feed',async t=>{
  await call('/api/admin/accounts/'+me.id,'PATCH',{role:me.role,disabled:true});
  assert.equal((await request(new URL(links.mine).pathname,{cookie:''})).status,404);
 });
+
+test('a filtered calendar link keeps only the chosen event types and grades, and names its grades',async t=>{
+ const {request,call,student}=await setup(t);
+ await call('/api/admin/events','POST',event({title:['开学典礼','Opening'],start:'2026-09-23',timeMode:'allDay'}));
+ await call('/api/admin/events','POST',event({title:['高一讲座','G10 talk'],scope:['high'],grades:[10],start:'2026-09-24',timeMode:'allDay'}));
+ await call('/api/admin/events','POST',event({title:['高中竞赛','HS contest'],type:'competition',scope:['high'],start:'2026-09-25',timeMode:'allDay'}));
+ await call('/api/admin/events','POST',event({title:['初中活动','MS fair'],scope:['middle'],start:'2026-09-26',timeMode:'allDay'}));
+ await call('/api/admin/events','POST',event({title:['全校截止','Due'],type:'deadline',start:'2026-09-27',timeMode:'deadline',time:'17:00'}));
+ await call('/api/admin/day-plans','PUT',{start:'2026-10-01',kind:'off',title:['国庆节','National Day']});
+ const summaries=async path=>events((await request(path,{cookie:''})).text).map(e=>e.SUMMARY.replace(/^(截止|放假)：/,'')).sort();
+ const name=async path=>(await request(path,{cookie:''})).text.match(/X-WR-CALNAME:(.*)\r\n/)[1].replace(/\\(.)/g,"$1");
+
+ assert.equal((await summaries('/api/feeds/calendar.ics')).length,6);
+ assert.equal(await name('/api/feeds/calendar.ics'),'KeydionCalendar- 校历');
+ // A grade filter keeps school-wide events and day plans; unknown grades and type ids are ignored.
+ assert.deepEqual(await summaries('/api/feeds/calendar.ics?grades=11,12,99&hide=deadline,gone'),['国庆节','开学典礼','高中竞赛'].sort());
+ assert.deepEqual(await summaries('/api/feeds/calendar.ics?grades=10&hide=competition'),['全校截止','国庆节','开学典礼','高一讲座'].sort());
+ assert.deepEqual(await summaries('/api/feeds/calendar.ics?grades=7,8,9'),['全校截止','初中活动','国庆节','开学典礼'].sort());
+ assert.equal((await summaries('/api/feeds/calendar.ics?grades=99')).length,6);
+ assert.equal(await name('/api/feeds/calendar.ics?grades=10,11,12'),'KeydionCalendar- 校历(HS)');
+ assert.equal(await name('/api/feeds/calendar.ics?grades=10,11&lang=en'),'KeydionCalendar- School(HS G10-11)');
+ assert.equal(await name('/api/feeds/calendar.ics?grades=1,2,4,7,8,9,10'),'KeydionCalendar- 校历(PS G1-2, G4, MS, HS G10)');
+
+ // The personal link takes the same filters, never drops the person's own events and never shows their name.
+ await call('/api/personal-events','POST',{title:'练琴',type:'competition',start:'2026-09-28',timeMode:'allDay'},student);
+ const {calendarMine}=await call('/api/feeds','GET',undefined,student);
+ const path=new URL(calendarMine).pathname;
+ const mine=await summaries(path+'?grades=7&hide=competition,activity');
+ assert.ok(mine.includes('练琴'));assert.ok(!mine.includes('开学典礼'));assert.ok(mine.includes('国庆节'));
+ assert.equal(await name(path+'?grades=7&lang=en'),'KeydionCalendar- School & my events(MS G7)');
+ assert.equal(await name('/api/feeds/exams.ics'),'KeydionCalendar- 考试安排');
+});

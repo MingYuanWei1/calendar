@@ -18,7 +18,7 @@ function setLoadMessage(message,error=false){const el=$('#load-status');el.textC
 async function loadEvents(){
   // 个人事件 come only for a signed-in visitor; a 401 simply means there are none to show.
   const mine=api('/personal-events').then(list=>{personalEnabled=true;return list;},error=>{if(error.status!==401)throw error;personalEnabled=false;return [];});
-  const [list,own,plans,{createDayPlanResolver},recurrence,grades,terms,termTools,typeList]=await Promise.all([api('/events'),mine,api('/day-plans'),import('./day-plans.mjs'),import('./recurrence.mjs'),import('./grades.mjs'),api('/terms'),import('./terms.mjs'),api('/event-types')]);
+  const [list,own,plans,{createDayPlanResolver},recurrence,grades,terms,termTools,typeList,filter]=await Promise.all([api('/events'),mine,api('/day-plans'),import('./day-plans.mjs'),import('./recurrence.mjs'),import('./grades.mjs'),api('/terms'),import('./terms.mjs'),api('/event-types'),import('./calendar-filter.mjs')]);
   applyTypes(typeList);
   const byDate=Object.fromEntries(plans.map(plan=>[plan.date,plan]));
   resolveDayPlan=createDayPlanResolver(byDate);
@@ -27,7 +27,7 @@ async function loadEvents(){
   const pair=value=>Array.isArray(value)?value:[value||'',value||''];
   expandSeries=(items,from,to)=>recurrence.expandEvents(items,byDate,from,to).map(e=>e.personal?{...e,title:pair(e.title),location:pair(e.location),scope:[]}:e);
   repeatSummary=rule=>recurrence.describeRepeat(rule,state.lang);
-  gradeTools=grades;personalSeries=own;
+  gradeTools={...grades,...filter};personalSeries=own;
   series.splice(0,series.length,...list,...own);
   refreshOccurrences();
   if(!events.some(e=>e.id===state.selected&&matches(e)))state.selected=null;

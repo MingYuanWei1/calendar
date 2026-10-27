@@ -42,7 +42,7 @@ let detailScrollY=0;
 let monthSlots=5;
 /** Event rows in a week that also shows a borrowed-timetable band (按周五课表) under the dates. */
 let bandSlots=4;
-/** Set once grades.mjs loads: which grades a division covers and how an audience reads. */
+/** Set once grades.mjs and calendar-filter.mjs load: which grades a division covers, how an audience reads and whether it is shown. */
 let gradeTools=null;
 /** Whether the visitor is signed in and so may keep 个人事件. */
 let personalEnabled=false;
@@ -103,13 +103,13 @@ function formatDate(iso,weekday=false){return new Intl.DateTimeFormat(state.lang
 function isMulti(event){return event.end && event.end!==event.start;}
 /** Grades the division filter shows: every grade of each ticked division that has not been unticked. */
 function shownGrades(){return gradeTools?[...state.divisions].flatMap(d=>gradeTools.DIVISION_GRADES[d]).filter(g=>!state.hiddenGrades.has(g)):[];}
-/** No ticked division shows everything; school-wide events and 个人事件 always pass. */
+/** No ticked division shows everything; school-wide events and 个人事件 always pass, as in a filtered subscription. */
 function audienceMatches(event){
-  if(!state.divisions.size||event.personal||event.scope.includes('schoolwide'))return true;
-  if(!gradeTools)return event.scope.some(s=>state.divisions.has(s));
-  const shown=shownGrades();
-  return gradeTools.audienceGrades(event.scope,event.grades).some(g=>shown.includes(g));
+  if(!gradeTools)return !state.divisions.size||event.personal||event.scope.includes('schoolwide')||event.scope.some(s=>state.divisions.has(s));
+  return gradeTools.audienceMatches(event,state.divisions.size?shownGrades():null);
 }
+// The subscribe dialog starts from the filters on screen.
+/** @type {any} */(window).calendarFilters=()=>({types:[...state.types],divisions:[...state.divisions],hiddenGrades:[...state.hiddenGrades]});
 function matches(event){return event.status!=='draft' && state.types.has(event.type) && (!event.personal||state.personal) && audienceMatches(event) && (state.view!=='list'||!state.query||event.title.join(' ').toLocaleLowerCase().includes(state.query.toLocaleLowerCase()));}
 function onDate(event,iso){return event.start<=iso && (event.end||event.start)>=iso;}
 function sortEvents(a,b){return (isMulti(a)?0:1)-(isMulti(b)?0:1) || (a.time||'00:00').localeCompare(b.time||'00:00') || a.id.localeCompare(b.id);}

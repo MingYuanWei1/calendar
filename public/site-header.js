@@ -105,19 +105,67 @@
  async function openFeed(kind){
   closeSubscribe();
   if(kind==='mine'&&!session?.user){window.dispatchEvent(new Event('account-login'));return;}
-  try{feeds=await request('/feeds');}catch(error){alert(error.message);return;}
+  try{
+   feeds=await request('/feeds');
+   if(kind==='calendar')await startFilters();
+  }catch(error){alert(error.message);return;}
   show(kind);
  }
  // The school calendar may include the signed-in person's own 个人事件, which makes its link personal.
  let withPersonal=false;
+ // The school calendar link can be narrowed by 事件类型 and 适用学部 like the calendar's own filters. The dialog
+ // starts from what the calendar page shows (window.calendarFilters) but its choices never change the page.
+ let filterTools=null,feedTypes=[],feedFilter={types:new Set(),divisions:new Set(),hiddenGrades:new Set()};
+ async function startFilters(){
+  const [grades,filters,list]=await Promise.all([import('./grades.mjs'),import('./calendar-filter.mjs'),request('/event-types')]);
+  filterTools={...grades,...filters};feedTypes=list;
+  const page=/** @type {any} */(window).calendarFilters?.();
+  feedFilter={types:new Set(page?page.types:list.filter(type=>!type.hidden).map(type=>type.id)),divisions:new Set(page?.divisions||[]),hiddenGrades:new Set(page?.hiddenGrades||[])};
+ }
+ /** The link's query: types left unticked are hidden, so a type the school adds later still arrives. */
+ function filterQuery(){
+  if(!filterTools)return '';
+  const grades=[...feedFilter.divisions].flatMap(d=>filterTools.DIVISION_GRADES[d]).filter(g=>!feedFilter.hiddenGrades.has(g));
+  return filterTools.feedQuery({hide:feedTypes.map(type=>type.id).filter(id=>!feedFilter.types.has(id)),grades});
+ }
+ function filterFields(){
+  if(!filterTools)return '';
+  const name=pair=>(english()?pair[1]||pair[0]:pair[0]||pair[1]);
+  const divisionNames={primary:['小学部','Primary'],middle:['初中部','Middle'],high:['高中部','High']};
+  const box=(attr,value,checked,text)=>`<label class="subscribe-option"><input type="checkbox" ${attr}="${value}" data-key="${attr}-${value}" ${checked?'checked':''}>${text}</label>`;
+  const types=feedTypes.map(type=>box('data-feed-type',type.id,feedFilter.types.has(type.id),`<span class="subscribe-dot" style="--type-color:${type.color}"></span>${name(type.name).replace(/</g,'&lt;')}`)).join('');
+  const divisions=Object.keys(filterTools.DIVISION_GRADES).map(d=>box('data-feed-division',d,feedFilter.divisions.has(d),name(divisionNames[d]))
+   +(feedFilter.divisions.has(d)?`<span class="subscribe-grades">${filterTools.DIVISION_GRADES[d].map(g=>box('data-feed-grade',g,!feedFilter.hiddenGrades.has(g),filterTools.gradeLabel(g,english()?1:0))).join('')}</span>`:'')).join('');
+  return `<fieldset class="subscribe-filter"><legend>${label('事件类型','Event types')}</legend>${types}</fieldset>
+   <fieldset class="subscribe-filter"><legend>${label('适用学部','School division')}</legend>${divisions}<small>${label('不选学部即包含全部；选择学部时，同时包含全校事件。放假调休安排始终包含。','No division means all of them; school-wide events, days off and make-up days are always included.')}</small></fieldset>`;
+ }
+ function bindFilters(kind){
+  const all=selector=>/** @type {NodeListOf<HTMLInputElement>} */(feedDialog.querySelectorAll(selector));
+  const redraw=key=>{show(kind);/** @type {HTMLElement|null} */(feedDialog.querySelector(`[data-key="${key}"]`))?.focus();};
+  all('[data-feed-type]').forEach(box=>box.onchange=()=>{const id=box.dataset.feedType;box.checked?feedFilter.types.add(id):feedFilter.types.delete(id);redraw(box.dataset.key);});
+  all('[data-feed-division]').forEach(box=>box.onchange=()=>{
+   const d=box.dataset.feedDivision;
+   if(box.checked)feedFilter.divisions.add(d);else{feedFilter.divisions.delete(d);filterTools.DIVISION_GRADES[d].forEach(g=>feedFilter.hiddenGrades.delete(g));}
+   redraw(box.dataset.key);
+  });
+  // Unticking a division's last grade unticks the division, so a link never asks for a division with no grades.
+  all('[data-feed-grade]').forEach(box=>box.onchange=()=>{
+   const g=Number(box.dataset.feedGrade),d=filterTools.divisionOf(g);
+   box.checked?feedFilter.hiddenGrades.delete(g):feedFilter.hiddenGrades.add(g);
+   if(filterTools.DIVISION_GRADES[d].every(x=>feedFilter.hiddenGrades.has(x))){feedFilter.divisions.delete(d);filterTools.DIVISION_GRADES[d].forEach(x=>feedFilter.hiddenGrades.delete(x));}
+   redraw(box.dataset.key);
+  });
+ }
  function show(kind){
   const personalLink=kind==='mine'||(kind==='calendar'&&withPersonal&&Boolean(feeds.calendarMine));
-  const url=(kind==='calendar'&&personalLink?feeds.calendarMine:feeds[kind])+(english()?'?lang=en':''),webcal=url.replace(/^https?:/,'webcal:');
+  const query=[kind==='calendar'?filterQuery():'',english()?'lang=en':''].filter(Boolean).join('&');
+  const url=(kind==='calendar'&&personalLink?feeds.calendarMine:feeds[kind])+(query?'?'+query:''),webcal=url.replace(/^https?:/,'webcal:');
   if(!feedDialog){feedDialog=document.createElement('dialog');feedDialog.id='subscribe-dialog';document.body.append(feedDialog);feedDialog.addEventListener('click',event=>{if(event.target===feedDialog)feedDialog.close();});}
   const [title,why]=feedText[kind];
   feedDialog.innerHTML=`<form method="dialog" class="subscribe-head"><h2>${label(...title)}</h2><button aria-label="${label('关闭','Close')}">×</button></form>
    <p>${label(...why)}</p>
-   ${kind==='calendar'&&feeds.calendarMine?`<label class="subscribe-option"><input type="checkbox" data-personal ${withPersonal?'checked':''}>${label('包含个人事件','Include my personal events')}</label>`:''}
+   ${kind==='calendar'?filterFields():''}
+   ${kind==='calendar'&&feeds.calendarMine?`<label class="subscribe-option"><input type="checkbox" data-personal data-key="personal" ${withPersonal?'checked':''}>${label('包含个人事件','Include my personal events')}</label>`:''}
    <div class="subscribe-url"><input readonly value="${url.replace(/"/g,'&quot;')}" aria-label="${label('订阅链接','Subscription link')}"><button type="button" data-copy>${label('复制链接','Copy link')}</button></div>
    <div class="subscribe-actions"><a class="primary" href="${webcal.replace(/"/g,'&quot;')}">${label('添加到日历','Add to calendar')}</a><a href="${url.replace(/"/g,'&quot;')}" download>${label('下载 .ics','Download .ics')}</a></div>
    ${personalLink?`<p class="subscribe-warning">${kind==='mine'?label('这个链接只属于你，含你的座位信息，请勿分享。如已泄露，可','This link is yours alone and includes your seat; do not share it. If it leaks, '):label('这个链接只属于你，含你的个人事件，请勿分享。如已泄露，可','This link is yours alone and includes your personal events; do not share it. If it leaks, ')}<button type="button" data-reset>${label('重新生成链接','generate a new link')}</button>${label('，旧链接会立即失效（“我的考试”与含个人事件的校历订阅共用此链接密钥，会一起更换）。','; the old one stops working at once (“My exams” and the calendar with personal events share this key and change together).')}</p>`:''}
@@ -136,7 +184,8 @@
   const reset=feedDialog.querySelector('[data-reset]');
   if(reset)reset.onclick=async()=>{try{feeds=await request('/feeds/mine/reset',{method:'POST'});show(kind);}catch(error){alert(error.message);}};
   const personal=/** @type {HTMLInputElement|null} */(feedDialog.querySelector('[data-personal]'));
-  if(personal)personal.onchange=()=>{withPersonal=personal.checked;show(kind);};
+  if(personal)personal.onchange=()=>{withPersonal=personal.checked;show(kind);/** @type {HTMLElement} */(feedDialog.querySelector('[data-key=personal]')).focus();};
+  if(kind==='calendar')bindFilters(kind);
   if(!feedDialog.open)feedDialog.showModal();
  }
  function subscriptions(){
