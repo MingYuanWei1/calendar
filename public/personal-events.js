@@ -198,7 +198,7 @@ async function savePersonal() {
   } catch (error) { showPersonalError(error.message); button.disabled = false; }
 }
 
-$('#add-personal').onclick = () => openPersonalEditor({ date: state.view === 'week' ? state.anchor : '' });
+$('#add-personal').onclick = $('#sidebar-add').onclick = () => openPersonalEditor({ date: state.view === 'week' ? state.anchor : '' });
 $('#personal-dialog').addEventListener('click', event => { if (event.target === $('#personal-dialog')) $('#personal-dialog').close(); });
 // Signing in or out with a username changes whose 个人事件 there are.
 window.addEventListener('account-changed', () => loadEvents().then(render).catch(() => {}));

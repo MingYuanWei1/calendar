@@ -4,7 +4,9 @@
  if(!header)return;
  const exams=header.dataset.page==='exams';
  const management=header.dataset.page==='management';
- const link=(href,key,zh,en,active)=>`<a href="${href}" data-i18n="${key}" data-zh="${zh}" data-en="${en}"${active?' class="active" aria-current="page"':''}>${zh}</a>`;
+ // The desktop sidebar shows an icon beside each section; the header on phones hides it.
+ const navIcons={calendarNav:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',examsNav:'<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M9 12h6M9 16h6"/>'};
+ const link=(href,key,zh,en,active)=>`<a href="${href}"${active?' class="active" aria-current="page"':''}><svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${navIcons[key]}</svg><span data-i18n="${key}" data-zh="${zh}" data-en="${en}">${zh}</span></a>`;
  // Phones draw Lucide chevrons in place of the text arrows.
  const chevron=d=>`<span class="glyph" aria-hidden="true">${d==='left'?'‹':'›'}</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d==='left'?'m15 18-6-6 6-6':'m9 18 6-6-6-6'}"/></svg>`;
  const dateControls=exams
@@ -14,12 +16,14 @@
   ? '<button id="download" class="primary" disabled>下载 PDF</button>'
   : '<div class="view-switch" aria-label="日历视图"><button id="month-view" aria-pressed="true" data-i18n="monthView">月历</button><button id="week-view" aria-pressed="false" data-i18n="weekView">周历</button><button id="list-view" aria-pressed="false" data-i18n="listView">日程</button></div><button id="mobile-filter" type="button" class="btn mobile-only" aria-haspopup="dialog"></button><button id="add-personal" type="button" class="add-personal" hidden><span aria-hidden="true">+</span><span class="add-personal-label">添加个人事件</span></button>';
  const moreButton='<button id="site-more" type="button" class="site-more btn btn-ghost btn-icon mobile-only" aria-haspopup="dialog" aria-label="更多"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>';
- header.innerHTML=`<a class="brand" href="/"><img src="/logo.png" alt=""><span data-i18n="brand" data-zh="日历" data-en="Calendar">日历</span></a><nav class="section-nav" aria-label="主要导航">${link('/','calendarNav','校历','Calendar',!exams)}${link('exams.html','examsNav','考试安排','Exams',exams)}</nav><div class="calendar-toolbar"><div class="date-controls">${management?'':dateControls}</div><div class="calendar-actions">${management?'':pageActions}</div></div><div class="header-actions">${management?'':`<div class="subscribe">${exams?'<button id="subscribe-exams" type="button" class="subscribe-button" aria-haspopup="menu" aria-expanded="false" aria-controls="subscribe-menu"></button><div id="subscribe-menu" class="account-menu subscribe-menu" role="menu" hidden><button type="button" role="menuitem" data-feed="exams"></button><button type="button" role="menuitem" data-feed="mine"></button></div>':'<button id="subscribe-calendar" type="button" class="subscribe-button"></button>'}</div>`}${management?'':'<button id="assistant-open" type="button" class="assistant-trigger"></button>'}<button id="language" class="language" aria-label="Switch to English">EN</button><div class="user-menu"><button id="school-account" type="button" disabled aria-expanded="false" aria-controls="account-menu">登录</button><div id="account-menu" class="account-menu" hidden><strong id="account-name"></strong><small id="account-role"></small><a id="account-console" href="/console.html" hidden>管理后台</a><button id="account-logout" type="button">退出登录</button><p id="account-error" role="alert"></p></div></div>${management?'':moreButton}</div>`;
+ // ☰ folds the desktop sidebar away on every page; it is bound below.
+ const sidebarToggle=management?'':'<button id="sidebar-toggle" type="button" class="sidebar-toggle" aria-expanded="true" aria-controls="site-sidebar" aria-label="收起左侧栏"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>';
+ header.innerHTML=`${sidebarToggle}<a class="brand" href="/"><img src="/logo.png" alt=""><span data-i18n="brand" data-zh="日历" data-en="Calendar">日历</span></a><nav class="section-nav" aria-label="主要导航">${link('/','calendarNav','校历','Calendar',!exams)}${link('exams.html','examsNav','考试安排','Exams',exams)}</nav><div class="calendar-toolbar"><div class="date-controls">${management?'':dateControls}</div><div class="calendar-actions">${management?'':pageActions}</div></div><div class="header-actions">${management?'':`<div class="subscribe">${exams?'<button id="subscribe-exams" type="button" class="subscribe-button" aria-haspopup="menu" aria-expanded="false" aria-controls="subscribe-menu"></button><div id="subscribe-menu" class="account-menu subscribe-menu" role="menu" hidden><button type="button" role="menuitem" data-feed="exams"></button><button type="button" role="menuitem" data-feed="mine"></button></div>':'<button id="subscribe-calendar" type="button" class="subscribe-button"></button>'}</div>`}${management?'':'<button id="assistant-open" type="button" class="assistant-trigger"></button>'}<button id="language" class="language" aria-label="Switch to English">EN</button><div class="user-menu"><button id="school-account" type="button" disabled aria-expanded="false" aria-controls="account-menu">登录</button><div id="account-menu" class="account-menu" hidden><strong id="account-name"></strong><small id="account-role"></small><a id="account-console" href="/console.html" hidden>管理后台</a><button id="account-logout" type="button">退出登录</button><p id="account-error" role="alert"></p></div></div>${management?'':moreButton}</div>`;
  const accountButton=/** @type {HTMLButtonElement} */(document.getElementById('school-account'));
  const menu=document.getElementById('account-menu');
  const dialog=document.createElement('dialog');
  dialog.id='account-login-dialog';dialog.className='account-login-dialog';dialog.setAttribute('aria-labelledby','account-login-title');
- dialog.innerHTML=`<div class="account-dialog-top"><h2 id="account-login-title">登录</h2><button id="account-close" type="button" aria-label="关闭 / Close">×</button></div><button id="account-microsoft" type="button" class="microsoft-login"><svg class="microsoft-logo" viewBox="0 0 21 21" width="18" height="18" aria-hidden="true"><path fill="#f25022" d="M0 0h10v10H0z"/><path fill="#7fba00" d="M11 0h10v10H11z"/><path fill="#00a4ef" d="M0 11h10v10H0z"/><path fill="#ffb900" d="M11 11h10v10H11z"/></svg><span id="account-microsoft-label">使用 Microsoft 登录</span></button><p id="account-login-error" role="alert"></p>`;
+ dialog.innerHTML=`<div class="account-dialog-top"><h2 id="account-login-title">登录</h2><button id="account-close" type="button" aria-label="关闭 / Close">×</button></div><button id="account-microsoft" type="button" class="microsoft-login"><svg class="microsoft-logo" viewBox="0 0 21 21" width="18" height="18" aria-hidden="true"><path fill="#f25022" d="M0 0h10v10H0z"/><path fill="#7fba00" d="M11 0h10v10H11z"/><path fill="#00a4ef" d="M0 11h10v10H0z"/><path fill="#ffb900" d="M11 11h10v10H11z"/></svg><span id="account-microsoft-label">使用 Microsoft 登录</span></button><p id="account-login-error" role="alert"></p><p id="account-login-note" class="account-login-note">仅支持学校SSO登录，查看校历无需登录</p>`;
  document.body.append(dialog);
  let session=null;
  const english=()=>document.documentElement.lang.startsWith('en');
@@ -40,6 +44,7 @@
   document.getElementById('site-more')?.setAttribute('aria-label',label('更多','More'));
   set('account-logout','退出登录','Sign out');
   set('account-login-title','登录','Sign in');set('account-microsoft-label','使用 Microsoft 登录','Sign in with Microsoft');
+  set('account-login-note','仅支持学校SSO登录，查看校历无需登录','School SSO sign-in only. No sign-in needed to view the calendar.');
  }
  async function request(path,options={}){
   const response=await fetch('/api'+path,{...options,headers:{'Content-Type':'application/json'}});
@@ -81,13 +86,13 @@
   // Each page offers its own feed: the calendar page the school calendar, the exams page all exams or mine.
   const calendarButton=document.getElementById('subscribe-calendar');
   if(calendarButton){
-   calendarButton.innerHTML=`${icon}<span>${label('订阅校历','Subscribe')}</span>`;
+   calendarButton.innerHTML=`${icon}<span>${label('订阅','Subscribe')}</span>`;
    // Narrow headers show only the icon, so the name stays available as a tooltip and label.
    calendarButton.title=label('订阅校历到手机或电脑日历','Subscribe to the school calendar');calendarButton.setAttribute('aria-label',calendarButton.title);
   }
   if(!examsButton)return;
   examsButton.title=label('订阅考试：所有考试或我的考试','Subscribe to exams: all or mine');examsButton.setAttribute('aria-label',examsButton.title);
-  examsButton.innerHTML=`${icon}<span>${label('订阅考试','Subscribe')}</span><span aria-hidden="true">▾</span>`;
+  examsButton.innerHTML=`${icon}<span>${label('订阅','Subscribe')}</span><span aria-hidden="true">▾</span>`;
   subscribeMenu.querySelector('[data-feed=exams]').innerHTML=`<strong>${label('所有考试','All exams')}</strong><small>${label('全部已发布的考试场次','Every published exam session')}</small>`;
   subscribeMenu.querySelector('[data-feed=mine]').innerHTML=`<strong>${label('我的考试','My exams')}</strong><small>${session?.user?label('只含我关注的考试，附本人考场与座位','Only the exams I follow, with my room and seat'):label('登录学生账号后可用','Sign in as a student first')}</small>`;
  }
@@ -150,4 +155,75 @@
  const more=document.getElementById('site-more');
  if(more)more.onclick=()=>window.dispatchEvent(new CustomEvent('site-menu'));
  renderAccount();loadSession().catch(error=>{accountButton.disabled=false;accountButton.title=error.message;});
+ /* — 侧边栏: on desktop ☰, the brand, the section nav and the page's own panel ([data-site-panel]) move into one
+    sidebar shared by both pages (site-sidebar.css), with subscribe and the assistant in its foot; sign-in and the
+    language switch stay in the header. At phone width everything goes back where it was. — */
+ if(management)return;
+ const sidebar=document.createElement('div');
+ sidebar.id='site-sidebar';sidebar.className='site-sidebar';sidebar.hidden=true;
+ const foot=document.createElement('div');foot.className='sidebar-foot';
+ document.body.prepend(sidebar);
+ const desktop=matchMedia('(min-width:761px)');
+ /** @type {{part:Element,home:Comment}[]} */
+ const parts=[],footParts=[];
+ function place(){
+  sidebar.hidden=!desktop.matches;
+  // On <html>: the calendar rewrites the body's classes as it renders.
+  document.documentElement.classList.toggle('has-site-sidebar',desktop.matches);
+  if(desktop.matches){sidebar.append(...parts.map(item=>item.part),foot);foot.append(...footParts.map(item=>item.part));}
+  else [...parts,...footParts].forEach(({part,home})=>home.after(part));
+ }
+ function gather(part,list=parts){
+  // A marker keeps the part's place in the page so a phone-width window can put it back.
+  const home=document.createComment('');part.before(home);
+  list.push({part,home});place();
+ }
+ // ☰ comes along and keeps its place left of the logo.
+ [header.querySelector('.sidebar-toggle'),header.querySelector('.brand'),header.querySelector('.section-nav')].filter(Boolean).forEach(part=>gather(part));
+ [header.querySelector('.subscribe'),header.querySelector('.assistant-trigger')].filter(Boolean).forEach(part=>gather(part,footParts));
+ // The page's panel is parsed after this script, so it joins the sidebar above the foot as soon as it appears.
+ const panel=()=>document.querySelector('[data-site-panel]');
+ if(panel())gather(panel());
+ else{
+  const watch=new MutationObserver(()=>{if(panel()){watch.disconnect();gather(panel());}});
+  watch.observe(document.body,{childList:true,subtree:true});
+  document.addEventListener('DOMContentLoaded',()=>watch.disconnect(),{once:true});
+ }
+ desktop.addEventListener('change',place);
+ /* ☰ folds the sidebar down to itself and the logo; the choice is kept in a cookie for a year. The class sits on
+    <html> because the calendar rewrites the body's classes as it starts. */
+ const toggle=document.getElementById('sidebar-toggle');
+ const sidebarCookie='site-sidebar';
+ function setCollapsed(collapsed){
+  document.documentElement.classList.toggle('sidebar-collapsed',collapsed);
+  toggle.setAttribute('aria-expanded',String(!collapsed));
+  toggle.setAttribute('aria-label',collapsed?label('展开左侧栏','Show sidebar'):label('收起左侧栏','Hide sidebar'));
+ }
+ setCollapsed(document.cookie.split('; ').includes(sidebarCookie+'=collapsed'));
+ toggle.onclick=()=>{
+  const collapsed=!document.documentElement.classList.contains('sidebar-collapsed');
+  setCollapsed(collapsed);
+  document.cookie=`${sidebarCookie}=${collapsed?'collapsed':'open'};path=/;max-age=31536000;SameSite=Lax`;
+ };
+ new MutationObserver(()=>setCollapsed(document.documentElement.classList.contains('sidebar-collapsed'))).observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
+ // Folded, the header's toolbar starts just after the name beside the logo, which changes with the language and font.
+ const brandName=document.querySelector('.brand [data-i18n=brand]');
+ if(brandName)new ResizeObserver(()=>{
+  const end=brandName.getBoundingClientRect().right;
+  if(end)document.documentElement.style.setProperty('--brand-end',Math.ceil(end)+'px');
+ }).observe(brandName);
+ // Every group in the page's panel (.filter-section) folds from its heading; all start open.
+ function addFolds(){
+  document.querySelectorAll('[data-site-panel] .filter-section').forEach((section,index)=>{
+   const heading=section.querySelector('.filter-heading'),title=heading.querySelector('h2');
+   if(!title.id)title.id='panel-heading-'+index;
+   const fold=document.createElement('button');
+   fold.type='button';fold.className='section-toggle';fold.setAttribute('aria-expanded','true');fold.setAttribute('aria-labelledby',title.id);
+   fold.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg>';
+   heading.append(fold);
+   const flip=()=>fold.setAttribute('aria-expanded',String(!section.classList.toggle('collapsed')));
+   fold.onclick=flip;title.onclick=flip;
+  });
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addFolds,{once:true});else addFolds();
 })();

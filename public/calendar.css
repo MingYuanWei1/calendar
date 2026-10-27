@@ -388,3 +388,48 @@ body.detail-closed .workspace{grid-template-columns:180px minmax(0,1fr)}body.edi
 .week-no small{font-size:10px;font-weight:400}
 .week-all-day>p{display:flex;justify-content:space-between;gap:10px}.week-term{font-size:11px;font-weight:600;color:var(--text)}
 .day-panel-week{font-size:12px;color:var(--muted)}
+
+/* The calendar's own part of the shared sidebar (site-sidebar.css lays the sidebar out): "+ 添加" opens the personal-event editor. */
+.sidebar-add{display:none}
+@media(min-width:761px){
+  .airy .sidebar{padding-left:0}
+  .airy .sidebar-add{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;margin:0 0 20px 9px;padding:7px 14px 7px 11px;border:1px solid var(--accent);border-radius:7px;background:transparent;color:var(--accent);font-size:13px;font-weight:600}
+  .airy .sidebar-add:hover{background:var(--soft)}
+  .airy .sidebar-add[hidden]{display:none}
+  .airy .sidebar-add span[aria-hidden]{font-size:16px;line-height:1}
+  /* With the sidebar folded, the header's own add button stands in for "+ 添加". */
+  #site-header .add-personal{display:none}
+  .sidebar-collapsed #site-header .add-personal:not([hidden]){display:inline-flex}
+  /* A light outline frames the desktop calendar card. */
+  .airy .main-calendar{border:1px solid var(--line)}
+}
+
+/* Agenda reads like Google Calendar's schedule: one tight row per event — date | time | title, with the divisions and place trailing the title. */
+.agenda-day,.agenda-day.day-off,.agenda-day.day-half{grid-template-columns:136px minmax(0,1fr);gap:8px;padding:6px 0;align-items:start}
+.agenda-day.day-off,.agenda-day.day-half{padding-left:8px;padding-right:8px;margin:0 -8px}
+.agenda-date{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;min-height:32px}
+.agenda-date strong,body.airy .agenda-date strong{width:32px;height:32px;display:grid;place-items:center;border-radius:50%;font-size:20px;line-height:1}
+.agenda-day.today .agenda-date strong{background:var(--accent);color:#fff}
+.agenda-date small{font-size:11px;color:var(--muted);white-space:nowrap}
+.agenda-date .day-badge,body.airy .agenda-date .day-badge{margin:0}
+.agenda-plan{margin:0;padding:7px 8px 3px;line-height:1.5}
+.agenda-event{display:grid;grid-template-columns:8px 116px minmax(0,1fr);gap:12px;align-items:center;padding:6px 8px;min-height:32px;border-radius:4px}
+.agenda-event:hover{background:var(--subtle)}
+.agenda-event .dot{margin-top:0;width:8px;height:8px}
+.agenda-time{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.agenda-text{display:flex;align-items:baseline;gap:10px;min-width:0}
+.agenda-event .agenda-text strong{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
+.agenda-event .agenda-text small{display:block;margin-top:0;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 10000 auto}
+/* The day dialog is narrow, so its titles wrap and the details sit under them. */
+#day-events .agenda-text{flex-direction:column;gap:2px}
+#day-events .agenda-text strong,#day-events .agenda-text small{white-space:normal}
+#day-events .agenda-event{grid-template-columns:8px 88px minmax(0,1fr);align-items:baseline;padding:10px 5px}
+@media(max-width:760px){
+  .agenda-day,.agenda-day.day-off,.agenda-day.day-half{grid-template-columns:52px minmax(0,1fr);gap:6px;padding-top:8px;padding-bottom:8px}
+  .agenda-date{flex-direction:column;align-items:flex-start;gap:2px}
+  .agenda-event{grid-template-columns:8px 64px minmax(0,1fr);gap:8px;align-items:baseline;padding:6px 0}
+  .agenda-text{flex-direction:column;gap:1px}
+  .agenda-event .agenda-text strong{font-size:14px;white-space:normal}
+  .agenda-event .agenda-text small{white-space:normal}
+  .agenda-time{white-space:normal}
+}

@@ -120,7 +120,7 @@ function cancelText(event){return t(event.cancelledOnce?'cancelledOnce':'cancell
 function label(event){return `${text(event.title)} · ${formatDate(event.start)} · ${timeText(event)}`;}
 function eventLabelText(event){return `${event.cancelled?cancelText(event)+' · ':''}${event.oldDate?t('changed')+' · ':''}${event.type==='deadline'&&event.time?t('till')+' ':''}${event.time?event.time+' ':''}${text(event.title)}`;}
 function eventButton(event){return `<button class="event ${event.type}${event.personal?' personal':''}${event.cancelled?' cancelled':''}${state.selected===event.id?' selected':''}" data-event="${event.id}" title="${esc(label(event))}" aria-label="${esc(label(event))}"><span class="dot"></span><span class="event-text">${event.cancelled?esc(cancelText(event))+' · ':''}${event.oldDate?esc(t('changed'))+' · ':''}${event.type==='deadline'&&event.time?esc(t('till'))+' ':''}${event.time?`<time>${event.time}</time> `:''}${esc(text(event.title))}</span></button>`;}
-function agendaButton(event){return `<button class="agenda-event ${event.type}${event.personal?' personal':''}${event.cancelled?' cancelled':''}${state.selected===event.id?' selected':''}" data-event="${event.id}"><span class="dot"></span><span><strong>${event.cancelled?esc(cancelText(event))+' · ':''}${event.oldDate?esc(t('changed'))+' · ':''}${esc(text(event.title))}</strong><small>${esc(timeText(event))} · ${esc(scopeText(event))}${event.location?' · '+esc(text(event.location)):''}</small></span></button>`;}
+function agendaButton(event){return `<button class="agenda-event ${event.type}${event.personal?' personal':''}${event.cancelled?' cancelled':''}${state.selected===event.id?' selected':''}" data-event="${event.id}"><span class="dot"></span><span class="agenda-time">${esc(timeText(event))}</span><span class="agenda-text"><strong>${event.cancelled?esc(cancelText(event))+' · ':''}${event.oldDate?esc(t('changed'))+' · ':''}${esc(text(event.title))}</strong><small>${[scopeText(event),text(event.location)].filter(Boolean).map(esc).join(' · ')}</small></span></button>`;}
 /**
  * Remembers the filters for a year. Types are kept as changes from their defaults, so a type the school adds later
  * still starts at its own default; until the school's types load, the saved type choices stay as they were.
@@ -151,6 +151,7 @@ function renderFilters(){
   $('#type-filter').innerHTML=Object.entries(types).map(([key,value])=>`<label class="type-option" style="--type-color:${value.color}"><input type="checkbox" data-type="${key}" ${state.types.has(key)?'checked':''}>${esc(text(value.label))}</label>`).join('')+personalOption;
   $('#inline-types').innerHTML=Object.entries(types).map(([key,value])=>`<button class="type-chip ${key}" data-type="${key}" aria-pressed="${state.types.has(key)}"><span class="dot"></span>${esc(text(value.label))}</button>`).join('')+(personalEnabled?`<button class="type-chip personal" data-personal-filter aria-pressed="${state.personal}"><span class="dot"></span>${esc(t('personalEvents'))}</button>`:'');
   $('#add-personal').hidden=!personalEnabled;$('#add-personal').title=t('addPersonal');$('#add-personal').setAttribute('aria-label',t('addPersonal'));$('#add-personal .add-personal-label').textContent=t('addPersonal');
+  $('#sidebar-add').hidden=!personalEnabled;$('#sidebar-add').setAttribute('aria-label',t('addPersonal'));$('#sidebar-add .sidebar-add-label').textContent=state.lang?'Add':'添加';
   // Phones gather the filters into a sheet; its button counts the types turned off and the divisions chosen.
   const shownByDefault=defaultTypes(),filtersOn=Object.keys(types).filter(key=>state.types.has(key)!==shownByDefault.has(key)).length+(personalEnabled&&!state.personal?1:0)+state.divisions.size;
   $('#mobile-filter').innerHTML=`${icons.filter}<span>${esc(state.lang?'Filter':'筛选')}${filtersOn?' · '+filtersOn:''}</span>`;
@@ -298,7 +299,8 @@ function renderCalendar(){
     const iso=isoDate(new Date(state.year,state.month,day,12));const items=monthEvents.filter(e=>onDate(e,iso)).sort(sortEvents);
     const plan=dayPlan(iso);
     if(!items.length&&!plan)continue;
-    agenda+=`<section class="agenda-day${plan?' day-'+plan.kind:''}"><div class="agenda-date"><strong>${day}</strong><small>${new Intl.DateTimeFormat(state.lang?'en-GB':'zh-CN',{weekday:'short'}).format(dateValue(iso))}</small>${dayBadge(plan)}</div><div>${plan?`<p class="agenda-plan">${dayPlanMarkup(plan)}</p>`:''}${items.map(agendaButton).join('')}</div></section>`;
+    const locale=state.lang?'en-GB':'zh-CN',dayLabel=['month','weekday'].map(part=>new Intl.DateTimeFormat(locale,{[part]:'short'}).format(dateValue(iso))).join(state.lang?', ':'，');
+    agenda+=`<section class="agenda-day${plan?' day-'+plan.kind:''}${iso===schoolToday()?' today':''}"><div class="agenda-date"><strong>${day}</strong><small>${dayLabel}</small>${dayBadge(plan)}</div><div>${plan?`<p class="agenda-plan">${dayPlanMarkup(plan)}</p>`:''}${items.map(agendaButton).join('')}</div></section>`;
   }
   $('#agenda').innerHTML=agenda;
   $('#agenda').classList.toggle('is-empty',!agenda);

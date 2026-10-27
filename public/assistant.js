@@ -122,7 +122,7 @@
  $('[data-close]').onclick=close;
  drawer.addEventListener('keydown',event=>{if(event.key==='Escape'){event.stopPropagation();close();}});
  trigger.onclick=()=>{drawer.hidden=!drawer.hidden;document.body.classList.toggle('assistant-open',!drawer.hidden);trigger.setAttribute('aria-expanded',String(!drawer.hidden));if(!drawer.hidden){render();input.focus();}};
- const label=()=>{trigger.innerHTML=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="label">${L('问一问','Ask AI')}</span>`;trigger.setAttribute('aria-label',L('打开 AI 校历助手','Open the AI calendar assistant'));};
+ const label=()=>{trigger.innerHTML=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;trigger.title=L('问一问','Ask AI');trigger.setAttribute('aria-label',L('打开 AI 校历助手','Open the AI calendar assistant'));};
  trigger.setAttribute('aria-controls','assistant');trigger.setAttribute('aria-expanded','false');
  new MutationObserver(()=>{label();render();}).observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
  label();

@@ -62,6 +62,8 @@ body.admin-mode #site-header .search,body.admin-mode #site-header #admin-entry{d
 .account-login-dialog .microsoft-login{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;background:transparent;color:#000;border:1px solid #000}
 .account-login-dialog .microsoft-login:hover{background:var(--soft)}
 #account-login-error:not(:empty){margin:12px 0 0}
+/* Under the sign-in button: who can sign in, and that reading the calendar needs no account. */
+.account-login-note{margin:14px 0 0;font-size:12px;line-height:1.5;color:var(--muted);text-align:center}
 #account-login-error,#account-error{color:#ad3845;font-size:13px;overflow-wrap:anywhere}
 #account-login-error:empty,#account-error:empty{display:none}
 [hidden]{display:none!important}
@@ -104,3 +106,5 @@ body.admin-mode #site-header .search,body.admin-mode #site-header #admin-entry{d
 @media(min-width:761px) and (max-width:860px){#site-header .subscribe-button span:not([aria-hidden]){display:none}#site-header .subscribe-button{padding:6px}}
 /* Phones lay the header out in mobile.css and swap the text arrows for icons. */
 #site-header .date-nav svg{display:none}
+/* 问一问 shows only its chat bubble. */
+#site-header .assistant-trigger{justify-content:center;width:34px;height:34px;padding:0}
