@@ -212,13 +212,13 @@
   const end=brandName.getBoundingClientRect().right;
   if(end)document.documentElement.style.setProperty('--brand-end',Math.ceil(end)+'px');
  }).observe(brandName);
- // Every group in the page's panel (.filter-section) folds from its heading; all start open.
+ // Every group in the page's panel (.filter-section) folds from its heading; a page starts one folded by marking it .collapsed.
  function addFolds(){
   document.querySelectorAll('[data-site-panel] .filter-section').forEach((section,index)=>{
    const heading=section.querySelector('.filter-heading'),title=heading.querySelector('h2');
    if(!title.id)title.id='panel-heading-'+index;
    const fold=document.createElement('button');
-   fold.type='button';fold.className='section-toggle';fold.setAttribute('aria-expanded','true');fold.setAttribute('aria-labelledby',title.id);
+   fold.type='button';fold.className='section-toggle';fold.setAttribute('aria-expanded',String(!section.classList.contains('collapsed')));fold.setAttribute('aria-labelledby',title.id);
    fold.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg>';
    heading.append(fold);
    const flip=()=>fold.setAttribute('aria-expanded',String(!section.classList.toggle('collapsed')));

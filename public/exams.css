@@ -30,11 +30,13 @@
 
 /* Cards are black and white: subject first, then level, then time; rooms recede. */
 .exam-time-grid .exam-card,.exam-time-grid .exam-group{flex:1 1 auto;margin:3px}
-.exam-time-grid .exam-card{display:flex;padding:0 0 0 7px;line-height:1.35;background:var(--exam-bg);border-left-color:var(--exam-edge)}
+/* A single exam is framed like a group of levels: a hairline box with the colored left edge. */
+.exam-time-grid .exam-card{display:flex;padding:0 0 0 7px;line-height:1.35;background:var(--exam-bg);border:1px solid var(--exam-line);border-left:3px solid var(--exam-edge);border-radius:7px}
 .exam-time-grid .exam-card label{flex:1;align-items:stretch}
 .exam-time-grid .exam-card h3{margin:2px 0 3px;font-size:14px;font-weight:700;line-height:1.3}
 .exam-time-grid .exam-card p{margin-top:2px;line-height:1.35}
-.exam-group{display:grid;grid-template-columns:minmax(0,30%) minmax(0,1fr);border:1px solid var(--exam-line);border-left:3px solid var(--exam-edge);border-radius:7px;overflow:hidden;background:var(--exam-bg)}
+/* The subject column keeps 30% but never less than its longest unbreakable line (the time); the levels give way. */
+.exam-group{display:grid;grid-template-columns:minmax(min-content,30%) minmax(0,1fr);border:1px solid var(--exam-line);border-left:3px solid var(--exam-edge);border-radius:7px;overflow:hidden;background:var(--exam-bg)}
 .exam-group>header{display:flex;flex-direction:column;justify-content:center;padding:5px;border-right:1px solid var(--exam-line);overflow-wrap:anywhere}
 .exam-group h3{font-size:15px;font-weight:700;line-height:1.25}
 .exam-levels{display:flex;flex-direction:column;min-width:0}
@@ -55,6 +57,11 @@
 /* Card times and rooms sit one step above their original 11px / 10px. */
 .exam-time-grid .tt-cell time,.exam-time-grid .exam-card p{font-size:12px}
 .exam-level p{font-size:11px}
+/* When the subject column takes room, a level's time and rooms shrink to fit what is left rather than clip:
+   the time is about 5.8em wide, and the checkbox, its gap and the right padding take about 24px. */
+.exam-time-grid .exam-level{container-type:inline-size}
+.exam-time-grid .exam-level time{font-size:min(12px,max(8px,(100cqi - 24px) / 5.9))}
+.exam-time-grid .exam-level p{font-size:min(11px,max(8px,(100cqi - 24px) / 6.4))}
 .exam-time-grid .exam-card input,.exam-group input{accent-color:var(--exam-border)}
 .exam-time-grid .exam-card.chosen,.exam-level.chosen{background:var(--exam-selected);box-shadow:inset 0 0 0 1px var(--exam-border)}
 @media(max-width:1200px){

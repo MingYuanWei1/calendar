@@ -41,6 +41,9 @@
   #site-sidebar .section-toggle svg{transition:transform .15s}
   #site-sidebar .filter-section.collapsed .section-toggle svg{transform:rotate(180deg)}
   #site-sidebar .filter-section.collapsed .filter-heading~*{display:none}
+  /* A folded group is just its heading, so it sits closer to the next one. */
+  #site-sidebar .filter-section.collapsed{margin-bottom:14px}
+  #site-sidebar .filter-section.collapsed .filter-heading{margin-bottom:0}
   #site-sidebar .type-option,#site-sidebar #divisions button{display:flex;align-items:center;gap:9px;width:100%;min-height:38px;margin:0;padding:10px 11px 10px 9px;border:0;border-radius:0;font-size:12px;text-align:left}
   #site-sidebar #divisions button{background:transparent}
   #site-sidebar #divisions button:hover{background:var(--soft)}
@@ -68,6 +71,9 @@
   .has-site-sidebar #site-header,.has-site-sidebar #site-header[data-page]{display:flex;align-items:center;gap:12px;padding:14px var(--rail-pad) 12px}
   /* calendar.css wraps the toolbar onto its own row on narrower screens; beside the sidebar it stays in line. */
   .has-site-sidebar #site-header .calendar-toolbar{order:0;flex:1 1 auto}
+  /* On the calendar the view switch follows the month arrows on the left; EN and sign-in keep the right end. */
+  .has-site-sidebar #site-header[data-page=calendar] .calendar-toolbar{justify-content:flex-start;gap:18px}
+  .has-site-sidebar #site-header[data-page=calendar] .date-controls{flex:0 0 auto}
   /* Header buttons look as they do on phones (mobile.css): square, hairline-bordered, Barlow Condensed labels; the
      month arrows are bare chevrons and the chosen view fills with the steel accent. */
   .has-site-sidebar #site-header .date-nav{gap:6px}
