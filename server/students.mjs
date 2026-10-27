@@ -11,7 +11,7 @@ export function installStudents(app,db,requireAdmin){
  CREATE TABLE IF NOT EXISTS student_merges(source_id TEXT PRIMARY KEY,target_id TEXT NOT NULL,source_body TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS student_settings(id INTEGER PRIMARY KEY CHECK(id=1),domain TEXT NOT NULL);`);
  const domain=()=>db.prepare('SELECT domain FROM student_settings WHERE id=1').get()?.domain||'';
- const validEmail=email=>{const value=normalizeEmail(email),parts=value.split('@');return !!domain()&&parts.length===2&&parts[1]===domain()&&/^\d{2}[a-z]+$/.test(parts[0]);};
+ const validEmail=email=>{const value=normalizeEmail(email),parts=value.split('@');return !!domain()&&parts.length===2&&parts[1]===domain()&&/^\d{2}[a-z]+\d{0,2}$/.test(parts[0]);};
  const rawList=()=>db.prepare('SELECT body FROM students').all().map(r=>JSON.parse(r.body));
  const put=student=>db.prepare('INSERT INTO students VALUES(?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body').run(student.id,JSON.stringify(student));
  const get=id=>{const row=db.prepare('SELECT body FROM students WHERE id=?').get(id);return row?JSON.parse(row.body):null;};
@@ -43,21 +43,37 @@ export function installStudents(app,db,requireAdmin){
   const index=s=>{const k=key(s.name,s.englishName,s.graduationYear),group=byIdentity.get(k)||[];group.push(s);byIdentity.set(k,group);};
   for(const s of list)index(s);
   for(const r of db.prepare('SELECT target_id,source_body FROM student_merges').all())if(byId.has(r.target_id))index({...JSON.parse(r.source_body),retainedId:r.target_id});
-  const seats=batch.seats.map(seat=>{
+  // Seats that name a new student explicitly share one record per person within the batch.
+  const created=new Map();
+  const seats=batch.seats.map(({newStudent,candidates:_,...seat})=>{
    const inferred=infer(batch,seat);
-   let student=seat.studentId&&byId.get(seat.studentId);
+   let student=!newStudent&&seat.studentId&&byId.get(seat.studentId),ambiguous=[];
+   if(!student&&newStudent){
+    const k=key(seat.name,seat.englishName,inferred.graduationYear)+seat.className;
+    student=created.get(k);
+    if(!student){student={id:randomUUID(),version:1,name:seat.name,englishName:seat.englishName,className:seat.className,graduationYear:inferred.graduationYear,pinyin:inferred.pinyin,actualEmail:'',enrollments:{[year]:seat.className}};created.set(k,student);list.push(student);byId.set(student.id,student);if(persist)put(student);}
+   }
    if(!student){
     const matches=(byIdentity.get(key(seat.name,seat.englishName,inferred.graduationYear))||[]).filter(s=>s.enrollments?(!s.enrollments[year]||s.enrollments[year]===seat.className):s.className===seat.className);
     const unique=[...new Set(matches.map(s=>s.retainedId||s.id))];
+    // Namesakes are never told apart by guesswork: the administrator picks one, or marks the seat as a new student.
     if(unique.length===1)student=byId.get(unique[0]);
+    else if(unique.length>1)ambiguous=unique;
     else {student={id:randomUUID(),version:1,name:seat.name,englishName:seat.englishName,className:seat.className,graduationYear:inferred.graduationYear,pinyin:inferred.pinyin,actualEmail:'',enrollments:{[year]:seat.className}};list.push(student);byId.set(student.id,student);index(student);if(persist)put(student);}
    }
+   if(!student){const {studentId:_,...rest}=seat;return {...rest,grade:inferred.grade,candidates:ambiguous,identityIssues:[...inferred.issues,'身份不明确，请选择学生或标记为新学生']};}
    if(!student.enrollments?.[year]){student.enrollments={...student.enrollments,[year]:seat.className};student.className=student.enrollments[Math.max(...Object.keys(student.enrollments).map(Number))];student.version++;if(persist)put(student);}
    if(inferred.graduationYear!==student.graduationYear)inferred.issues.push('学生毕业年份与本批次学年、年级不一致，请核实');
+   // A preview keeps the choice rather than the unsaved record, so saving the draft creates it.
+   if(newStudent&&!persist){const {studentId:_,...rest}=seat;return {...rest,newStudent:true,grade:inferred.grade,preview:student.id,identityIssues:inferred.issues};}
    return {...seat,grade:inferred.grade,studentId:student.id,identityIssues:inferred.issues};
   });
   const details=new Map(describe(list).map(s=>[s.id,s]));
-  return {...batch,academicYear:batch.academicYear??inferAcademicYear(batch.start),seats:seats.map(seat=>({...seat,student:details.get(seat.studentId),identityIssues:[...seat.identityIssues,...details.get(seat.studentId).issues]}))};
+  const pick=({id,name,englishName,className,enrollments,email,actualEmail})=>({id,name,englishName,className,enrollments,email,actualEmail});
+  return {...batch,academicYear:batch.academicYear??inferAcademicYear(batch.start),seats:seats.map(({preview,...seat})=>{
+   if(seat.candidates)return {...seat,candidates:seat.candidates.map(id=>pick(details.get(id)))};
+   const student=details.get(preview||seat.studentId);return {...seat,student,identityIssues:[...seat.identityIssues,...student.issues]};
+  })};
  }
  function publishSeats(batch){
   const details=new Map(describe().map(s=>[s.id,s]));
@@ -100,6 +116,7 @@ export function installStudents(app,db,requireAdmin){
   for(const kind of ['draft','seating']){
    const seen=new Map();for(const r of refs.filter(r=>r.kind===kind)){const key=r.batchId+'|'+r.examId,place=JSON.stringify([r.room,r.row,r.column]);if(seen.has(key)&&seen.get(key)!==place)errors.push('同一场考试有不同座位，请先修正并发布。');seen.set(key,place);}
   }
+  if(source.actualEmail&&target.actualEmail&&source.actualEmail!==target.actualEmail)errors.push('两位学生的实际邮箱不同，请先核实并清除错误的一个。');
   return {source,target,references:refs,errors:[...new Set(errors)]};
  }
  app.get('/api/admin/students/:id/merge-preview',requireAdmin,(req,res)=>res.json(mergePreview(req.params.id,req.query.target)));
@@ -116,7 +133,7 @@ export function installStudents(app,db,requireAdmin){
    }
    db.prepare('INSERT INTO student_merges VALUES(?,?,?)').run(preview.source.id,preview.target.id,JSON.stringify(preview.source));
    db.prepare('UPDATE student_merges SET target_id=? WHERE target_id=?').run(preview.target.id,preview.source.id);
-   put({...preview.target,version:preview.target.version+1});db.prepare('DELETE FROM students WHERE id=?').run(preview.source.id);
+   put({...preview.target,actualEmail:preview.target.actualEmail||preview.source.actualEmail,version:preview.target.version+1});db.prepare('DELETE FROM students WHERE id=?').run(preview.source.id);
   });
   res.json({student:describe().find(s=>s.id===preview.target.id),message:'学生已合并；请重新发布相关批次座位。'});
  });

@@ -257,3 +257,66 @@ test('an undecided seat is kept, shows under whichever candidate exam the studen
  await call(personal+'/choices','PUT',{ids:['Honor']},student);
  sync=await call(personal+'/personal-sync','POST',{},student);assert.deepEqual(sync.choices,['Honor']);assert.equal(sync.personal.Honor.column,2);
 });
+
+test('a numbered school email can be saved and matches the student who signs in with it',async t=>{
+ const {call,student}=await setup(t,'29wangxiaoming01@school.edu.cn');await call('/admin/students/settings','PUT',{domain:'school.edu.cn'});
+ let batch=await call('/admin/exams','POST',source(),undefined,201);const record=(await call('/admin/students'))[0];
+ for(const actualEmail of ['wangxiaoming@school.edu.cn','29wangxiaoming001@school.edu.cn','29wangxiaoming01@other.edu.cn'])await call('/admin/students/'+record.id,'PATCH',{...record,actualEmail},undefined,422);
+ const fixed=await call('/admin/students/'+record.id,'PATCH',{...record,actualEmail:'29WangXiaoming01@school.edu.cn'});
+ assert.equal(fixed.email,'29wangxiaoming01@school.edu.cn');assert.deepEqual(fixed.issues,[]);
+ batch=await publish(call,batch);
+ assert.equal((await call('/exams/'+batch.id+'/seats','GET',undefined,student)).personal.math.column,2);
+});
+
+// Two 王小明 (Ming) of one cohort in different classes; the school gave the second one a numbered email.
+async function namesakes(call){
+ const input=source();input.seats.push({...input.seats[0],className:'10.6',column:3});
+ await call('/admin/exams','POST',input,undefined,201);
+ const list=await call('/admin/students'),second=list.find(s=>s.className==='10.6');
+ await call('/admin/students/'+second.id,'PATCH',{...second,actualEmail:'29wangxiaoming01@school.edu.cn'});
+ const next=source();next.academicYear=2027;next.start='2027-09-21';next.end='2027-10-04';next.sessions[0].date='2027-09-23';next.sessions[0].grades=[11];
+ next.seats=[{...next.seats[0],className:'11.5'},{...next.seats[0],className:'11.6',column:3}];
+ return {first:list.find(s=>s.className==='10.5'),second,next};
+}
+test('an ambiguous namesake in a later year is left for the administrator instead of becoming a new student',async t=>{
+ const {call,student}=await setup(t,'29wangxiaoming01@school.edu.cn');await call('/admin/students/settings','PUT',{domain:'school.edu.cn'});
+ const {first,second,next}=await namesakes(call);
+ let batch=await call('/admin/exams','POST',next,undefined,201);
+ assert.equal((await call('/admin/students')).length,2);
+ for(const seat of batch.seats){assert.equal(seat.studentId,undefined);assert.match(seat.identityIssues.join(' '),/身份不明确/);assert.deepEqual(seat.candidates.map(c=>c.id).sort(),[first.id,second.id].sort());}
+ assert.ok(batch.seats[0].candidates.some(c=>c.actualEmail==='29wangxiaoming01@school.edu.cn'));
+ batch.seats[0].studentId=first.id;batch.seats[1].studentId=second.id;
+ batch=await call('/admin/exams/'+batch.id,'PUT',batch);
+ assert.deepEqual(batch.seats.map(s=>s.studentId),[first.id,second.id]);assert.equal((await call('/admin/students')).length,2);
+ batch=await publish(call,batch);
+ assert.equal((await call('/exams/'+batch.id+'/seats','GET',undefined,student)).personal.math.column,3);
+ // The choice is kept for the rest of the year: a re-import of the same names resolves by class.
+ const again=await call('/admin/exams','POST',next,undefined,201);assert.deepEqual(again.seats.map(s=>s.studentId),[first.id,second.id]);
+});
+
+test('only an explicit choice creates a new namesake student, and a preview never saves it',async t=>{
+ const {call}=await setup(t);await call('/admin/students/settings','PUT',{domain:'school.edu.cn'});
+ const {next}=await namesakes(call);
+ const batch=await call('/admin/exams','POST',{...next,seats:[]},undefined,201);
+ const seats=[{...next.seats[0],newStudent:true}];
+ const preview=await call('/admin/exams/'+batch.id+'/student-preview','POST',{version:batch.version,seats});
+ assert.equal(preview.seats[0].newStudent,true);assert.ok(!preview.seats[0].identityIssues.some(i=>i.includes('身份不明确')));
+ assert.equal((await call('/admin/students')).length,2);
+ const saved=await call('/admin/exams/'+batch.id,'PUT',{...batch,seats:preview.seats});
+ const list=await call('/admin/students');assert.equal(list.length,3);
+ assert.ok(list.some(s=>s.id===saved.seats[0].studentId&&s.className==='11.5'));assert.equal(saved.seats[0].newStudent,undefined);
+});
+
+test('merging keeps the only actual email and refuses two different ones',async t=>{
+ const {call}=await setup(t);await call('/admin/students/settings','PUT',{domain:'school.edu.cn'});
+ const other=source();other.seats[0].name='王晓明';
+ await call('/admin/exams','POST',source(),undefined,201);await call('/admin/exams','POST',other,undefined,201);
+ let list=await call('/admin/students'),keep=list.find(s=>s.name==='王小明'),remove=list.find(s=>s.name==='王晓明');
+ remove=await call('/admin/students/'+remove.id,'PATCH',{...remove,actualEmail:'29wangxiaoming01@school.edu.cn'});
+ keep=await call('/admin/students/'+keep.id,'PATCH',{...keep,actualEmail:'29wangxiaoming02@school.edu.cn'});
+ assert.match((await call('/admin/students/'+remove.id+'/merge-preview?target='+keep.id)).errors.join(),/实际邮箱/);
+ await call('/admin/students/'+remove.id+'/merge','POST',{targetId:keep.id,version:remove.version,targetVersion:keep.version},undefined,422);
+ keep=await call('/admin/students/'+keep.id,'PATCH',{...keep,actualEmail:''});
+ const merged=await call('/admin/students/'+remove.id+'/merge','POST',{targetId:keep.id,version:remove.version,targetVersion:keep.version});
+ assert.equal(merged.student.actualEmail,'29wangxiaoming01@school.edu.cn');
+});

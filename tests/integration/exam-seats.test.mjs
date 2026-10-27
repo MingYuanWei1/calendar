@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {examsLabel,mergeSeats,moveSeat,roomExamsAt,seatExamIds,seatViewTimes,withoutExam} from '../../public/exam-seats.mjs';
+import {chooseStudent,examsLabel,mergeSeats,moveSeat,roomExamsAt,seatExamIds,seatViewTimes,withoutExam} from '../../public/exam-seats.mjs';
 import {seatingMarkup} from '../../public/exam-common.js';
 import {seatErrors} from '../../server/exam-model.mjs';
 test('seat moves and swaps preserve identities and reject concurrent occupancy',()=>{
@@ -77,4 +77,15 @@ test('undecided seats list every candidate exam and narrow when one is removed',
  assert.deepEqual(seatErrors(batch,[{examId:'a',examIds:['a','b'],room:'A',row:1,column:1}]),[]);
  const apart={...batch,sessions:[batch.sessions[0],{...batch.sessions[1],start:'10:00',end:'11:00'}]};
  assert.match(seatErrors(apart,[{examId:'a',examIds:['a','b'],room:'A',row:1,column:1}]).join(''),/不在同一时段/);
+});
+
+test('an identified namesake keeps its student on re-import and one choice covers the student\'s other exams',()=>{
+ const seat={examId:'a',room:'A',row:1,column:1,className:'11.5',name:'王小明',englishName:'Ming'};
+ const merged=mergeSeats([{...seat,studentId:'s1'}],[{...seat,candidates:[{id:'s1'},{id:'s2'}]}]);
+ assert.equal(merged.seats[0].studentId,'s1');assert.equal(merged.seats[0].candidates,undefined);
+ const ambiguous={...seat,candidates:[{id:'s1'},{id:'s2'}]};
+ const seats=[ambiguous,{...ambiguous,examId:'b'},{...ambiguous,column:2},{...ambiguous,examId:'c',className:'11.6'}];
+ assert.deepEqual(chooseStudent(seats,0,'s1').map(s=>s.studentId),['s1','s1',undefined,undefined]);
+ assert.deepEqual(chooseStudent(seats,0,'new').map(s=>s.newStudent),[true,true,undefined,undefined]);
+ assert.deepEqual(chooseStudent(chooseStudent(seats,0,'new'),0,'s2').map(s=>s.studentId),['s2','s2',undefined,undefined]);
 });

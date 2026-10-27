@@ -95,13 +95,26 @@ export function mergeSeats(existing,incoming){
  const sameStudent=(a,b)=>a.studentId&&b.studentId?a.studentId===b.studentId:who(a)===who(b);
  const fields=['room','row','column','className','name','englishName'];
  const same=(a,b)=>fields.every(f=>(a[f]??'')===(b[f]??''))&&seatExamIds(a).join()===seatExamIds(b).join()&&(a.grade==null||b.grade==null||a.grade===b.grade);
- const replaced=new Set(),added=[],changed=[];let unchanged=0;
- for(const seat of incoming){
+ const replaced=new Set(),added=[],changed=[],merged=[];let unchanged=0;
+ for(let seat of incoming){
   const before=existing.filter((s,i)=>!replaced.has(i)&&s.examId===seat.examId&&(sameStudent(s,seat)||(placed(s)&&placed(seat)&&s.room===seat.room&&s.row===seat.row&&s.column===seat.column)));
   before.forEach(s=>replaced.add(existing.indexOf(s)));
+  // A namesake the administrator already identified in the draft keeps that choice when the sheet is imported again.
+  if(!seat.studentId&&!seat.newStudent&&before.length===1&&before[0].studentId&&who(before[0])===who(seat)){const {candidates:_,...rest}=seat;seat={...rest,studentId:before[0].studentId};}
   if(!before.length)added.push(seat);
   else if(before.length===1&&same(before[0],seat))unchanged++;
   else changed.push({before,after:seat});
+  merged.push(seat);
  }
- return {seats:[...existing.filter((_,i)=>!replaced.has(i)),...incoming],added,changed,unchanged};
+ return {seats:[...existing.filter((_,i)=>!replaced.has(i)),...merged],added,changed,unchanged};
+}
+
+/** A seat's student choice: a student id, 'new' for a new student, or '' while undecided. */
+export const studentChoice=s=>s.newStudent?'new':s.studentId||'';
+/** Identifies an ambiguous seat as one candidate student (or 'new'); the same person's seats in other exams that had
+ * the same choice follow it. */
+export function chooseStudent(seats,index,choice){
+ const who=s=>JSON.stringify([s.name||'',s.englishName||'',s.className||'']),seat=seats[index];
+ const set=s=>{const {studentId:_,newStudent:__,...rest}=s;return choice==='new'?{...rest,newStudent:true}:choice?{...rest,studentId:choice}:rest;};
+ return seats.map((s,i)=>i===index||(s.candidates?.length&&studentChoice(s)===studentChoice(seat)&&who(s)===who(seat)&&!seatExamIds(s).some(id=>seatExamIds(seat).includes(id)))?set(s):s);
 }

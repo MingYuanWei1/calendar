@@ -1,8 +1,8 @@
 import {$,$$,esc,corners,icon,app,T,tx,SCOPES,api,toast,modal,closeModal,busy,errorLine,fail,go,refreshNav,md,mdw,stamp,loadBatches,loadSubjects,loadJobs} from './console-core.js';
-import {adaptRooms,examMode,examsLabel,mergeSeats,moveSeat,placed,roomExamsAt,seatExamIds,seatViewTimes,withoutExam} from './exam-seats.mjs';
+import {adaptRooms,chooseStudent,examMode,examsLabel,mergeSeats,moveSeat,placed,roomExamsAt,seatExamIds,seatViewTimes,withoutExam} from './exam-seats.mjs';
 import {subjectName} from './exam-subjects.mjs';
 import {defaultExamSlots,slotOf} from './exam-times.mjs';
-import {importPreview} from './exam-import-preview.js';
+import {importPreview,studentOptions,unresolved} from './exam-import-preview.js';
 import {readExamPdf} from './exam-pdf-input.js';
 import {DIVISION_GRADES,gradeLabel,parseGrade} from './grades.mjs';
 import {followJob,reviewView,pagePane,sheetPane} from './ai-review.js';
@@ -126,7 +126,7 @@ function roomsTab(b){
   if(seat)filled++;
   const label=seat?(tx([seat.name,seat.englishName])||'—'):T('空位','Empty');
   const examNote=seat&&(active.length>1||seat.examIds)?' · '+seatExamName(b,seat):'';
-  seats+=`<button type="button" class="seat${seat?' taken':''}${seat&&picking?.has(index)?' picked':''}" data-row="${r}" data-column="${c}"${seat?` data-index="${index}"`:''} title="${esc(`${T(`第 ${r} 排 · 第 ${c} 列`,`Row ${r}, column ${c}`)}${examNote}`)}"><strong>${esc(label)}</strong><span>${esc(seat?seat.className:`${r}-${c}`)}</span></button>`;
+  seats+=`<button type="button" class="seat${seat?' taken':''}${seat?.candidates?.length&&!seat.studentId?' unidentified':''}${seat&&picking?.has(index)?' picked':''}" data-row="${r}" data-column="${c}"${seat?` data-index="${index}"`:''} title="${esc(`${T(`第 ${r} 排 · 第 ${c} 列`,`Row ${r}, column ${c}`)}${examNote}`)}"><strong>${esc(label)}</strong><span>${esc(seat?seat.className:`${r}-${c}`)}</span></button>`;
  }
  return `<div class="rooms-layout"><div class="room-list">${b.rooms.map((r,i)=>`<button type="button" data-room="${i}" aria-pressed="${r===room}"><strong>${esc(r.name)}</strong><small>${r.rows} × ${r.columns} · ${count(b.sessions.filter(s=>s.rooms.includes(r.name)).length,'场','sessions')}</small>${r.sizeReview?sizeTag():''}</button>`).join('')}<button type="button" class="btn btn-ghost" data-act="add-room" style="align-self:flex-start;margin-top:8px">+ ${T('新增教室','Add room')}</button></div>
  <div class="room-detail"><div class="head"><h4>${esc(room.name)}</h4><span class="muted" style="font-size:13px">${T(`${room.rows} 排 × ${room.columns} 列`,`${room.rows} rows × ${room.columns} columns`)}</span>${room.sizeReview?`${sizeTag()}<button type="button" class="btn btn-secondary" data-act="confirm-room" style="font-size:13px" title="${T('尺寸由座位表自动扩大，请核对排数和列数与实际教室一致','The size was grown to fit the seating sheet; check the rows and columns match the real room')}">${T('确认尺寸','Confirm size')}</button>`:''}<button type="button" class="btn btn-ghost" data-act="edit-room" style="margin-left:auto;font-size:13px">${T('编辑教室','Edit room')}</button></div>
@@ -146,7 +146,7 @@ function rosterList(b,ctx){
  const list=roster(b,ctx),several=ctx.active.length>1,all=picking&&list.length&&list.every(i=>picking.has(i));
  const check=(on,attr)=>`<button type="button" class="checkbox" ${attr} aria-pressed="${!!on}" aria-label="${T('选择','Select')}"></button>`;
  return `<div class="roster-list${picking?' picking':''}"><div class="roster-head">${picking?check(all,'data-pick-all'):''}<span>${T('班级','Class')}</span><span>${T('中文名','Chinese name')}</span><span>${T('英文名','English name')}</span>${several?`<span>${T('考试','Exam')}</span>`:''}</div>
- ${list.map(i=>{const s=b.seats[i];return `<button type="button" class="roster-row${picking?.has(i)?' picked':''}" data-student="${i}">${picking?`<span class="checkbox" aria-hidden="true" aria-pressed="${picking.has(i)}"></span>`:''}<span>${esc(s.className)}</span><span>${esc(s.name)}</span><span>${esc(s.englishName)}</span>${several?`<span class="muted">${esc(seatExamName(b,s))}</span>`:''}</button>`;}).join('')||`<p class="muted" style="font-size:13px;padding:10px 0">${T('本考场暂无学生。','No students in this room yet.')}</p>`}</div>`;
+ ${list.map(i=>{const s=b.seats[i];return `<button type="button" class="roster-row${s.candidates?.length&&!s.studentId?' unidentified':''}${picking?.has(i)?' picked':''}" data-student="${i}">${picking?`<span class="checkbox" aria-hidden="true" aria-pressed="${picking.has(i)}"></span>`:''}<span>${esc(s.className)}</span><span>${esc(s.name)}</span><span>${esc(s.englishName)}</span>${several?`<span class="muted">${esc(seatExamName(b,s))}</span>`:''}</button>`;}).join('')||`<p class="muted" style="font-size:13px;padding:10px 0">${T('本考场暂无学生。','No students in this room yet.')}</p>`}</div>`;
 }
 
 function slotsTab(b){
@@ -321,6 +321,7 @@ function seatDialog(b,row,column,index){
  ${ctx.active.length>1?field(T('考试（本教室当前时段）','Exam (this room, this time)'),`<select class="input" name="examId" style="width:100%">${ctx.active.map(s=>`<option value="${esc(s.id)}"${!seat?.examIds&&(seat?.examId||ctx.exam.id)===s.id?' selected':''}>${esc(sName(s))} ${s.start}–${s.end}</option>`).join('')}<option value="*"${seat?.examIds?' selected':''}>${esc(T(`待定：${undecidedName}`,`Undecided: ${undecidedName}`))}</option></select>`):''}
  <div class="two">${field(T('班级 *','Class *'),input('className',seat?.className,'maxlength="60" placeholder="11-1"'))}${field(T('年级（可留空推算）','Grade (optional)'),input('grade',seat?.grade,'type="number" min="1" max="12"'))}</div>
  <div class="two">${field(T('中文名','Chinese name'),input('name',seat?.name,'maxlength="80"'))}${field(T('英文名','English name'),input('englishName',seat?.englishName,'maxlength="120"'))}</div>
+ ${seat?.candidates?.length?field(T('学生（同名，请选择）','Student (namesakes, choose one)'),`<select class="input" name="student" style="width:100%">${studentOptions(seat,T)}</select>`):''}
  ${actions({left:seat?`<button type="button" class="btn btn-ghost btn-danger left" data-del>${unordered?T('移除学生','Remove student'):T('清空座位','Clear seat')}</button>`:''})}`);
  confirmButton(body,'[data-del]',unordered?T('移除学生','Remove student'):T('清空座位','Clear seat'),async()=>{await update(next=>next.seats.splice(index,1),T(`已在草稿中移除${noun}。`,`The ${noun} was removed in the draft.`));closeModal();});
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
@@ -331,7 +332,9 @@ function seatDialog(b,row,column,index){
   const same=seat&&seat.name===v.name&&seat.className===v.className;
   const {examIds:_,row:_row,column:_column,...kept}=seat||{};
   const value={...kept,...(examIds?{examIds}:{}),examId,room:ctx.room.name,...(unordered?{}:{row,column}),className:v.className,name:v.name,englishName:v.englishName,grade:v.grade?Number(v.grade):null,studentId:same?seat.studentId:undefined};
-  await update(next=>{if(seat)next.seats[index]=value;else next.seats.push(value);},draftMsg());
+  // The choice only applies to the person it was offered for; a changed name or class is matched again.
+  const chosen=seat?.candidates?.length&&same&&seat.englishName===v.englishName;
+  await update(next=>{if(seat){next.seats[index]=value;if(chosen)next.seats=chooseStudent(next.seats,index,v.student);}else next.seats.push(value);},draftMsg());
   closeModal();
  });
 }
@@ -385,6 +388,7 @@ function publishDialog(b,seating){
  const rows=sorted(b.sessions);
  const body=modal(seating?T('座位表发布预览','Seating publish preview'):T('考试安排发布预览','Schedule publish preview'),(seating
   ?`<p style="font-size:14px">${T(`共 ${b.sessions.length} 场考试、${b.rooms.length} 间教室、${b.seats.length} 个座位。发布前请在“教室”页逐间核对。`,`${b.sessions.length} sessions across ${b.rooms.length} rooms, ${b.seats.length} seats. Check each room on the Rooms tab before publishing.`)}</p>
+   ${unresolved(b.seats)?`<p class="callout">${T(`${unresolved(b.seats)} 个座位的学生身份不明确（同名学生），发布后这些座位不会关联学生账号。可在“教室”页点击左侧带标记的座位选择学生。`,`${unresolved(b.seats)} seats have namesakes not yet identified; once published they will not be linked to student accounts. On the Rooms tab, click a seat marked on its left edge to choose the student.`)}</p>`:''}
    ${b.rooms.some(r=>r.sizeReview)?`<p class="callout">${T('标记“尺寸待确认”的教室由座位表自动扩大，请先在“教室”页确认尺寸再发布。','Rooms marked “Check size” were grown to fit the seating sheet; confirm them on the Rooms tab before publishing.')}</p>`:''}
    <div class="list-box rooms">${b.rooms.map(r=>`<div><span style="font-weight:500">${esc(r.name)}</span><span class="muted">${r.rows} × ${r.columns} · ${count(b.sessions.filter(s=>s.rooms.includes(r.name)).length,'场','sessions')} · ${count(b.seats.filter(s=>s.room===r.name).length,'座','seats')}</span>${r.sizeReview?sizeTag():''}</div>`).join('')}</div>`
   :`<div class="list-box publish">${rows.map(s=>`<div><span class="num">${esc(md(s.date))} · ${s.start}–${s.end}</span><span class="${s.cancelled?'struck':''}">${esc(sName(s))} · ${esc(s.grades.map(g=>gradeLabel(g,app.lang)).join(' / '))}</span><span>${esc(s.rooms.join(' / '))}</span></div>`).join('')||`<div class="muted">${T('暂无考试','No sessions')}</div>`}</div>`)
