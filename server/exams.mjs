@@ -34,7 +34,10 @@ export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,use
  const choices=(req,id)=>{const u=user(req);return u?db.prepare('SELECT exam_id FROM exam_choices WHERE user_id=? AND batch_id=?').all(u.id,id).map(r=>r.exam_id):[];};
  const fail=(res,error)=>res.status(422).json({error});
  const conflict=(req,res,r)=>{if(!r){res.status(404).json({error:'考试批次不存在。'});return true;}if(req.body.version!==r.version){res.status(409).json({error:'其他窗口已修改本批次，请刷新后再试。'});return true;}return false;};
- const info=r=>{const draft=JSON.parse(r.draft),published=publicBatch(r);return {id:r.id,...draft,version:r.version,publishedAt:published?.publishedAt||null,scheduleChanged:Boolean(published&&scheduleKey(draft)!==scheduleKey(published)),seatingPublishedAt:r.seating?JSON.parse(r.seating).publishedAt:null};};
+ // Seats compare without the student details that organize adds and publishSeats replaces with matchEmail.
+ const sorted=o=>JSON.stringify(o,Object.keys(o).sort());
+ const seatingKey=b=>JSON.stringify([b.rooms.map(({sizeReview,...room})=>sorted(room)),b.seats.map(({student,identityIssues,candidates,matchEmail,grade,...seat})=>sorted(seat))]);
+ const info=r=>{const draft=JSON.parse(r.draft),published=publicBatch(r),seating=r.seating&&JSON.parse(r.seating);return {id:r.id,...draft,version:r.version,publishedAt:published?.publishedAt||null,scheduleChanged:Boolean(published&&scheduleKey(draft)!==scheduleKey(published)),seatingPublishedAt:seating?.publishedAt||null,seatingChanged:Boolean(seating&&seatingKey(draft)!==seatingKey(seating))};};
  app.get('/api/exams',(req,res)=>res.json(db.prepare('SELECT * FROM exam_batches WHERE published IS NOT NULL').all().map(r=>{const b=publicBatch(r);return {id:b.id,title:b.title,titleEn:b.titleEn,start:b.start,end:b.end};}).sort((a,b)=>b.start.localeCompare(a.start))));
  app.get('/api/exams/:id',(req,res)=>{const r=row(req.params.id),b=publicBatch(r);if(!b)return res.status(404).json({error:'考试安排尚未发布。'});res.json({...b,subjects:subjects.list(),seatingPublished:Boolean(r.seating),seatingPublishedAt:r.seating?JSON.parse(r.seating).publishedAt:null});});
  app.get('/api/exams/:id/seats',signedIn,(req,res)=>{const r=row(req.params.id);if(!r?.published||!r.seating)return res.status(404).json({error:'座位表尚未发布。'});const seating=JSON.parse(r.seating);res.json({...seating,seats:seating.seats.map(({matchEmail,...seat})=>seat),personal:matching.personal(user(req),r.id)});});
@@ -109,6 +112,22 @@ export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,use
   const unconfirmed=b.rooms.filter(room=>room.sizeReview).map(room=>room.name);
   if(unconfirmed.length)return fail(res,`教室 ${unconfirmed.join('、')} 的尺寸由座位表自动调整，请先在教室设置中确认。`);
   db.prepare('UPDATE exam_batches SET seating=?,version=? WHERE id=?').run(JSON.stringify({rooms:b.rooms,seats:students.publishSeats(b),publishedAt:new Date().toISOString()}),r.version+1,r.id);res.json(info(row(r.id)));
+ });
+ // 丢弃未发布修改: put the published schedule and/or published seating back into the draft.
+ app.post('/api/admin/exams/:id/discard',requireAdmin,(req,res)=>{
+  const r=row(req.params.id);if(conflict(req,res,r))return;
+  const restoreSchedule=req.body.schedule===true,restoreSeats=req.body.seats===true;
+  if(!restoreSchedule&&!restoreSeats)return fail(res,'请选择要恢复的内容。');
+  const published=publicBatch(r),seating=r.seating&&JSON.parse(r.seating);
+  if(restoreSchedule&&!published)return fail(res,'考试安排尚未发布，无法恢复。');
+  if(restoreSeats&&!seating)return fail(res,'座位表尚未发布，无法恢复。');
+  let next=JSON.parse(r.draft);
+  if(restoreSchedule){const {title,titleEn,start,end,timeSlots,rooms}=published;next={...next,title,titleEn,start,end,timeSlots,rooms,sessions:published.sessions.map(({changed,...s})=>s)};}
+  // Published seating brings back its own room sizes; rooms added since stay.
+  if(restoreSeats)next={...next,rooms:[...next.rooms.map(room=>seating.rooms.find(x=>x.name===room.name)||room),...seating.rooms.filter(x=>!next.rooms.some(room=>room.name===x.name))],seats:seating.seats.map(({matchEmail,...seat})=>seat)};
+  const parsed=batchSchema.safeParse(next);if(!parsed.success)return fail(res,parsed.error.issues.map(i=>i.message).join('；'));
+  const errors=seatErrors(parsed.data);if(errors.length)return fail(res,(restoreSchedule&&!restoreSeats?'草稿中的座位与已发布的考试安排不一致，请同时恢复座位表或先调整座位：':'')+errors.join('；'));
+  const b={...parsed.data,id:r.id,version:r.version+1,updatedAt:new Date().toISOString()};subjects.register(b.sessions);db.transactionSync(()=>{const value=students.organize(b);db.prepare('UPDATE exam_batches SET version=?,draft=? WHERE id=?').run(b.version,JSON.stringify(value),r.id);});res.json(info(row(r.id)));
  });
  app.get('/api/admin/exams/:id/template',requireAdmin,async(req,res)=>{const r=row(req.params.id);if(!r)return res.sendStatus(404);res.set({'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','Content-Disposition':'attachment; filename="exam-seats-template.xlsx"'}).send(Buffer.from(await seatTemplate(JSON.parse(r.draft))));});
  // Imported seats keep the mode of the draft seats they sit with (按座位排序 or 不排序); a mismatch blocks the import.

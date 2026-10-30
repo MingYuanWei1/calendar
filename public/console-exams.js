@@ -51,7 +51,7 @@ export async function showExams(main){
 }
 
 /* — saving the draft — */
-function payload(b){const {id,publishedAt,seatingPublishedAt,scheduleChanged,updatedAt,...data}=b;return data;}
+function payload(b){const {id,publishedAt,seatingPublishedAt,scheduleChanged,seatingChanged,updatedAt,...data}=b;return data;}
 function replace(saved){const list=app.data.batches,i=list.findIndex(b=>b.id===saved.id);if(i<0)list.push(saved);else list[i]=saved;refreshNav();}
 async function put(next){return api('/admin/exams/'+encodeURIComponent(next.id),{method:'PUT',body:JSON.stringify(payload(next))});}
 /** Save a changed copy of the current draft, with an Undo that restores the previous draft. */
@@ -78,10 +78,10 @@ function renderBatch(main){
  <a class="btn btn-ghost back" href="#exams">← ${T('考试','Exams')}</a>
  <header class="page-head"><div><div class="kicker">${esc(bDivision(b))}</div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><h1 style="font-size:32px">${esc(bTitle(b))}</h1><button type="button" class="btn btn-ghost" data-act="meta" style="font-size:13px">${T('编辑信息','Edit info')}</button></div>
  <p class="sub">${esc(md(b.start))} – ${esc(md(b.end))} · ${count(b.sessions.length,'场考试','sessions')} · ${count(b.rooms.length,'间教室','rooms')}${b.academicYear?' · '+T(`${b.academicYear}–${b.academicYear+1} 学年`,`${b.academicYear}–${b.academicYear+1} academic year`):''}</p></div>
- <div class="page-actions"><span class="muted" style="font-size:12px">${T('修改即时保存为草稿','Changes save to draft automatically')}</span><button type="button" class="btn btn-ghost btn-danger" data-act="delete">${T('删除批次','Delete batch')}</button></div></header>
+ <div class="page-actions"><span class="muted" style="font-size:12px">${T('修改即时保存为草稿','Changes save to draft automatically')}</span>${b.publishedAt||b.seatingPublishedAt?`<button type="button" class="btn btn-ghost" data-act="discard">${T('丢弃未发布修改','Discard unpublished changes')}</button>`:''}<button type="button" class="btn btn-ghost btn-danger" data-act="delete">${T('删除批次','Delete batch')}</button></div></header>
  <div class="status-cards">
   <div class="status-card blueprint">${corners}<div><div class="title">${T('考试安排','Schedule')}<span class="${pubTag(b.publishedAt)}">${b.publishedAt?T('已发布','Published'):T('草稿','Draft')}</span></div><div class="note">${b.publishedAt?T(`上次发布 ${stamp(b.publishedAt)}`,`Last published ${stamp(b.publishedAt)}`)+(b.scheduleChanged?T(' · 有未发布修改',' · unpublished changes'):''):T('尚未发布','Not yet published')}</div></div><button type="button" class="btn btn-primary" data-act="pub-schedule">${T('预览并发布','Preview & publish')}</button></div>
-  <div class="status-card blueprint">${corners}<div><div class="title">${T('座位表','Seating')}<span class="${pubTag(b.seatingPublishedAt)}">${b.seatingPublishedAt?T('已发布','Published'):T('未发布','Not published')}</span></div><div class="note">${b.seatingPublishedAt?T(`上次发布 ${stamp(b.seatingPublishedAt)}`,`Last published ${stamp(b.seatingPublishedAt)}`):T('学生暂不可见座位','Students cannot see seats yet')}</div></div><button type="button" class="btn btn-secondary" data-act="pub-seating">${T('预览并发布','Preview & publish')}</button></div>
+  <div class="status-card blueprint">${corners}<div><div class="title">${T('座位表','Seating')}<span class="${pubTag(b.seatingPublishedAt)}">${b.seatingPublishedAt?T('已发布','Published'):T('未发布','Not published')}</span></div><div class="note">${b.seatingPublishedAt?T(`上次发布 ${stamp(b.seatingPublishedAt)}`,`Last published ${stamp(b.seatingPublishedAt)}`)+(b.seatingChanged?T(' · 有未发布修改',' · unpublished changes'):''):T('学生暂不可见座位','Students cannot see seats yet')}</div></div><button type="button" class="btn btn-secondary" data-act="pub-seating">${T('预览并发布','Preview & publish')}</button></div>
  </div>
 ${jobStrip(jobOf(b))}
  <div class="tabs" role="tablist">${tabs.map(([k,label,n])=>`<button type="button" role="tab" data-tab="${k}" aria-selected="${view.tab===k}">${label}<span class="count">${n}</span></button>`).join('')}</div>
@@ -168,7 +168,7 @@ function onBatchClick(e,b){
  else if(picking&&d.row){}
  else if(d.student!==undefined)seatDialog(b,null,null,Number(d.student));
  else if(d.row&&!t.dataset.dragged)seatDialog(b,Number(d.row),Number(d.column),d.index===undefined?-1:Number(d.index));
- else ({meta:()=>batchMetaDialog(b),delete:()=>deleteDialog(b),'pub-schedule':()=>publishDialog(b,false),'pub-seating':()=>publishDialog(b,true),extract:()=>extractDialog(b),'extract-seats':()=>seatExtractDialog(b),'add-student':()=>seatDialog(b,null,null,-1),pick:()=>{picking=new Set();rerender();},'pick-cancel':()=>{picking=null;rerender();},'pick-delete':()=>pickDeleteDialog(b),'clear-exam':()=>clearExamDialog(b),'add-exam':()=>examDialog(null),'add-room':()=>roomDialog(-1),'edit-room':()=>roomDialog(b.rooms.indexOf(seatContext(b).room)),'confirm-room':()=>{const name=seatContext(b).room.name;update(next=>{const room=next.rooms.find(r=>r.name===name);if(room)delete room.sizeReview;},T(`已确认教室 ${name} 的尺寸。`,`Confirmed the size of room ${name}.`)).catch(error=>toast(error.message,{bad:true}));},slots:()=>slotsDialog(b)})[d.act]?.();
+ else ({meta:()=>batchMetaDialog(b),discard:()=>discardDialog(b),delete:()=>deleteDialog(b),'pub-schedule':()=>publishDialog(b,false),'pub-seating':()=>publishDialog(b,true),extract:()=>extractDialog(b),'extract-seats':()=>seatExtractDialog(b),'add-student':()=>seatDialog(b,null,null,-1),pick:()=>{picking=new Set();rerender();},'pick-cancel':()=>{picking=null;rerender();},'pick-delete':()=>pickDeleteDialog(b),'clear-exam':()=>clearExamDialog(b),'add-exam':()=>examDialog(null),'add-room':()=>roomDialog(-1),'edit-room':()=>roomDialog(b.rooms.indexOf(seatContext(b).room)),'confirm-room':()=>{const name=seatContext(b).room.name;update(next=>{const room=next.rooms.find(r=>r.name===name);if(room)delete room.sizeReview;},T(`已确认教室 ${name} 的尺寸。`,`Confirmed the size of room ${name}.`)).catch(error=>toast(error.message,{bad:true}));},slots:()=>slotsDialog(b)})[d.act]?.();
 }
 
 /* Drag a taken seat onto another seat to move or swap it. */
@@ -397,6 +397,27 @@ function publishDialog(b,seating){
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
   const saved=await api(`/admin/exams/${encodeURIComponent(b.id)}/${seating?'publish-seats':'publish'}`,{method:'POST',body:JSON.stringify({version:batch().version})});
   replace(saved);closeModal();rerender();toast(seating?T('座位表发布成功。','Seating published.'):T('考试安排发布成功。','Schedule published.'));
+ });
+}
+
+/** 丢弃未发布修改: restore the published schedule and/or seating into the draft. */
+function discardDialog(b){
+ const options=[
+  ['schedule',T('考试安排','Schedule'),b.publishedAt,b.scheduleChanged,T('批次信息、时间段、场次和教室恢复为上次发布的版本。','Batch info, time slots, sessions and rooms return to the last published version.')],
+  ['seats',T('座位表','Seating'),b.seatingPublishedAt,b.seatingChanged,T('全部座位及其教室尺寸恢复为上次发布的座位表。','All seats and their room sizes return to the last published seating.')]
+ ];
+ const picked=new Set(options.filter(([,,on,changed])=>on&&changed).map(([k])=>k));
+ const note=(on,changed)=>!on?T('尚未发布，无法恢复','Not published yet; nothing to restore'):changed?T('有未发布修改','Has unpublished changes'):T('与已发布版本一致','Matches the published version');
+ const body=modal(T('丢弃未发布修改？','Discard unpublished changes?'),`<p class="dialog-text">${T('勾选要恢复为已发布版本的内容，草稿中对应的未发布修改将被丢弃。','Choose what to restore to the published version; the matching unpublished draft changes are discarded.')}</p>
+ <div style="display:grid;gap:14px;margin:4px 0 8px">${options.map(([k,label,on,changed,detail])=>`<div><button type="button" class="checkbox" data-pick="${k}" aria-pressed="${picked.has(k)}"${on?'':' disabled'}>${label} <span class="muted" style="font-size:12px">· ${note(on,changed)}</span></button><p class="muted" style="font-size:12px;margin:4px 0 0 22px">${detail}</p></div>`).join('')}</div>
+ ${actions({saveLabel:T('确认丢弃','Discard changes')})}`);
+ const save=body.querySelector('[data-save]'),sync=()=>{save.disabled=!picked.size;};sync();
+ $$('[data-pick]',body).forEach(el=>el.onclick=()=>{const k=el.dataset.pick;if(!picked.delete(k))picked.add(k);el.setAttribute('aria-pressed',String(picked.has(k)));sync();});
+ save.onclick=()=>busy(body,async()=>{
+  const before=batch();
+  const saved=await api(`/admin/exams/${encodeURIComponent(b.id)}/discard`,{method:'POST',body:JSON.stringify({version:before.version,schedule:picked.has('schedule'),seats:picked.has('seats')})});
+  replace(saved);closeModal();rerender();
+  toast(T('已恢复为已发布版本。','Restored the published version.'),{undo:async()=>{const restored=await put({...before,version:batch().version});replace(restored);rerender();toast(T('已撤销更改。','Change undone.'));}});
  });
 }
 

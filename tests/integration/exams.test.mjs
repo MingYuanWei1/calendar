@@ -94,3 +94,34 @@ test('exam publication, private seating, per-account choices, import validation 
   assert.equal((await call('/school/logout','POST',null,a)).status,204);assert.equal((await call('/exams/'+batch.id+'/choices','GET',null,a)).status,401);
  }finally{await new Promise(r=>server.close(r));instance.close();await rm(directory,{recursive:true,force:true});}
 });
+test('discarding unpublished changes restores the published schedule and/or seating',async()=>{
+ const directory=await mkdtemp(join(tmpdir(),'calendar-exams-')),instance=createApplication({dataDir:directory,origin:'http://calendar.test'}),server=instance.app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
+ const base=`http://127.0.0.1:${server.address().port}`,headers={Origin:'http://calendar.test','Content-Type':'application/json'};
+ const call=(path,method='GET',body,cookie='')=>fetch(base+'/api'+path,{method,headers:{...headers,...(cookie?{Cookie:cookie}:{})},...(body?{body:JSON.stringify(body)}:{})});
+ try{
+  await setAdminPassword(instance.db,'admin','exam-testing-password');const admin=(await call('/login','POST',{username:'admin',password:'exam-testing-password'})).headers.get('set-cookie').split(';')[0];
+  let batch=await (await call('/admin/exams','POST',source(),admin)).json();const path='/admin/exams/'+batch.id;
+  batch=await (await call('/admin/exams','GET',null,admin)).json().then(list=>list[0]);
+  assert.equal((await call(path+'/discard','POST',{version:batch.version,schedule:true},admin)).status,422);
+  batch=await (await call(path+'/publish','POST',{version:batch.version},admin)).json();
+  assert.equal((await call(path+'/discard','POST',{version:batch.version,seats:true},admin)).status,422);
+  assert.equal((await call(path+'/discard','POST',{version:batch.version},admin)).status,422);
+  batch=await (await call(path+'/publish-seats','POST',{version:batch.version},admin)).json();
+  assert.equal(batch.seatingChanged,false);
+  // Edit the schedule and the seats, then restore each separately.
+  const edited=structuredClone(batch);edited.title='改过的标题';edited.seats[0].column=3;
+  let res=await call(path,'PUT',edited,admin);batch=await res.json();
+  assert.equal(batch.scheduleChanged,true);assert.equal(batch.seatingChanged,true);
+  assert.equal((await call(path+'/discard','POST',{version:batch.version-1,schedule:true},admin)).status,409);
+  res=await call(path+'/discard','POST',{version:batch.version,schedule:true},admin);assert.equal(res.status,200);batch=await res.json();
+  assert.equal(batch.title,'测试考试批次');assert.equal(batch.scheduleChanged,false);assert.equal(batch.seatingChanged,true);assert.equal(batch.seats[0].column,3);
+  res=await call(path+'/discard','POST',{version:batch.version,seats:true},admin);assert.equal(res.status,200);batch=await res.json();
+  assert.equal(batch.seats[0].column,1);assert.equal(batch.seatingChanged,false);assert.ok(batch.seats[0].student);
+  // Both at once; a seat in a session the published schedule lacks is refused unless seats are restored too.
+  const added=structuredClone(batch);added.title='再改';added.sessions.push({...added.sessions[0],id:'extra',title:'加考'});added.seats.push({...added.seats[0],examId:'extra',column:4,student:undefined,identityIssues:undefined});
+  res=await call(path,'PUT',added,admin);assert.equal(res.status,200);batch=await res.json();
+  res=await call(path+'/discard','POST',{version:batch.version,schedule:true},admin);assert.equal(res.status,422);assert.match((await res.json()).error,/同时恢复座位表/);
+  res=await call(path+'/discard','POST',{version:batch.version,schedule:true,seats:true},admin);assert.equal(res.status,200);batch=await res.json();
+  assert.equal(batch.title,'测试考试批次');assert.equal(batch.sessions.length,2);assert.equal(batch.seats.length,2);assert.equal(batch.scheduleChanged,false);assert.equal(batch.seatingChanged,false);
+ }finally{await new Promise(r=>server.close(r));instance.close();await rm(directory,{recursive:true,force:true});}
+});
