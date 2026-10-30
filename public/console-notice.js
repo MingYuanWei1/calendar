@@ -1,8 +1,8 @@
 // 通知转日程: paste a notice or add screenshots / PDFs, let the LLM propose new events, reschedules,
 // cancellations and day plans, review them beside the source, then apply them through the usual APIs.
 import {$$,esc,app,T,tx,TYPES,SCOPES,api,toast,modal,closeModal,busy,errorLine,fail,refreshNav,mdw,loadEvents,loadPlans} from './console-core.js';
-import {readExamPdf} from './exam-pdf-input.js';
-import {streamApi,reviewView,pagePane,textPane,stackPane} from './ai-review.js';
+import {streamApi,reviewView} from './ai-review.js';
+import {materialFields,bindMaterials} from './material-input.js';
 import {divisionOf,gradeLabel} from './grades.mjs';
 
 const ACTIONS={create:['新增事件','New event'],reschedule:['改期','Reschedule'],cancel:['取消','Cancel'],dayPlan:['放假与调休','School day']};
@@ -13,76 +13,18 @@ const WEEKDAYS=[['周一','Monday'],['周二','Tuesday'],['周三','Wednesday'],
 const timeModeOf=({type,start,end,time,endTime})=>type==='deadline'?'deadline':end&&end!==start?'multi':time||endTime?'timed':'allDay';
 const when=({start,end,time,endTime})=>`${start?mdw(start):'?'}${end&&end!==start?' – '+mdw(end):''}${time?' · '+time+(endTime?'–'+endTime:''):''}`;
 
-/** Downscales an image file to a JPEG data URL (long side ≤ 1800 px), like the PDF page renders. */
-async function imageData(file){
- const bitmap=await createImageBitmap(file),scale=Math.min(1,1800/Math.max(bitmap.width,bitmap.height));
- const canvas=document.createElement('canvas');canvas.width=Math.round(bitmap.width*scale);canvas.height=Math.round(bitmap.height*scale);
- canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();
- return canvas.toDataURL('image/jpeg',.85);
-}
-
 export function noticeDialog(){
- let files=[];
  const body=modal(T('从通知生成日程','Turn a notice into calendar changes'),`<p class="muted" style="font-size:13px;line-height:1.7">${T('粘贴公众号文章或通知文字，也可以加入截图、照片或 PDF。AI 会识别新增活动、已有事件的改期或取消，以及放假与调休；核对后再保存，不会自动发布。','Paste a notice, or add screenshots, photos or PDFs. The AI finds new events, reschedules or cancellations of existing events, and school-day changes; you review everything before it is saved.')}</p>
- <textarea class="input" rows="8" data-text placeholder="${T('在此粘贴通知文字，或直接粘贴截图…','Paste the notice text here, or paste a screenshot…')}" aria-label="${T('通知文字','Notice text')}"></textarea>
- <label class="dropzone" data-drop><span>${T('拖入或粘贴通知截图、照片或 PDF（可多选），或点击选择','Drop or paste screenshots, photos or PDFs (several allowed), or click to choose')}</span><input type="file" multiple accept="image/png,image/jpeg,image/webp,.pdf,application/pdf" aria-label="${T('通知文件','Notice files')}"></label>
- <div class="list-box" data-files hidden></div>
+ ${materialFields({placeholder:T('在此粘贴通知文字，或直接粘贴截图…','Paste the notice text here, or paste a screenshot…'),drop:T('拖入或粘贴通知截图、照片或 PDF（可多选），或点击选择','Drop or paste screenshots, photos or PDFs (several allowed), or click to choose'),label:T('通知','Notice')})}
  <p class="alert" data-progress hidden></p>${errorLine}
  <div class="dialog-actions"><button type="button" class="btn btn-secondary" data-close>${T('返回','Go back')}</button><button type="button" class="btn btn-primary" data-save>${T('开始识别','Extract')}</button></div>`,{size:'medium'});
- const text=/** @type {HTMLTextAreaElement} */(body.querySelector('[data-text]')),zone=body.querySelector('[data-drop]'),list=body.querySelector('[data-files]');
  const progress=message=>{const el=body.querySelector('[data-progress]');el.textContent=message;el.hidden=!message;};
- const showFiles=()=>{list.hidden=!files.length;list.innerHTML=files.map((f,i)=>`<div><span>${esc(f.name)}</span><button type="button" class="btn btn-ghost" data-remove="${i}">${T('移除','Remove')}</button></div>`).join('');};
- const add=chosen=>{
-  for(const file of chosen){
-   if(!/^image\/(png|jpeg|webp)$/.test(file.type)&&!/\.pdf$/i.test(file.name)){toast(T(`不支持的文件：${file.name}`,`Unsupported file: ${file.name}`),{bad:true});continue;}
-   if(file.size>20*1024*1024){toast(T(`${file.name} 超过 20 MB。`,`${file.name} is larger than 20 MB.`),{bad:true});continue;}
-   files.push(file);
-  }
-  showFiles();
- };
- zone.querySelector('input').onchange=e=>{add([...e.target.files]);e.target.value='';};
- zone.ondragover=e=>{e.preventDefault();zone.classList.add('over');};zone.ondragleave=()=>zone.classList.remove('over');
- zone.ondrop=e=>{e.preventDefault();zone.classList.remove('over');add([...e.dataTransfer.files]);};
- // A copied screenshot pastes as a file, anywhere in the dialog. Copied web content can carry text and an
- // image together: the text still lands in the box and the image is added beside it.
- let pastedImages=0;
- body.addEventListener('paste',event=>{
-  const images=[...event.clipboardData?.files||[]].filter(file=>file.type.startsWith('image/'));
-  if(!images.length)return;
-  if(!event.clipboardData.getData('text/plain'))event.preventDefault();
-  const before=files.length;
-  add(images.map(file=>{
-   const n=++pastedImages,extension=file.type==='image/jpeg'?'jpg':file.type.slice(6);
-   return new File([file],T(`粘贴的图片 ${n}`,`Pasted image ${n}`)+'.'+extension,{type:file.type});
-  }));
-  const added=files.length-before;
-  if(added)toast(T(`已加入 ${added} 张粘贴的图片。`,`Added ${added} pasted image${added===1?'':'s'}.`));
- });
- list.onclick=e=>{const button=e.target.closest('[data-remove]');if(button){files.splice(Number(button.dataset.remove),1);showFiles();}};
+ const materials=bindMaterials(body);
  api('/admin/notice-extract').then(status=>{if(!status.configured){const el=body.querySelector('[data-error]');el.textContent=T('尚未配置 LLM_WORKER_URL 和 LLM_WORKER_TOKEN，请配置后重启服务。','LLM_WORKER_URL and LLM_WORKER_TOKEN are not configured. Configure them and restart the service.');el.hidden=false;}}).catch(()=>{});
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
-  const pasted=text.value.trim();
-  if(!pasted&&!files.length)fail(T('请粘贴通知文字或添加文件。','Paste the notice or add a file.'));
-  // Every material gets a number; the model cites it as source.page and the left pane is keyed by it.
-  const parts=[],panes=[];
-  if(pasted){parts.push({kind:'text',text:pasted});panes.push(textPane(pasted,{page:1,label:T('材料 1 · 粘贴的文字','Material 1 · Pasted text')}));}
-  try{
-   for(const file of files){
-    const first=parts.length+1;
-    if(/\.pdf$/i.test(file.name)){
-     const pdf=await readExamPdf(file,message=>progress(`${file.name} · ${message}`));
-     pdf.pages.forEach(page=>parts.push({kind:'image',image:page.image,text:page.items.map(item=>item.str).join(' ').slice(0,20000)}));
-     panes.push(pagePane(pdf.pages,{first,label:n=>T(`材料 ${n} · ${file.name} 第 ${n-first+1} 页`,`Material ${n} · ${file.name} p.${n-first+1}`)}));
-    }else{
-     progress(T(`正在读取 ${file.name}…`,`Reading ${file.name}…`));
-     const image=await imageData(file);parts.push({kind:'image',image,text:''});
-     panes.push(pagePane([{image,items:[]}],{first,label:n=>T(`材料 ${n} · ${file.name}`,`Material ${n} · ${file.name}`)}));
-    }
-    if(parts.length>12)fail(T('最多 12 份材料（PDF 每页算一份），请减少文件。','At most 12 materials (each PDF page counts); remove some files.'));
-   }
-  }finally{progress('');}
+  const {parts,pane}=await materials.collect(progress);
   closeModal();
-  await extractNotice(parts,stackPane(panes));
+  await extractNotice(parts.map(({items,...part})=>part),pane);
  });
 }
 

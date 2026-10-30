@@ -4,6 +4,7 @@ import {randomUUID} from 'node:crypto';
 import {connection,requireFlash,respond,streamJson,lenientList} from './llm-stream.mjs';
 import {sourceSchema} from './exam-extract.mjs';
 import {eventSchema,dayPlanSchema} from './validation.mjs';
+import {partsSchema,materialsTooLarge,materialContent} from './materials.mjs';
 
 // 通知转日程: the model reads a notice (text, screenshots, PDF pages) and proposes new events, changes to
 // existing events (改期 / 取消) and day plans. Nothing is saved here; the admin reviews and applies them.
@@ -18,10 +19,6 @@ const itemSchema=z.object({
  source:sourceSchema,
  note:z.string().max(1000).nullish()
 });
-const partSchema=z.discriminatedUnion('kind',[
- z.object({kind:z.literal('text'),text:z.string().trim().min(1).max(20000)}),
- z.object({kind:z.literal('image'),image:z.string().max(8000000).regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/),text:z.string().max(20000).default('')})
-]);
 const weekdays=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const pick=value=>[value?.zh?.trim()||'',value?.en?.trim()||''];
 
@@ -91,10 +88,10 @@ Event types: ${JSON.stringify(catalog)}`;
 export function installNoticeExtract(app,db,{requireAdmin,llm,timeZone,quota,types}){
  app.get('/api/admin/notice-extract',requireAdmin,(req,res)=>{try{connection(llm);res.json({configured:true});}catch{res.json({configured:false});}});
  app.post('/api/admin/notice-extract',requireAdmin,async(req,res)=>{
-  const parsed=z.object({parts:z.array(partSchema).min(1).max(12)}).safeParse(req.body);
+  const parsed=z.object({parts:partsSchema}).safeParse(req.body);
   if(!parsed.success)return res.status(422).json({error:'请粘贴通知文字，或上传最多 12 张图片 / PDF 页面。'});
   const {parts}=parsed.data;
-  if(parts.reduce((n,p)=>n+(p.kind==='image'?p.image.length:p.text.length),0)>16000000)return res.status(422).json({error:'材料过大，请减少图片或拆分 PDF。'});
+  const tooLarge=materialsTooLarge(parts);if(tooLarge)return res.status(422).json({error:tooLarge});
   const refused=quota.take(req,'extract');if(refused)return res.status(429).json(refused);
   await respond(req,res,async progress=>{
    connection(llm);
@@ -103,9 +100,7 @@ export function installNoticeExtract(app,db,{requireAdmin,llm,timeZone,quota,typ
    const plans=db.prepare('SELECT date,kind,follows FROM day_plans WHERE date>=? ORDER BY date LIMIT 120').all(today);
    progress.stage('connecting');
    await requireFlash(llm);
-   const content=parts.flatMap((part,i)=>part.kind==='text'
-    ?[{type:'text',text:`Material ${i+1} (pasted text):\n${part.text}`}]
-    :[{type:'text',text:`Material ${i+1} (image${part.text?`; embedded PDF text: ${part.text}`:''}):`},{type:'image_url',image_url:{url:part.image}}]);
+   const content=materialContent(parts);
    progress.stage('reading',{pages:parts.length});
    // Malformed items are set aside and listed after the rest.
    const result=lenientList(await streamJson(llm,{model:'flash',messages:[{role:'system',content:noticeInstruction({today,refs,plans,catalog:Object.fromEntries(types().map(t=>[t.id,t.name.filter(Boolean).join(' / ')]))})},{role:'user',content}]},120000,progress),'items',itemSchema,60);
