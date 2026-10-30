@@ -547,3 +547,9 @@ mark.src-hit{background:color-mix(in srgb,#f2c94c 55%,transparent);outline:1px s
 .stat-period select{width:auto;min-width:150px}
 .stat-wide{grid-column:1/-1}
 .stat-wide .stat-figures{grid-template-columns:repeat(3,minmax(0,1fr))}
+.review-table .was{margin-top:2px;font-size:11px;color:var(--color-neutral-600)}
+.review-table .was[data-seats]{color:#9a3a45}
+.room-changes{margin:12px 0 4px;display:grid;gap:6px;font-size:13px}
+.room-changes h4{margin:0}
+.room-changes p{margin:0}
+.room-remove{display:flex;align-items:center;gap:6px}

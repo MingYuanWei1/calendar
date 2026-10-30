@@ -143,7 +143,7 @@ export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,use
     finish:(context,raw)=>organizeSeats(context.batchId,finishSeats(context,raw)),
     salvage:(context,items)=>{const partial=salvageSeats(context,items);return partial&&organizeSeats(context.batchId,partial);}},
    sessions:{itemKey:'sessions',failure:extractionFailure,validate:sessionInputError,
-    prepare:async input=>prepareSessions(JSON.parse(input.toString()),subjects.list(),schoolRules.get()),
+    prepare:async(input,batch)=>prepareSessions(JSON.parse(input.toString()),subjects.list(),schoolRules.get(),batch.sessions),
     finish:finishSessions,salvage:salvageSessions}
   }});
  app.post('/api/admin/exams/:id/seat-extract',requireAdmin,express.raw({type:'application/octet-stream',limit:'2mb'}),async(req,res)=>{
