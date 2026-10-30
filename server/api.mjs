@@ -10,6 +10,7 @@ import {OVERRIDABLE,addDays,fitsSeries,isSeriesDate,seriesDates} from '../public
 import {installQuota} from './llm-quota.mjs';
 import {installFeeds} from './feeds.mjs';
 import {installNoticeExtract} from './notice-extract.mjs';
+import {installStudentCheck} from './student-check.mjs';
 import {installAssistant} from './assistant.mjs';
 import {installStats} from './stats.mjs';
 import {installTerms} from './terms.mjs';
@@ -43,6 +44,7 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   const clearCookie=res=>res.clearCookie('calendar_session',{path:'/',httpOnly:true,sameSite:'strict',secure:base.protocol==='https:'});
   app.use('/api/admin/exam-extract',express.json({limit:'20mb'}));
   app.use('/api/admin/notice-extract',express.json({limit:'20mb'}));
+  app.use('/api/admin/students/check',express.json({limit:'20mb'}));
   app.use('/api/admin/extract-jobs/sessions',express.json({limit:'20mb'}));
   app.use('/api/admin/extract-jobs/seats',express.json({limit:'20mb'}));
   app.use('/api/admin/exams',express.json({limit:'4mb'}));
@@ -270,6 +272,7 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   examEvents=exams.events;
   installFeeds(app,db,{user:session,account:schoolAuth.account,origin,timeZone,matching:exams.matching,examEvents,personalEvents:listPersonal});
   installNoticeExtract(app,db,{requireAdmin,llm,timeZone,quota,types:eventTypes.list});
+  installStudentCheck(app,{requireSystemAdmin:requireRole(3),llm,timeZone,quota,list:exams.students.list});
   const terms=installTerms(app,db,{requireAdmin});
   installAssistant(app,db,{session,llm,matching:exams.matching,timeZone,quota,personalEvents:listPersonal,terms:terms.list,types:eventTypes.list});
   installStats(app,db,{session,requireAdmin,timeZone});

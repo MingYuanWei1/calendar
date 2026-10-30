@@ -169,5 +169,5 @@ export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,use
  });
  // 考试批次事件: every published batch also appears on the school calendar as one exam event.
  const events=()=>db.prepare('SELECT published FROM exam_batches WHERE published IS NOT NULL').all().map(r=>batchEvent(JSON.parse(r.published)));
- return {matching,events,jobs};
+ return {matching,events,jobs,students};
 }

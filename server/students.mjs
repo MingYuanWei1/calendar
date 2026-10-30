@@ -3,7 +3,7 @@ import {randomUUID} from 'node:crypto';
 import {pinyin} from 'pinyin-pro';
 
 export const inferAcademicYear=date=>Number(date.slice(0,4))-(Number(date.slice(5,7))<9?1:0);
-const gradeNumber=value=>{const match=String(value??'').trim().match(/^(?:G|Grade\s*)?(\d{1,2})(?:\.\d+|[A-Z])?$/i);const n=match?Number(match[1]):0;return n>=1&&n<=12?n:null;};
+export const gradeNumber=value=>{const match=String(value??'').trim().match(/^(?:G|Grade\s*)?(\d{1,2})(?:\.\d+|[A-Z])?$/i);const n=match?Number(match[1]):0;return n>=1&&n<=12?n:null;};
 const namePinyin=name=>/^[\p{Script=Han}]+$/u.test(name)?pinyin(name,{toneType:'none',type:'array',surname:'head'}).join('').replaceAll('ü','v'):'';
 const normalizeEmail=value=>typeof value==='string'?value.trim().toLowerCase():'';
 export function installStudents(app,db,requireAdmin){
@@ -137,5 +137,5 @@ export function installStudents(app,db,requireAdmin){
   });
   res.json({student:describe().find(s=>s.id===preview.target.id),message:'学生已合并；请重新发布相关批次座位。'});
  });
- return {organize,publishSeats,validEmail,normalizeEmail};
+ return {organize,publishSeats,validEmail,normalizeEmail,list:()=>describe()};
 }
