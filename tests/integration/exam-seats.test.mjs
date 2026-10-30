@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {chooseStudent,examsLabel,mergeSeats,moveSeat,roomExamsAt,seatExamIds,seatViewTimes,withoutExam} from '../../public/exam-seats.mjs';
+import {chooseStudent,examsLabel,mergeSeats,pickMerge,moveSeat,roomExamsAt,seatExamIds,seatViewTimes,withoutExam} from '../../public/exam-seats.mjs';
 import {seatingMarkup} from '../../public/exam-common.js';
 import {seatErrors} from '../../server/exam-model.mjs';
 test('seat moves and swaps preserve identities and reject concurrent occupancy',()=>{
@@ -88,4 +88,18 @@ test('an identified namesake keeps its student on re-import and one choice cover
  assert.deepEqual(chooseStudent(seats,0,'s1').map(s=>s.studentId),['s1','s1',undefined,undefined]);
  assert.deepEqual(chooseStudent(seats,0,'new').map(s=>s.newStudent),[true,true,undefined,undefined]);
  assert.deepEqual(chooseStudent(chooseStudent(seats,0,'new'),0,'s2').map(s=>s.studentId),['s2','s2',undefined,undefined]);
+});
+
+test('draft seats a partial import leaves out are only offered for removal, and only within the exams and rooms it covers',()=>{
+ const draft=[
+  {examId:'a',room:'A',row:1,column:1,name:'甲',studentId:'s1'},
+  {examId:'a',room:'A',row:1,column:2,name:'乙',studentId:'s2'},
+  {examId:'a',room:'B',row:1,column:1,name:'丙',studentId:'s3'},
+  {examId:'b',room:'A',row:1,column:1,name:'丁',studentId:'s4'}];
+ const imported=[{examId:'a',room:'A',row:2,column:2,name:'甲',studentId:'s1'},{examId:'a',room:'A',row:3,column:3,name:'戊',studentId:'s5'}];
+ const merge=mergeSeats(draft,imported);
+ assert.deepEqual(merge.removed.map(r=>r.seat.name),['乙']);
+ // By default nothing is removed; untick the correction and tick the removal instead.
+ assert.deepEqual(merge.seats.map(s=>s.name+s.row),['乙1','丙1','丁1','甲2','戊3']);
+ assert.deepEqual(pickMerge(draft,merge,{entries:new Set([1]),removed:new Set([0])}).map(s=>s.name+s.row),['甲1','丙1','丁1','戊3']);
 });

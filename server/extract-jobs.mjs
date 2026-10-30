@@ -18,7 +18,8 @@ export const localRunner=(ops,config,step=localStep())=>({
 
 /**
  * `tasks.seats` / `tasks.sessions`: {prepare(input Buffer, draft, options) → {request, context, source?}, finish(context, raw),
- * salvage(context, items) → partial|null, failure(error) → message, itemKey, options?(req) → the request's settings,
+ * salvage(context, items) → partial|null, failure(error) → message, itemKey, validate?(body) → an error for a JSON body,
+ * options?(req) → the request's settings,
  * kept with the job so a retry prepares the same way}. `draft(batchId)` returns the batch draft.
  */
 export function installExtractJobs(app,db,{requireAdmin,quota,user,llm,tasks,draft,runner=localRunner}){
@@ -112,13 +113,14 @@ export function installExtractJobs(app,db,{requireAdmin,quota,user,llm,tasks,dra
   const kind=req.params.kind,task=tasks[kind];if(!task)return res.sendStatus(404);
   const batchId=String(req.query.batch||''),batch=draft(batchId);if(!batch)return refuse(res,404,'考试批次不存在。');
   let input,fileName;
-  if(kind==='seats'){
+  // Seats come as a workbook (octet-stream) or, like sessions, as pasted materials in a JSON body.
+  if(kind==='seats'&&Buffer.isBuffer(req.body)){
    fileName=decodeURIComponent(String(req.headers['x-file-name']||''));
-   if(!Buffer.isBuffer(req.body)||!fileName.toLowerCase().endsWith('.xlsx'))return refuse(res,422,'仅支持 .xlsx 文件（最大 10 MB）。');
+   if(!fileName.toLowerCase().endsWith('.xlsx'))return refuse(res,422,'仅支持 .xlsx 文件（最大 10 MB）。');
    input=req.body;
   }else{
    const invalid=task.validate(req.body);if(invalid)return refuse(res,422,invalid);
-   fileName=String(req.body.fileName||'exam.pdf').slice(0,200);input=Buffer.from(JSON.stringify(req.body));
+   fileName=String(req.body.fileName||(kind==='seats'?'seats':'exam.pdf')).slice(0,200);input=Buffer.from(JSON.stringify(req.body));
   }
   purge();
   const running=db.prepare("SELECT * FROM extract_jobs WHERE batch_id=? AND status='running'").all(batchId).find(r=>status(r)==='running');
@@ -147,8 +149,9 @@ export function installExtractJobs(app,db,{requireAdmin,quota,user,llm,tasks,dra
  });
  app.get('/api/admin/extract-jobs/:id/input',requireAdmin,(req,res)=>{
   const r=found(req,res);if(!r)return;
-  if(r.kind!=='sessions')return res.sendStatus(404);
-  res.set('Content-Type','application/json').send(getBlob(r.id,'input'));
+  // A seating workbook has its own source pane (the sheets); only materials are sent back.
+  const input=getBlob(r.id,'input');if(input[0]!==0x7b)return res.sendStatus(404);
+  res.set('Content-Type','application/json').send(input);
  });
  app.get('/api/admin/extract-jobs/:id/result',requireAdmin,(req,res)=>{const r=found(req,res);if(!r)return;res.json({result:getJson(r.id,'result'),partial:getJson(r.id,'partial')});});
  app.post('/api/admin/extract-jobs/:id/cancel',requireAdmin,async(req,res)=>{

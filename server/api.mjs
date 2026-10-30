@@ -44,6 +44,7 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   app.use('/api/admin/exam-extract',express.json({limit:'20mb'}));
   app.use('/api/admin/notice-extract',express.json({limit:'20mb'}));
   app.use('/api/admin/extract-jobs/sessions',express.json({limit:'20mb'}));
+  app.use('/api/admin/extract-jobs/seats',express.json({limit:'20mb'}));
   app.use('/api/admin/exams',express.json({limit:'4mb'}));
   app.use('/api',express.json({limit:'128kb'}));
   const eventTypes=installEventTypes(app,db,{requireAdmin});

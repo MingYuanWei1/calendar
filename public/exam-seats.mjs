@@ -88,25 +88,39 @@ export function adaptRooms(batch,seats=batch.seats){
 /**
  * Merges imported seats into the draft instead of replacing it. Within one exam, an imported seat takes over the draft
  * seats of the same student and any draft seat at the same position; seats the import does not mention are kept.
- * Returns the merged list plus which imported seats were added, unchanged, or corrected (with the seats they replaced).
+ * Returns the merged list plus which imported seats were added, unchanged, or corrected (with the seats they replaced),
+ * and the draft seats that could be removed (see `removed`).
  */
 export function mergeSeats(existing,incoming){
  const who=s=>JSON.stringify([s.name||'',s.englishName||'',s.className||'']);
  const sameStudent=(a,b)=>a.studentId&&b.studentId?a.studentId===b.studentId:who(a)===who(b);
  const fields=['room','row','column','className','name','englishName'];
  const same=(a,b)=>fields.every(f=>(a[f]??'')===(b[f]??''))&&seatExamIds(a).join()===seatExamIds(b).join()&&(a.grade==null||b.grade==null||a.grade===b.grade);
- const replaced=new Set(),added=[],changed=[],merged=[];let unchanged=0;
+ const replaced=new Set(),entries=[];
  for(let seat of incoming){
-  const before=existing.filter((s,i)=>!replaced.has(i)&&s.examId===seat.examId&&(sameStudent(s,seat)||(placed(s)&&placed(seat)&&s.room===seat.room&&s.row===seat.row&&s.column===seat.column)));
-  before.forEach(s=>replaced.add(existing.indexOf(s)));
+  const indexes=existing.flatMap((s,i)=>!replaced.has(i)&&s.examId===seat.examId&&(sameStudent(s,seat)||(placed(s)&&placed(seat)&&s.room===seat.room&&s.row===seat.row&&s.column===seat.column))?[i]:[]);
+  indexes.forEach(i=>replaced.add(i));
+  const before=indexes.map(i=>existing[i]);
   // A namesake the administrator already identified in the draft keeps that choice when the sheet is imported again.
   if(!seat.studentId&&!seat.newStudent&&before.length===1&&before[0].studentId&&who(before[0])===who(seat)){const {candidates:_,...rest}=seat;seat={...rest,studentId:before[0].studentId};}
-  if(!before.length)added.push(seat);
-  else if(before.length===1&&same(before[0],seat))unchanged++;
-  else changed.push({before,after:seat});
-  merged.push(seat);
+  entries.push({kind:!before.length?'added':before.length===1&&same(before[0],seat)?'unchanged':'changed',before,indexes,after:seat});
  }
- return {seats:[...existing.filter((_,i)=>!replaced.has(i)),...merged],added,changed,unchanged};
+ // A draft seat of an exam and room the import covers, which the import does not mention, may have been left out on
+ // purpose or just cut off the screenshot: it is offered for removal, never removed by default.
+ const covered=new Set(incoming.map(s=>`${s.examId}\u0000${s.room}`));
+ const removed=existing.flatMap((seat,index)=>!replaced.has(index)&&covered.has(`${seat.examId}\u0000${seat.room}`)?[{seat,index}]:[]);
+ const merge={entries,removed,added:entries.filter(e=>e.kind==='added').map(e=>e.after),changed:entries.filter(e=>e.kind==='changed'),unchanged:entries.filter(e=>e.kind==='unchanged').length};
+ return {...merge,seats:pickMerge(existing,merge,{entries:new Set(entries.keys()),removed:new Set()})};
+}
+/**
+ * The draft seats after a merge, applying only the picked entries (indexes into merge.entries; unchanged entries always
+ * apply) and removing the picked removal candidates (indexes into merge.removed).
+ */
+export function pickMerge(existing,merge,picks){
+ const drop=new Set(),kept=[];
+ merge.entries.forEach((e,i)=>{if(e.kind==='unchanged'||picks.entries.has(i)){e.indexes.forEach(x=>drop.add(x));kept.push(e.after);}});
+ merge.removed.forEach((r,i)=>{if(picks.removed.has(i))drop.add(r.index);});
+ return [...existing.filter((_,i)=>!drop.has(i)),...kept];
 }
 
 /** A seat's student choice: a student id, 'new' for a new student, or '' while undecided. */

@@ -553,3 +553,9 @@ mark.src-hit{background:color-mix(in srgb,#f2c94c 55%,transparent);outline:1px s
 .room-changes h4{margin:0}
 .room-changes p{margin:0}
 .room-remove{display:flex;align-items:center;gap:6px}
+.merge-section{margin-top:12px}
+.merge-all{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.merge-all h4{margin:0}
+.merge-pick{flex-direction:row;align-items:flex-start;gap:8px;cursor:pointer}
+.merge-pick>span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.merge-pick:has(input:checked) .merge-gone{text-decoration:line-through;color:var(--color-neutral-700)}

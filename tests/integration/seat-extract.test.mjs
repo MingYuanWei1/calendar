@@ -7,7 +7,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createApplication} from '../../server/app.mjs';
 import {setAdminPassword} from '../../server/store.mjs';
-import {seatingWorkbook,sheetParts,finishSeats} from '../../server/seat-extract.mjs';
+import {seatingWorkbook,sheetParts,finishSeats,prepareSeats,seatMaterialsError} from '../../server/seat-extract.mjs';
 import {generate} from '../../server/llm-stream.mjs';
 test('XLSX seat extraction preserves grid context, validates matches and only previews',async()=>{
  const book=new ExcelJS.Workbook(),sheet=book.addWorksheet('101');sheet.mergeCells('A1:C1');sheet.getCell('A1').value='数学 HL / SL 2026-09-21 08:10';sheet.getCell('B3').value='G12A 示例学生';
@@ -69,4 +69,22 @@ test('a seat the sheet leaves between exams sharing its room and time is kept wi
  const result=finishSeats(context,{seats:[{...base,examIds:['B','Honor']},{...base,column:2,examIds:['Honor']},{...base,column:3,examId:'B',examIds:['Honor','B']}],warnings:[]});
  assert.deepEqual(result.seats.map(s=>[s.examId,s.examIds]),[['B',['B','Honor']],['Honor',undefined],['Honor',['Honor','B']]]);
  assert.deepEqual(result.errors,[]);assert.deepEqual(result.invalid,[]);
+});
+
+test('pasted seating materials go to the model as numbered materials and cite them as their source',async()=>{
+ const batch={start:'2026-09-21',end:'2026-09-25',sessions:[{id:'math',title:'数学',date:'2026-09-21',start:'08:00',end:'09:30',rooms:['101'],grades:[10]}],rooms:[{name:'101',rows:5,columns:5}]};
+ const parts=[{kind:'text',text:'101 第1排 第1列 张三'},{kind:'image',image:'data:image/jpeg;base64,aGVsbG8=',text:''}];
+ assert.equal(seatMaterialsError({parts}),null);
+ assert.ok(seatMaterialsError({parts:[]}));
+ for(const mode of ['ordered','unordered']){
+  const {request,context,source}=await prepareSeats(Buffer.from(JSON.stringify({parts,mode})),batch,mode);
+  assert.equal(source,undefined);assert.equal(context.mode,mode);
+  const [system,user]=request.body.messages;
+  assert.match(system.content,/numbered Material 1/);assert.match(system.content,/may show only part of the seating/);
+  assert.match(system.content,/source \{page \(the number of the Material/);
+  assert.doesNotMatch(system.content,/XLSX|worksheet name/);
+  assert.deepEqual(user.content.map(c=>c.type),['text','text','image_url']);
+ }
+ const result=finishSeats({sessions:batch.sessions,rooms:batch.rooms,mode:'ordered'},{seats:[{examId:'math',room:'101',row:1,column:1,className:'G10A',name:'张三',englishName:'',grade:null,source:{page:1,quote:'张三'}}],warnings:[]});
+ assert.deepEqual(result.seats[0].source,{page:1,quote:'张三'});
 });

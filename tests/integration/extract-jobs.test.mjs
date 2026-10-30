@@ -59,6 +59,18 @@ test('extraction jobs run in the background, survive the page and keep partial r
   assert.equal(result.seats.length,2);assert.ok(result.seats[0].studentId);assert.deepEqual(result.warnings,['请核对']);
   assert.equal((await call('/admin/students')).body.length,0);
   assert.deepEqual((await call('/admin/extract-jobs')).body.map(j=>[j.id,j.status]),[[job.id,'done']]);
+  // A workbook job has no materials to send back; pasted seating materials run the same way and are sent back.
+  assert.equal((await fetch(`${base}/admin/extract-jobs/${job.id}/input`,{headers})).status,404);
+  assert.equal((await call(`/admin/extract-jobs/seats?batch=${batch.id}`,'POST',{parts:[]})).status,422);
+  const parts=[{kind:'text',text:'101 第1排 示例学生'}];
+  response=await call(`/admin/extract-jobs/seats?batch=${batch.id}`,'POST',{parts,mode:'unordered',fileName:'粘贴的文字'});assert.equal(response.status,201);
+  settled=await settle(response.body.id);
+  assert.equal(settled.job.status,'done');assert.equal(settled.job.fileName,'粘贴的文字');
+  assert.deepEqual((await call(`/admin/extract-jobs/${response.body.id}/input`)).body.parts,parts);
+  // Unordered mode came from the body: the seats lose their row and column.
+  assert.equal((await call(`/admin/extract-jobs/${response.body.id}/result`)).body.result.seats[0].row,undefined);
+  // The rest of this test counts on the extraction quota as it was.
+  instance.db.prepare('DELETE FROM llm_calls').run();
 
   // Only one job runs per batch; cancelling stops it, and a new job replaces the old one.
   state.mode='slow';

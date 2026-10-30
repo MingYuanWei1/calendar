@@ -1,5 +1,5 @@
 import {$,$$,esc,corners,icon,app,T,tx,SCOPES,api,toast,modal,closeModal,busy,errorLine,fail,go,refreshNav,md,mdw,stamp,loadBatches,loadSubjects,loadJobs} from './console-core.js';
-import {adaptRooms,chooseStudent,examMode,examsLabel,mergeSeats,moveSeat,placed,roomExamsAt,seatExamIds,seatViewTimes,withoutExam} from './exam-seats.mjs';
+import {adaptRooms,chooseStudent,examMode,examsLabel,mergeSeats,pickMerge,moveSeat,placed,roomExamsAt,seatExamIds,seatViewTimes,withoutExam} from './exam-seats.mjs';
 import {subjectName} from './exam-subjects.mjs';
 import {defaultExamSlots,slotOf} from './exam-times.mjs';
 import {importPreview,studentOptions,unresolved} from './exam-import-preview.js';
@@ -528,27 +528,31 @@ function reviewExtracted(b,result,review,{preset=false,elapsed=null,job=null}={}
 }
 
 const xlsxProblem=file=>!/\.xlsx$/i.test(file.name)?T('仅支持 .xlsx 文件。','Only .xlsx files are supported.'):file.size>10*1024*1024?T('Excel 文件最大 10 MB。','Excel files must be at most 10 MB.'):'';
-/** LLM 提取座位表: choose the seating workbook and the mode, then extract in the background. */
+/** LLM 提取座位表: paste seating text or screenshots, or choose the seating workbook, pick the mode, then extract in the background. */
 function seatExtractDialog(b){
- let file=null,mode='ordered';
- const hint=T('拖入座位表 Excel（.xlsx），或点击选择','Drop the seating workbook (.xlsx), or click to choose');
- const body=modal(T('LLM 提取座位表','Extract seats with LLM'),`<label class="dropzone tall" data-drop><span data-file>${hint}</span><input type="file" accept=".xlsx" aria-label="Excel"></label>
+ let mode='ordered';
+ const body=modal(T('LLM 提取座位表','Extract seats with LLM'),`<p class="muted" style="font-size:13px;line-height:1.7">${T('粘贴座位表文字或截图、照片、PDF，或选择一个座位表 Excel（.xlsx，需单独提取）。只截取需要更改的部分即可：未出现的座位默认保留。','Paste seating text or screenshots, photos or PDFs, or choose one seating workbook (.xlsx, extracted on its own). A screenshot of just the part that changes is enough: seats it does not show are kept by default.')}</p>
+ ${materialFields({placeholder:T('在此粘贴座位表文字，或直接粘贴截图…','Paste the seating here, or paste a screenshot…'),drop:T('拖入或粘贴座位表截图、照片、PDF 或 Excel，或点击选择','Drop or paste seating screenshots, photos, PDFs or an Excel workbook, or click to choose'),label:T('座位表','Seating'),xlsx:true})}
  <div class="field"><span class="label">${T('提取模式','Extraction mode')}</span>${segHtml('mode',[['ordered',T('按座位排序','By seat')],['unordered',T('不排序座位','Unordered')]],mode)}</div>
  <p class="muted" data-mode-note style="font-size:13px;line-height:1.7"></p>
- <p class="muted" style="font-size:13px;line-height:1.7">${T('最大 10 MB。工作簿文字与布局将发送到配置的 LLM Worker，提取后可核对修改，不会自动保存或发布。同一场考试的座位须全部按座位排序或全部不排序，与已有座位模式不同时无法导入。','Up to 10 MB. The workbook text and layout go to the configured LLM Worker; you review results before importing. Nothing is saved or published automatically. All seats of one exam are either by seat or unordered; an import that differs from the existing seats cannot be imported.')}</p>
+ <p class="muted" style="font-size:13px;line-height:1.7">${T('Excel 最大 10 MB。材料将发送到配置的 LLM Worker，提取后可核对修改，不会自动保存或发布。同一场考试的座位须全部按座位排序或全部不排序，与已有座位模式不同时无法导入。','Excel up to 10 MB. Materials go to the configured LLM Worker; you review results before importing. Nothing is saved or published automatically. All seats of one exam are either by seat or unordered; an import that differs from the existing seats cannot be imported.')}</p>
+ <p class="alert" data-progress hidden></p>
  ${actions({saveLabel:T('开始提取','Extract')})}`,{size:'medium'});
  const notes={ordered:T('返回每位学生所在的教室、排和列。','Returns each student\'s room, row and column.'),unordered:T('仅返回每个教室的学生名单，不返回具体座位。','Returns only the student list of each room, without seats.')};
  const showMode=()=>{body.querySelector('[data-mode-note]').textContent=notes[mode];};showMode();
  pickOne(body,'mode',value=>{mode=value;showMode();});
- const zone=body.querySelector('[data-drop]'),choose=f=>{file=f||null;body.querySelector('[data-file]').textContent=file?file.name:hint;};
- zone.querySelector('input').onchange=e=>choose(e.target.files[0]);
- zone.ondragover=e=>{e.preventDefault();zone.classList.add('over');};zone.ondragleave=()=>zone.classList.remove('over');
- zone.ondrop=e=>{e.preventDefault();zone.classList.remove('over');choose(e.dataTransfer.files[0]);};
+ const progress=message=>{const el=body.querySelector('[data-progress]');el.textContent=message;el.hidden=!message;};
+ const materials=bindMaterials(body,{xlsx:true});
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
-  if(!file)fail(T('请选择座位表 Excel。','Choose the seating workbook.'));
-  const problem=xlsxProblem(file);if(problem)fail(problem);
-  const job=await startJob(b,'seats',file,{'Content-Type':'application/octet-stream','X-File-Name':encodeURIComponent(file.name),'X-Seat-Mode':mode});
-  closeModal();openJob(job);
+  const {xlsx,parts,pane,name}=await materials.collect(progress);
+  if(xlsx){
+   const problem=xlsxProblem(xlsx);if(problem)fail(problem);
+   const job=await startJob(b,'seats',xlsx,{'Content-Type':'application/octet-stream','X-File-Name':encodeURIComponent(xlsx.name),'X-Seat-Mode':mode});
+   closeModal();openJob(job);
+   return;
+  }
+  const job=await startJob(b,'seats',JSON.stringify({parts,mode,fileName:name}));
+  closeModal();openJob(job,{pane});
  });
 }
 async function importSeats(file){
@@ -589,19 +593,42 @@ function seatPreview(b,result,title,onImported=()=>{}){
  }});
 }
 const seatText=s=>`${place(s)} · ${[s.className,s.name,s.englishName].filter(Boolean).join(' ')}`;
-/** The draft already has seats: show what the import adds and corrects, then merge it in or replace the draft. */
+/**
+ * The draft already has seats: show what the import adds and corrects, and the draft seats it may have left out, then
+ * merge the ticked items in or replace the draft. Seats left out are never removed unless ticked: the import may only
+ * show part of a room.
+ */
 function mergeDialog(b,seats,onImported){
  const merge=mergeSeats(b.seats,seats);
- const corrections=merge.changed.map(({before,after})=>`<div class="merge-change"><span class="muted">${esc(seatExamName(b,after))}</span>${before.map(s=>`<del>${esc(seatText(s))}</del>`).join('')}<ins>→ ${esc(seatText(after))}</ins></div>`).join('');
- const body=modal(T('合并到草稿座位？','Merge into draft seats?'),`<p class="dialog-text">${T(`草稿已有 ${b.seats.length} 个座位。本次导入：新增 ${merge.added.length} 个，修正 ${merge.changed.length} 个，与草稿相同 ${merge.unchanged} 个。合并后未在本次导入中出现的草稿座位保持不变。`,`The draft already has ${b.seats.length} seats. This import adds ${merge.added.length}, corrects ${merge.changed.length} and repeats ${merge.unchanged} unchanged. Merging keeps draft seats this import does not mention.`)}</p>
- ${corrections?`<h4 style="margin:12px 0 4px">${T('修正（修正前 → 修正后）','Corrections (before → after)')}</h4><div class="merge-changes">${corrections}</div>`:''}
+ const picks={entries:new Set(merge.entries.flatMap((e,i)=>e.kind==='unchanged'?[]:[i])),removed:new Set()};
+ const item=(group,i,checked,html)=>`<label class="merge-change merge-pick"><input type="checkbox" data-group="${group}" data-i="${i}"${checked?' checked':''}><span>${html}</span></label>`;
+ const section=(group,title,note,items)=>items.length?`<div class="merge-section"><label class="merge-all"><input type="checkbox" data-all="${group}"${group==='removed'?'':' checked'}><h4>${title} <span class="muted num">${items.length}</span></h4></label>${note?`<p class="muted" style="font-size:12px;margin:0 0 6px">${note}</p>`:''}<div class="merge-changes">${items.join('')}</div></div>`:'';
+ /** @param {string} kind @returns {[any,number][]} */
+ const entries=kind=>merge.entries.flatMap((e,i)=>e.kind===kind?[[e,i]]:[]);
+ const added=entries('added').map(([e,i])=>item('added',i,true,`<span class="muted">${esc(seatExamName(b,e.after))}</span><ins>+ ${esc(seatText(e.after))}</ins>`));
+ const changed=entries('changed').map(([e,i])=>item('changed',i,true,`<span class="muted">${esc(seatExamName(b,e.after))}</span>${e.before.map(s=>`<del>${esc(seatText(s))}</del>`).join('')}<ins>→ ${esc(seatText(e.after))}</ins>`));
+ const removed=merge.removed.map((r,i)=>item('removed',i,false,`<span class="muted">${esc(seatExamName(b,r.seat))}</span><span class="merge-gone">${esc(seatText(r.seat))}</span>`));
+ const body=modal(T('合并到草稿座位？','Merge into draft seats?'),`<p class="dialog-text">${T(`草稿已有 ${b.seats.length} 个座位。本次导入：新增 ${added.length} 个，修正 ${changed.length} 个，与草稿相同 ${merge.unchanged} 个；另有 ${removed.length} 个草稿座位未出现在本次导入中。只应用勾选的项目，其余草稿座位保持不变。`,`The draft already has ${b.seats.length} seats. This import adds ${added.length}, corrects ${changed.length} and repeats ${merge.unchanged} unchanged; ${removed.length} draft seats are not in it. Only ticked items are applied; other draft seats stay as they are.`)}</p>
+ ${section('added',T('新增','Added'),'',added)}
+ ${section('changed',T('修正（修正前 → 修正后）','Corrections (before → after)'),'',changed)}
+ ${section('removed',T('未出现在导入中的草稿座位','Draft seats not in this import'),T('同一考试、同一教室中本次导入没有出现的座位。可能只是截图没有截全，默认保留；勾选后才会删除。','Seats of the same exam and room that this import does not show. The screenshot may just be cut off, so they are kept unless ticked.'),removed)}
  ${actions({left:`<button type="button" class="btn btn-ghost btn-danger left" data-replace>${T('替换全部草稿座位','Replace all draft seats')}</button>`,saveLabel:T('合并到草稿','Merge into draft')})}`,{size:'wide'});
+ const setOf=group=>group==='removed'?picks.removed:picks.entries;
+ const syncAll=group=>{const all=body.querySelector(`[data-all="${group}"]`),boxes=$$(`[data-group="${group}"]`,body);if(!all)return;const on=boxes.filter(x=>x.checked).length;all.checked=on===boxes.length;all.indeterminate=on>0&&on<boxes.length;};
+ body.addEventListener('change',e=>{
+  const all=e.target.closest('[data-all]'),one=e.target.closest('[data-group]');
+  if(all)$$(`[data-group="${all.dataset.all}"]`,body).forEach(box=>{box.checked=all.checked;const set=setOf(all.dataset.all),i=Number(box.dataset.i);if(box.checked)set.add(i);else set.delete(i);});
+  else if(one){const set=setOf(one.dataset.group),i=Number(one.dataset.i);if(one.checked)set.add(i);else set.delete(i);syncAll(one.dataset.group);}
+ });
  const save=async(list,message)=>{
   if(batch().version!==b.version)fail(T('草稿已修改，请重新导入。','The draft changed; import again.'));
   await update(next=>{next.seats=list;next.rooms=adaptRooms(next,list).rooms;},message);
   closeModal();$('#preview-dialog').close();onImported();
  };
- body.querySelector('[data-save]').onclick=()=>busy(body,()=>save(merge.seats,T(`已合并：新增 ${merge.added.length} 个，修正 ${merge.changed.length} 个座位。`,`Merged: ${merge.added.length} seats added, ${merge.changed.length} corrected.`)));
+ body.querySelector('[data-save]').onclick=()=>busy(body,()=>{
+  const count=group=>$$(`[data-group="${group}"]`,body).filter(x=>x.checked).length;
+  return save(pickMerge(b.seats,merge,picks),T(`已合并：新增 ${count('added')} 个，修正 ${count('changed')} 个，删除 ${count('removed')} 个座位。`,`Merged: ${count('added')} seats added, ${count('changed')} corrected, ${count('removed')} removed.`));
+ });
  confirmButton(body,'[data-replace]',T('替换全部草稿座位','Replace all draft seats'),()=>save(seats,T(`已用 ${seats.length} 个座位替换草稿座位。`,`Replaced the draft with ${seats.length} seats.`)));
 }
 
@@ -676,11 +703,10 @@ async function openJob(job,{pane=null}={}){
   bar.querySelector('[data-cancel]').onclick=async()=>{try{putJob(await api(`/admin/extract-jobs/${encodeURIComponent(job.id)}/cancel`,{method:'POST'}));}catch(error){review.alert(error.message);}};
  };
  runningBar();
- if(!seats){
-  // Jobs started before materials could be pasted kept PDF pages as {images, items}.
-  if(!pane)try{const input=await api(`/admin/extract-jobs/${encodeURIComponent(job.id)}/input`);pane=input.parts?materialPane(input.parts):pagePane(input.images.map((image,i)=>({image,items:input.items?.[i]||[]})));}catch{}
-  if(pane)review.source(pane);
- }
+ // Pasted materials are fetched back to show beside the results; a seating workbook sends its sheets as it runs.
+ // Jobs started before materials could be pasted kept PDF pages as {images, items}.
+ if(!pane)try{const input=await api(`/admin/extract-jobs/${encodeURIComponent(job.id)}/input`);pane=input.parts?materialPane(input.parts):pagePane(input.images.map((image,i)=>({image,items:input.items?.[i]||[]})));}catch{}
+ if(pane)review.source(pane);
  try{
   const done=await followJob(job.id,{signal:review.signal,onJob:putJob},message=>{
    review.message(message);

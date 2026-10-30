@@ -1,7 +1,7 @@
 import {installExamMatching} from './exam-matching.mjs';
 import {installStudents} from './students.mjs';
 import {installExamExtract,sessionInputError,prepareSessions,finishSessions,salvageSessions,extractionFailure} from './exam-extract.mjs';
-import {extractSeats,prepareSeats,finishSeats,salvageSeats,seatMode,SEAT_TIMEOUT} from './seat-extract.mjs';
+import {extractSeats,prepareSeats,finishSeats,salvageSeats,seatMode,seatMaterialsError,SEAT_TIMEOUT} from './seat-extract.mjs';
 import {installExtractJobs} from './extract-jobs.mjs';
 import {respond} from './llm-stream.mjs';
 import {installSubjects} from './exam-subjects.mjs';
@@ -138,7 +138,7 @@ export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,use
  const jobs=installExtractJobs(app,db,{requireAdmin,quota,user:req=>user(req)||null,llm,runner:extractRunner,
   draft:id=>{const r=row(id);return r?{...JSON.parse(r.draft),id:r.id}:null;},
   tasks:{
-   seats:{itemKey:'seats',failure:seatFailure,options:req=>({mode:seatMode(req.headers['x-seat-mode'])}),
+   seats:{itemKey:'seats',failure:seatFailure,validate:seatMaterialsError,options:req=>({mode:seatMode(req.headers['x-seat-mode']||req.body?.mode)}),
     async prepare(input,batch,options){const prepared=await prepareSeats(input,batch,seatMode(options?.mode));return {...prepared,context:{...prepared.context,batchId:batch.id}};},
     finish:(context,raw)=>organizeSeats(context.batchId,finishSeats(context,raw)),
     salvage:(context,items)=>{const partial=salvageSeats(context,items);return partial&&organizeSeats(context.batchId,partial);}},
