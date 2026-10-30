@@ -96,3 +96,31 @@ test('a closed period keeps its counts but forgets its visitors',async t=>{
  assert.deepEqual(series.week.slice(-2).map(p=>[p.start,p.views.calendar,p.visitors.anonymous]),[['2026-10-12',2,2],['2026-10-19',1,1]]);
  assert.deepEqual(series.month.slice(-1).map(p=>[p.start,p.views.calendar,p.visitors.anonymous]),[['2026-10',3,2]]);
 });
+
+test('an earlier month shows its total and days, and 所有 adds up every month',async t=>{
+ const directory=await mkdtemp(join(tmpdir(),'stats-test-'));
+ const db=openStore(directory),app=express();
+ let clock=Date.parse('2026-08-30T02:00:00Z');
+ app.set('trust proxy','loopback');app.use(express.json());
+ installStats(app,db,{session:()=>null,requireAdmin:(req,res,next)=>next(),timeZone:'Asia/Shanghai',now:()=>clock});
+ const request=await listen(t,app,async()=>{db.close();await rm(directory,{recursive:true,force:true});});
+ await request('/api/views',{method:'POST',body:{page:'calendar'}});
+ clock=Date.parse('2026-09-02T02:00:00Z');
+ await request('/api/views',{method:'POST',body:{page:'calendar'}});
+ await request('/api/views',{method:'POST',body:{page:'exams'},ip:'192.0.2.2'});
+ clock=Date.parse('2026-10-03T02:00:00Z');
+ await request('/api/views',{method:'POST',body:{page:'exams'}});
+ const latest=(await request('/api/admin/stats')).body;
+ assert.deepEqual(latest.months,['2026-08','2026-09','2026-10']);
+ const {month}=(await request('/api/admin/stats?month=2026-09')).body;
+ assert.deepEqual([month.total.views,month.total.visitors.anonymous],[{calendar:1,exams:1},2]);
+ assert.deepEqual([month.previous.start,month.previous.views.calendar],['2026-08',1]);
+ assert.equal(month.days.length,30);
+ assert.deepEqual(month.days[1].views,{calendar:1,exams:1});
+ // The open month lists its days only up to today.
+ assert.equal((await request('/api/admin/stats?month=2026-10')).body.month.days.length,3);
+ const {all}=(await request('/api/admin/stats?month=all')).body;
+ assert.deepEqual(all.views,{calendar:2,exams:2});
+ assert.deepEqual(all.months.map(p=>[p.start,p.visitors.anonymous]),[['2026-08',1],['2026-09',2],['2026-10',1]]);
+ for(const month of ['2026-11','2026-13','x'])assert.equal((await request('/api/admin/stats?month='+month)).status,400);
+});

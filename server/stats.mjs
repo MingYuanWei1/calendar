@@ -58,23 +58,41 @@ export function installStats(app,db,{session,requireAdmin,timeZone,now=()=>Date.
   res.status(204).end();
  });
 
+ const range={day:start=>[start,start],week:start=>[start,shift(start,6)],month:start=>[start+'-01',start+'-31']};
+ const viewsIn=db.prepare('SELECT page,SUM(views) AS views FROM stat_views WHERE day BETWEEN ? AND ? GROUP BY page');
+ const visitorsIn=db.prepare('SELECT signed_in,anonymous FROM stat_visitors WHERE unit=? AND period=?');
+ function point(unit,start){
+  const views=Object.fromEntries(PAGES.map(page=>[page,0]));
+  for(const row of viewsIn.all(...range[unit](start)))if(PAGES.includes(row.page))views[row.page]=Number(row.views);
+  const visitors=visitorsIn.get(unit,start);
+  return {start,views,visitors:{signedIn:Number(visitors?.signed_in||0),anonymous:Number(visitors?.anonymous||0)}};
+ }
+ /** Every month from the first one with data up to the open one, oldest first. */
+ function months(current){
+  const first=db.prepare(`SELECT MIN(m) AS m FROM (SELECT MIN(substr(day,1,7)) AS m FROM stat_views UNION ALL SELECT MIN(period) FROM stat_visitors WHERE unit='month')`).get()?.m;
+  const list=[];for(let m=first&&first<current?first:current;m<=current;m=shiftMonth(m,1))list.push(m);
+  return list;
+ }
+
  // The latest days, weeks and months, oldest first, each ending with the period still open.
+ // ?month=YYYY-MM gives that month and its days instead; ?month=all gives every month and the all-time views.
  app.get('/api/admin/stats',requireAdmin,(req,res)=>{
-  const current=open(today());
+  const current=open(today()),available=months(current.month),month=req.query.month;
+  if(month==='all'){
+   const list=available.map(m=>point('month',m)),views=Object.fromEntries(PAGES.map(page=>[page,list.reduce((n,p)=>n+p.views[page],0)]));
+   return res.json({today:current.day,months:available,all:{views,months:list}});
+  }
+  if(month!==undefined){
+   if(typeof month!=='string'||!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)||month>current.month)return res.status(400).json({error:'月份无效。'});
+   const days=[];for(let d=month+'-01';d.startsWith(month)&&d<=current.day;d=shift(d,1))days.push(point('day',d));
+   return res.json({today:current.day,months:available,month:{total:point('month',month),previous:point('month',shiftMonth(month,-1)),days}});
+  }
   const starts={
    day:Array.from({length:SERIES.day},(_,i)=>shift(current.day,i-SERIES.day+1)),
    week:Array.from({length:SERIES.week},(_,i)=>shift(current.week,7*(i-SERIES.week+1))),
    month:Array.from({length:SERIES.month},(_,i)=>shiftMonth(current.month,i-SERIES.month+1))
   };
-  const range={day:start=>[start,start],week:start=>[start,shift(start,6)],month:start=>[start+'-01',start+'-31']};
-  const viewsIn=db.prepare('SELECT page,SUM(views) AS views FROM stat_views WHERE day BETWEEN ? AND ? GROUP BY page');
-  const visitorsIn=db.prepare('SELECT signed_in,anonymous FROM stat_visitors WHERE unit=? AND period=?');
-  const series=Object.fromEntries(Object.entries(starts).map(([unit,list])=>[unit,list.map(start=>{
-   const views=Object.fromEntries(PAGES.map(page=>[page,0]));
-   for(const row of viewsIn.all(...range[unit](start)))if(PAGES.includes(row.page))views[row.page]=Number(row.views);
-   const visitors=visitorsIn.get(unit,start);
-   return {start,views,visitors:{signedIn:Number(visitors?.signed_in||0),anonymous:Number(visitors?.anonymous||0)}};
-  })]));
-  res.json({today:current.day,series});
+  const series=Object.fromEntries(Object.entries(starts).map(([unit,list])=>[unit,list.map(start=>point(unit,start))]));
+  res.json({today:current.day,months:available,series});
  });
 }
