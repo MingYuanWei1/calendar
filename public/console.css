@@ -478,7 +478,11 @@ mark.src-hit{background:color-mix(in srgb,#f2c94c 55%,transparent);outline:1px s
 .pager{display:flex;align-items:center;justify-content:center;gap:12px;margin:16px 0;font-size:13px}
 .domain-form{display:flex;gap:10px;flex-wrap:wrap}.domain-form .input{flex:1 1 240px;max-width:360px}
 .student-refs{margin:0;padding-left:18px;font-size:13px;display:flex;flex-direction:column;gap:2px}
-.merge-pick{display:flex;gap:8px;flex-wrap:wrap}.merge-pick select{flex:1 1 240px;min-width:0}
+.student-merge{display:flex;gap:8px;flex-wrap:wrap}.student-merge .search{flex:1 1 240px;min-width:0;max-width:none}
+.merge-options{display:flex;flex-direction:column;gap:4px;max-height:240px;overflow:auto;margin-top:6px}.merge-options:empty{display:none}
+.merge-option{display:flex;flex-direction:column;gap:2px;align-items:flex-start;text-align:left;padding:6px 10px;border:1px solid var(--color-faint);background:var(--color-surface);font:inherit;color:inherit;cursor:pointer;min-width:0}
+.merge-option:hover{border-color:var(--color-neutral-600)}.merge-option[aria-selected=true]{border-color:var(--color-accent);box-shadow:inset 3px 0 0 var(--color-accent)}
+.merge-more{font-size:12px;margin:2px 0 0}
 .dialog-sub{margin:16px 0 6px;font-size:15px}
 .job-strip{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;margin:16px 0;padding:10px 14px;border:1px solid var(--color-accent);background:var(--color-surface)}
 .job-strip:not(.running) .ai-pulse{animation:none;opacity:.35}

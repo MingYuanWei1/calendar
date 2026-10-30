@@ -95,7 +95,8 @@ function editStudent(id,main){
  <h4 class="dialog-sub">${T('关联座位','Linked seats')}</h4>
  <ul class="student-refs">${(s.references||[]).map(r=>`<li>${r.kind==='draft'?T('草稿','Draft'):T('已发布','Published')} · ${esc(r.examId)} · ${esc(r.room)} · ${T(`${r.row} 排 ${r.column} 列`,`Row ${r.row} · Col ${r.column}`)}</li>`).join('')||`<li class="muted">${T('无','None')}</li>`}</ul>
  ${others.length?`<h4 class="dialog-sub">${T('合并重复学生','Merge a duplicate')}</h4>
- <div class="merge-pick"><select class="input" data-merge-target aria-label="${T('保留的学生','Student to keep')}"><option value="">${T('选择保留的学生','Choose the student to keep')}</option>${others.map(t=>`<option value="${esc(t.id)}">${esc(label(t))} · ${esc(t.className)} · ${esc(t.email)}</option>`).join('')}</select><button type="button" class="btn btn-secondary" data-merge-preview>${T('预览合并','Preview merge')}</button></div><div data-merge-result></div>`:''}
+ <div class="student-merge"><label class="search">${icon.search}<input class="input" type="search" data-merge-q autocomplete="off" placeholder="${T('搜索姓名、拼音、班级或邮箱','Search name, pinyin, class or email')}" aria-label="${T('搜索保留的学生','Search the student to keep')}"></label><button type="button" class="btn btn-secondary" data-merge-preview>${T('预览合并','Preview merge')}</button></div>
+ <div class="merge-options" data-merge-options role="listbox" aria-label="${T('保留的学生','Student to keep')}"></div><div data-merge-result></div>`:''}
  ${errorLine}<div class="dialog-actions"><button type="button" class="btn btn-secondary" data-close>${T('返回','Go back')}</button><button type="button" class="btn btn-primary" data-save>${T('保存修正','Save correction')}</button></div>`,{size:'medium'});
  const done=async message=>{await load();closeModal();showStudents(main,query());toast(message);};
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
@@ -104,8 +105,27 @@ function editStudent(id,main){
   await done(T('学生信息已保存。','Student saved.'));
  });
  const preview=body.querySelector('[data-merge-preview]');
+ let targetId='';
+ if(preview){
+  // With no query, suggest likely duplicates (same name or pinyin); otherwise every word must match one of the fields.
+  const search=body.querySelector('[data-merge-q]'),options=body.querySelector('[data-merge-options]');
+  const showOptions=()=>{
+   const q=search.value.trim().toLowerCase(),words=q.split(/[\s·,，]+/).filter(Boolean);
+   const list=q?others.filter(t=>words.every(w=>[t.name,t.englishName,t.pinyin,t.className,t.email,t.id].some(v=>String(v||'').toLowerCase().includes(w))))
+    :others.filter(t=>(s.name&&t.name===s.name)||(s.pinyin&&t.pinyin===s.pinyin));
+   // A choice that the search no longer shows is dropped, so Preview never uses a hidden student.
+   if(targetId&&!list.some(t=>t.id===targetId)){targetId='';body.querySelector('[data-merge-result]').innerHTML='';}
+   options.innerHTML=list.map(t=>`<button type="button" role="option" class="merge-option" data-id="${esc(t.id)}" aria-selected="${t.id===targetId}"><span class="cell-main clip">${esc(label(t))}${t.englishName&&t.name?` <span class="muted">${esc(t.englishName)}</span>`:''}</span><span class="cell-sub clip">${esc([t.className,t.graduationYear&&T(`${t.graduationYear} 届`,`Class of ${t.graduationYear}`),t.email].filter(Boolean).join(' · '))}</span></button>`).join('')
+    +(!list.length&&q?`<p class="muted merge-more">${T('没有符合条件的学生','No matching students')}</p>`:'');
+  };
+  search.oninput=showOptions;
+  // Enter while an input method is composing only confirms the characters.
+  search.onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();options.querySelector('.merge-option')?.click();}};
+  options.onclick=e=>{const b=e.target.closest('.merge-option');if(!b)return;targetId=b.dataset.id;body.querySelector('[data-merge-result]').innerHTML='';showOptions();};
+  showOptions();
+ }
  if(preview)preview.onclick=()=>busy(body,async()=>{
-  const targetId=body.querySelector('[data-merge-target]').value;if(!targetId)fail(T('请选择保留的学生。','Choose the student to keep.'));
+  if(!targetId)fail(T('请选择保留的学生。','Choose the student to keep.'));
   const result=await api('/admin/students/'+encodeURIComponent(id)+'/merge-preview?target='+encodeURIComponent(targetId));
   const host=body.querySelector('[data-merge-result]');
   host.innerHTML=result.errors.length?`<p class="callout">${result.errors.map(esc).join('；')}</p>`
