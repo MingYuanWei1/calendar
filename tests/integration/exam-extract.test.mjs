@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createApplication} from '../../server/app.mjs';
 import {setAdminPassword} from '../../server/store.mjs';
+import {materialsForm,runJob} from '../helpers.mjs';
 test('Worker extraction authenticates, routes purpose aliases, validates previews and never saves automatically',async()=>{
  const calls=[];let malformed=false,flashEnabled=true;
  const gateway=http.createServer(async(req,res)=>{assert.equal(req.headers.authorization,'Bearer fixture-token');res.setHeader('Content-Type','application/json');if(req.url==='/v1/capabilities')return res.end(JSON.stringify({purposes:{flash:{enabled:flashEnabled},think:{enabled:true},vision:{enabled:true}}}));let body='';for await(const part of req)body+=part;calls.push(JSON.parse(body));res.end(JSON.stringify({choices:[{message:{content:malformed===true?'bad json':malformed?malformed:JSON.stringify({sessions:[{title:'数学 HL',subject:'数学',level:'HL',division:'high',grades:[12],date:'2026-09-21',start:'08:10',end:'09:40',rooms:['101']}],warnings:[]})}}]}));});
@@ -13,25 +14,32 @@ test('Worker extraction authenticates, routes purpose aliases, validates preview
  const directory=await mkdtemp(join(tmpdir(),'extract-test-')),instance=createApplication({dataDir:directory,origin:'http://calendar.test',llm:{url:`http://127.0.0.1:${gateway.address().port}`,token:'fixture-token'}}),server=instance.app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
  const base=`http://127.0.0.1:${server.address().port}/api`,call=(path,method='GET',body,cookie='')=>fetch(base+path,{method,headers:{Origin:'http://calendar.test','Content-Type':'application/json',Cookie:cookie},...(body?{body:JSON.stringify(body)}:{})});
  try{
-  const input={images:['data:image/jpeg;base64,aGVsbG8='],text:'数学 HL 9月21日 08:10-09:40 G12 101',start:'2026-09-21',end:'2026-09-25'};
-  assert.equal((await call('/admin/exam-extract','POST',input)).status,401);
-  await setAdminPassword(instance.db,'admin','extract-testing-password');const login=await call('/login','POST',{username:'admin',password:'extract-testing-password'}),cookie=login.headers.get('set-cookie').split(';')[0];
-  let response=await call('/admin/exam-extract','POST',input,cookie);assert.equal(response.status,200);const result=await response.json();assert.equal(result.sessions[0].subject,'数学');assert.ok(result.sessions[0].id);assert.equal(calls[0].model,'flash');assert.equal(calls[0].stream,true);assert.match(calls[0].messages[0].content,/EVERY subject/);assert.match(calls[0].messages[0].content,/custom subjects/);assert.match(calls[0].messages[0].content,/Course \+ number/);
+  const input={parts:[{kind:'image',image:'data:image/jpeg;base64,aGVsbG8=',text:'数学 HL 9月21日 08:10-09:40 G12 101',file:'schedule.pdf'}]};
+  const extract=(materials=input)=>runJob(base,cookie,'sessions',batch.id,materialsForm(materials));
+  let cookie='';
+  assert.equal((await fetch(base+'/admin/extract-jobs/sessions?batch=x',{method:'POST',headers:{Origin:'http://calendar.test'},body:materialsForm(input)})).status,401);
+  await setAdminPassword(instance.db,'admin','extract-testing-password');const login=await call('/login','POST',{username:'admin',password:'extract-testing-password'});cookie=login.headers.get('set-cookie').split(';')[0];
+  const batch=await (await call('/admin/exams','POST',{title:'Test',start:'2026-09-21',end:'2026-09-25',rooms:[{name:'101',rows:5,columns:5}],sessions:[],seats:[]},cookie)).json();
+  let run=await extract();assert.equal(run.status,'done');const result=run.result;assert.equal(result.sessions[0].subject,'数学');assert.ok(result.sessions[0].id);assert.equal(calls[0].model,'flash');assert.equal(calls[0].stream,true);assert.match(calls[0].messages[0].content,/EVERY subject/);assert.match(calls[0].messages[0].content,/custom subjects/);assert.match(calls[0].messages[0].content,/Course \+ number/);
   for(const rule of ['Chinese ab initio','Language & Literature','Comprehensive English','Pre-Calculus','non-dp'])assert.ok(calls[0].messages[0].content.includes(rule),rule);
-  assert.equal(instance.db.prepare('SELECT COUNT(*) AS n FROM exam_batches').get().n,0);
-  const candidate={title:'Test',start:input.start,end:input.end,rooms:[{name:'101',rows:5,columns:5}],sessions:result.sessions,seats:[]};
+  // The batch's own dates bound the extraction.
+  assert.match(calls[0].messages[0].content,/Batch date range 2026-09-21 to 2026-09-25/);
+  assert.equal(JSON.parse(instance.db.prepare('SELECT draft FROM exam_batches').get().draft).sessions.length,0);
+  const candidate={title:'Test',start:'2026-09-21',end:'2026-09-25',rooms:[{name:'101',rows:5,columns:5}],sessions:result.sessions,seats:[]};
   assert.equal((await call('/admin/exam-extract/validate','POST',candidate,cookie)).status,200);
   assert.equal((await call('/admin/exam-extract/validate','POST',{...candidate,sessions:[{...result.sessions[0],date:'2027-01-01'}]},cookie)).status,422);
-  assert.equal((await call('/admin/exam-extract','POST',{...input,images:[]},cookie)).status,422);
-  flashEnabled=false;const count=calls.length;assert.equal((await call('/admin/exam-extract','POST',input,cookie)).status,502);assert.equal(calls.length,count);flashEnabled=true;
-  malformed=true;assert.equal((await call('/admin/exam-extract','POST',input,cookie)).status,502);
+  assert.equal((await extract({parts:[]})).response.status,422);
+  // The old streaming endpoint is gone: extraction only runs as a job.
+  assert.equal((await call('/admin/exam-extract','POST',{},cookie)).status,404);
+  flashEnabled=false;const count=calls.length;run=await extract();assert.equal(run.status,'failed');assert.equal(calls.length,count);flashEnabled=true;
+  malformed=true;assert.equal((await extract()).status,'failed');
   // When the answer breaks off, the finished sessions are kept as a normal result and the broken tail is listed.
   malformed='{"sessions":[{"title":"数学 HL","subject":"数学","level":"HL","division":"high","grades":["G12"],"date":"2026-09-21","start":"08:10","end":"09:40","rooms":["101"]},{"title":';
-  response=await call('/admin/exam-extract','POST',input,cookie);assert.equal(response.status,200);const kept=await response.json();
+  run=await extract();assert.equal(run.status,'done');const kept=run.result;
   assert.equal(kept.sessions.length,1);assert.ok(kept.sessions[0].id);assert.deepEqual(kept.sessions[0].grades,[12]);assert.deepEqual(kept.invalid,[{text:'{"title":',reason:'cut'}]);
   // A session with a wrongly typed field is set aside on its own and listed; the others survive.
   malformed='{"sessions":[{"title":"数学 HL","date":"2026-09-21","rooms":["101"]},{"title":"物理","rooms":"101"}],"warnings":[]}';
-  response=await call('/admin/exam-extract','POST',input,cookie);assert.equal(response.status,200);const filtered=await response.json();
+  run=await extract();assert.equal(run.status,'done');const filtered=run.result;
   assert.deepEqual(filtered.sessions.map(s=>s.title),['数学 HL']);assert.equal(filtered.invalid.length,1);assert.equal(filtered.invalid[0].reason,'schema');assert.match(filtered.invalid[0].detail,/rooms/);
  }finally{await new Promise(r=>server.close(r));await new Promise(r=>gateway.close(r));instance.close();await rm(directory,{recursive:true,force:true});}
 });

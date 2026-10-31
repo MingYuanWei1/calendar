@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createApplication} from '../../server/app.mjs';
 import {setAdminPassword} from '../../server/store.mjs';
+import {materialsForm,runJob} from '../helpers.mjs';
 
 const origin='http://calendar.test';
 
@@ -37,8 +38,8 @@ test('school rules choose the course naming that AI exam extraction follows',asy
  // A school that never chose rules uses the IB template, so extraction behaves as before.
  const initial=await (await call('/admin/school-rules','GET',null,admin)).json();
  assert.equal(initial.template,'ib');assert.match(initial.rules,/non-dp/);assert.deepEqual(Object.keys(initial.templates),['ib','general']);
- const input={images:['data:image/jpeg;base64,aGVsbG8='],text:'Physics non-DP G11',start:'2026-09-21',end:'2026-09-25'};
- const extract=async()=>(await (await call('/admin/exam-extract','POST',input,admin)).json()).sessions[0];
+ const batch=await (await call('/admin/exams','POST',{title:'Rules',start:'2026-09-21',end:'2026-09-25',rooms:[],sessions:[],seats:[]},admin)).json();
+ const extract=async()=>(await runJob(base,admin,'sessions',batch.id,materialsForm({parts:[{kind:'image',image:'data:image/jpeg;base64,aGVsbG8=',text:'Physics non-DP G11'}]}))).result.sessions[0];
  assert.equal((await extract()).level,'Physics 2');
  const ibPrompt=calls.at(-1).messages[0].content;
  assert.match(ibPrompt,/Comprehensive English/);assert.match(ibPrompt,/AI经管/);assert.match(ibPrompt,/Return ONLY a JSON object/);

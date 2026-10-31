@@ -289,14 +289,19 @@ function mergeAnswers(answers) {
     return merged;
 }
 const PART_CONCURRENCY = 8;
+// A part's `stamp` (e.g. {workbook}) is merged into the source of every item read from it.
+const stamped = (stamp, item) => stamp && item && typeof item === 'object' ? { ...item, source: { ...(item.source && typeof item.source === 'object' ? item.source : {}), ...stamp } } : item;
+const stampAnswer = (stamp, answer) => stamp ? Object.assign(Object.fromEntries(Object.entries(answer || {}).map(([key, value]) => [key, Array.isArray(value) && key !== 'warnings' ? value.map(item => stamped(stamp, item)) : value])), { [INVALID]: answer?.[INVALID] || [] }) : answer;
 /**
  * Runs a prepared extraction request ({body, timeout, idle, reading}) against the LLM Worker and returns the parsed
  * answer. Shared by the request-bound endpoints and background extraction jobs.
- * A request too large for one answer (the model stops at its output token cap) lists `parts` ([{body}]) instead of a
- * body: they run a few at a time and their answers are joined in order. Only a lone part may reset the progress,
- * since a reset clears every item streamed so far; a failure carries the items every part had finished.
+ * A request too large for one answer (the model stops at its output token cap) lists `parts` ([{body, stamp}]) instead
+ * of a body: they run `concurrency` at a time and their answers are joined in order. A part without a body is fetched
+ * with `load(index)` when its turn comes, so a background job never holds every image at once. Only a lone part may
+ * reset the progress, since a reset clears every item streamed so far; a failure carries the items every part had
+ * finished.
  */
-export async function generate(config, request, progress, signal = null) {
+export async function generate(config, request, progress, signal = null, load = null) {
     progress.stage('connecting');
     await requireFlash(config);
     progress.stage('reading', request.reading || {});
@@ -305,12 +310,13 @@ export async function generate(config, request, progress, signal = null) {
     let next = 0, failure = null;
     const worker = async () => {
         while (next < parts.length && !failure) {
-            const index = next++;
-            try { answers[index] = await streamJson(config, parts[index].body, request.timeout, parts.length > 1 ? quiet : progress, request.idle, signal); }
-            catch (error) { answers[index] = error.items || {}; failure ||= error; }
+            const index = next++, { stamp } = parts[index], shown = parts.length > 1 ? quiet : progress;
+            const report = stamp ? { ...shown, item: (key, at, item) => shown.item(key, at, stamped(stamp, item)) } : shown;
+            try { answers[index] = stampAnswer(stamp, await streamJson(config, parts[index].body ?? await load(index), request.timeout, report, request.idle, signal)); }
+            catch (error) { answers[index] = stampAnswer(stamp, error.items || {}); failure ||= error; }
         }
     };
-    await Promise.all(Array.from({ length: Math.min(PART_CONCURRENCY, parts.length) }, worker));
+    await Promise.all(Array.from({ length: Math.min(request.concurrency || PART_CONCURRENCY, parts.length) }, worker));
     const merged = mergeAnswers(answers);
     if (failure) { const { [INVALID]: _, ...items } = merged; throw Object.assign(failure, { items }); }
     return merged;

@@ -316,6 +316,7 @@ dialog.dialog::backdrop{background:color-mix(in srgb,var(--color-neutral-900) 50
 .list-box>div{display:grid;gap:12px;padding:7px 0;border-bottom:1px solid var(--color-faint);font-size:13px;align-items:center}
 .list-box.publish>div{grid-template-columns:150px minmax(0,1fr) 150px}
 .list-box.rooms>div{grid-template-columns:minmax(0,1fr) auto auto}
+.list-box.files>div{grid-template-columns:minmax(0,1fr) auto}
 .list-box.subjects>div{grid-template-columns:140px minmax(0,1fr)}
 .subject-add{display:grid;grid-template-columns:140px minmax(0,1fr) auto;gap:12px;align-items:end}
 .review-table{width:100%;border-collapse:collapse;font-size:13px}
@@ -485,6 +486,8 @@ mark.src-hit{background:color-mix(in srgb,#f2c94c 55%,transparent);outline:1px s
 .merge-more{font-size:12px;margin:2px 0 0}
 .dialog-sub{margin:16px 0 6px;font-size:15px}
 .job-strip{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;margin:16px 0;padding:10px 14px;border:1px solid var(--color-accent);background:var(--color-surface)}
+/* A batch may show a timetable and a seating job together. */
+.job-strips{display:grid;gap:8px}.job-strips .job-strip{margin:0}
 .job-strip:not(.running) .ai-pulse{animation:none;opacity:.35}
 .job-strip.failed,.job-strip.interrupted{border-color:#9a3a45}.job-strip.failed .cell-main,.job-strip.interrupted .cell-main{color:#9a3a45}
 .job-strip .row-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}

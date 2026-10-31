@@ -62,7 +62,7 @@ export function stamp(value){
 
 export async function api(path,options={}){
  let response;
- const raw=options.body instanceof Blob;
+ const raw=options.body instanceof Blob||(globalThis.FormData&&options.body instanceof FormData);
  try{response=await fetch('/api'+path,{credentials:'same-origin',...options,headers:{...(raw?{}:{'Content-Type':'application/json'}),...options.headers}});}
  catch{throw new Error(T('无法连接服务器，已保留输入，请重试。','Unable to connect. Your input is preserved; please retry.'));}
  if(!response.ok){

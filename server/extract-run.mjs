@@ -46,8 +46,10 @@ export async function runExtraction({jobId,run,ops,config,step}){
   const generated=await step('generate',1,async()=>{
    const begun=await ops.begin(jobId,run);if(!begun)return false;
    const controller=new AbortController(),sink=progressSink(events=>ops.record(jobId,run,events),controller);
+   // Each part's model request is fetched when its turn comes; a superseded run gets none and stops.
+   const load=async index=>{const body=await ops.part(jobId,run,index);if(body)return body;controller.abort();throw Object.assign(new Error('superseded'),{name:'AbortError'});};
    try{
-    const raw=await generate(config,begun.request,sink.progress,controller.signal);
+    const raw=await generate(config,begun.request,sink.progress,controller.signal,load);
     await sink.close();
     await ops.generated(jobId,run,packAnswer(raw));
     return true;

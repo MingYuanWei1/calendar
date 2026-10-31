@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createApplication} from '../../server/app.mjs';
 import {setAdminPassword} from '../../server/store.mjs';
+import {materialsForm} from '../helpers.mjs';
 
 const origin='http://calendar.test';
 
@@ -35,7 +36,7 @@ async function setup(t,llmOptions={}){
  await setAdminPassword(instance.db,'admin','notice-testing-password');
  const admin=await signIn('admin','notice-testing-password');
  const json=async(path,method,body,status=200)=>{const r=await call(path,method,body,admin);assert.equal(r.status,status,await r.clone().text());return r.status===204?null:r.json();};
- const extract=(body,cookie=admin)=>call('/admin/notice-extract','POST',body,cookie,'application/x-ndjson');
+ const extract=(body,cookie=admin)=>fetch(base+'/admin/notice-extract',{method:'POST',headers:{Origin:origin,Accept:'application/x-ndjson',Cookie:cookie},body:materialsForm(body)});
  const stream=async body=>{const r=await extract(body);assert.equal(r.status,200);return (await r.text()).trim().split('\n').map(line=>JSON.parse(line));};
  return {llm,call,signIn,admin,json,extract,stream};
 }
@@ -111,7 +112,7 @@ test('only admins may read notices, and bad or oversized materials are refused',
  assert.equal((await extract({parts},reader)).status,403);
  assert.equal((await extract({parts:[]})).status,422);
  assert.equal((await extract({parts:[{kind:'image',image:'data:text/html;base64,aGVsbG8='}]})).status,422);
- assert.equal((await extract({parts:Array.from({length:13},()=>({kind:'text',text:'x'}))})).status,422);
+ assert.equal((await extract({parts:Array.from({length:41},()=>({kind:'text',text:'x'}))})).status,422);
  assert.equal((await json('/admin/notice-extract')).configured,true);
 });
 

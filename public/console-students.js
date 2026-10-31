@@ -1,6 +1,6 @@
 import {$,$$,esc,corners,icon,app,T,tx,api,toast,modal,closeModal,busy,errorLine,fail} from './console-core.js';
-import {streamApi,reviewView,sheetPane} from './ai-review.js';
-import {materialFields,bindMaterials} from './material-input.js';
+import {streamApi,reviewView} from './ai-review.js';
+import {materialFields,bindMaterials,materialsForm,sourcePane} from './material-input.js';
 import {gradeLabel} from './grades.mjs';
 
 const PAGE=50;
@@ -151,13 +151,13 @@ const classKey=value=>String(value||'').toUpperCase().replace(/^GRADE\s*/,'').re
 const changesFor=(student,item)=>({...(item.expected&&student.graduationYear!==item.expected?{graduationYear:item.expected}:{}),...(item.row.className&&classKey(student.className)!==classKey(item.row.className)?{className:item.row.className}:{})});
 
 function checkDialog(main){
- const body=modal(T('核验学生年级','Check student grades'),`<p class="muted" style="font-size:13px;line-height:1.7">${T('粘贴学校的班级名单或花名册，也可以加入截图、照片、PDF，或选择一个 Excel 名单（.xlsx，需单独核验）。AI 读出每位学生的班级和年级，再与学生库对照；核对后勾选的修正才会保存。','Paste a class list or roster, add screenshots, photos or PDFs, or choose one Excel roster (.xlsx, checked on its own). The AI reads each student’s class and grade and compares them with the student records; only the corrections you tick are saved.')}</p>
+ const body=modal(T('核验学生年级','Check student grades'),`<p class="muted" style="font-size:13px;line-height:1.7">${T('粘贴学校的班级名单或花名册，也可以加入截图、照片、PDF 或 Excel 名单（.xlsx），最多 5 个文件，可以混用。AI 读出每位学生的班级和年级，再与学生库对照；核对后勾选的修正才会保存。','Paste a class list or roster, or add screenshots, photos, PDFs or Excel rosters (.xlsx): up to 5 files, in any mix. The AI reads each student’s class and grade and compares them with the student records; only the corrections you tick are saved.')}</p>
  <div class="field"><label for="check-year">${T('名单所属学年（开始年份，如 2026 即 2026–2027 学年）','School year of the list (starting year, e.g. 2026 for 2026–27)')}</label><input class="input" id="check-year" type="number" min="2000" max="2199" name="academicYear"></div>
- ${materialFields({placeholder:T('在此粘贴名单文字，或直接粘贴截图…','Paste the list here, or paste a screenshot…'),drop:T('拖入或粘贴名单截图、照片、PDF 或 Excel，或点击选择','Drop or paste screenshots, photos, PDFs or an Excel workbook, or click to choose'),label:T('参考名单','Reference list'),xlsx:true})}
+ ${materialFields({placeholder:T('在此粘贴名单文字，或直接粘贴截图…','Paste the list here, or paste a screenshot…'),drop:T('拖入或粘贴名单截图、照片、PDF 或 Excel（可多选），或点击选择','Drop or paste screenshots, photos, PDFs or Excel workbooks (several allowed), or click to choose'),label:T('参考名单','Reference list')})}
  <p class="alert" data-progress hidden></p>${errorLine}
  <div class="dialog-actions"><button type="button" class="btn btn-secondary" data-close>${T('返回','Go back')}</button><button type="button" class="btn btn-primary" data-save>${T('开始核验','Check')}</button></div>`,{size:'medium'});
  const progress=message=>{const el=body.querySelector('[data-progress]');el.textContent=message;el.hidden=!message;};
- const materials=bindMaterials(body,{xlsx:true}),year=/** @type {HTMLInputElement} */(body.querySelector('[name=academicYear]'));
+ const materials=bindMaterials(body),year=/** @type {HTMLInputElement} */(body.querySelector('[name=academicYear]'));
  api('/admin/students/check').then(status=>{
   if(!year.value)year.value=String(status.academicYear);
   if(!status.configured){const el=body.querySelector('[data-error]');el.textContent=T('尚未配置 LLM_WORKER_URL 和 LLM_WORKER_TOKEN，请配置后重启服务。','LLM_WORKER_URL and LLM_WORKER_TOKEN are not configured. Configure them and restart the service.');el.hidden=false;}
@@ -165,23 +165,22 @@ function checkDialog(main){
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
   const academicYear=Number(year.value);
   if(!Number.isInteger(academicYear)||academicYear<2000||academicYear>2199)fail(T('请填写名单所属学年。','Enter the school year of the list.'));
-  const {xlsx,parts,pane}=await materials.collect(progress);
-  if(xlsx&&xlsx.size>10*1024*1024)fail(T('Excel 文件最大 10 MB。','Excel files must be at most 10 MB.'));
+  const {parts,workbooks,panes}=await materials.collect(progress);
   closeModal();
-  // A workbook goes as it is; the server reads its cells and sends the sheets back to show as the source.
-  await runCheck(xlsx?{body:xlsx,headers:{'Content-Type':'application/octet-stream','X-File-Name':encodeURIComponent(xlsx.name),'X-Academic-Year':String(academicYear)}}:{body:JSON.stringify({parts:parts.map(({items,...part})=>part),academicYear})},pane,main);
+  // Workbooks go as they are; the server reads their cells and sends the sheets back to show as the source.
+  await runCheck(materialsForm({parts:parts.map(({items,...part})=>part),workbooks},{academicYear}),panes,main);
  });
 }
 
-async function runCheck(request,pane,main){
+async function runCheck(form,panes,main){
  const streamed=[];let final=null;
  const review=reviewView({title:T('核验学生年级','Check student grades'),sourceOf:i=>(final?final.items[i]:streamed[i])?.source});
- if(pane)review.source(pane);
+ review.source(sourcePane(panes));
  const close=/** @type {HTMLElement} */(review.actions(`<button type="button" class="btn btn-secondary" data-dismiss>${T('关闭','Close')}</button>`).querySelector('[data-dismiss]'));close.onclick=review.close;
  try{
-  const done=await streamApi('/admin/students/check',{...request,signal:review.signal},message=>{
+  const done=await streamApi('/admin/students/check',{body:form,signal:review.signal},message=>{
    review.message(message);
-   if(message.type==='source'&&message.sheets)review.source(sheetPane(message.sheets));
+   if(message.type==='source')review.source(sourcePane(panes,message));
    if(message.type==='reset')streamed.length=0;
    if(message.type==='item'&&message.key==='students'){const s=message.item;streamed.push(s);review.append(`<div class="ai-card" data-pick="${streamed.length-1}" tabindex="0"><span class="ai-card-title">${esc([s.name,s.englishName].filter(Boolean).join(' · '))}</span><span class="muted num">${esc([s.className,typeof s.grade==='number'?gradeLabel(s.grade,app.lang):s.grade].filter(Boolean).join(' · '))}</span></div>`);}
   });

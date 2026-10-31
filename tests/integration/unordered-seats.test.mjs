@@ -10,6 +10,7 @@ import {setAdminPassword} from '../../server/store.mjs';
 import {localRunner} from '../../server/extract-jobs.mjs';
 import {localStep} from '../../server/extract-run.mjs';
 import {prepareSeats,finishSeats} from '../../server/seat-extract.mjs';
+import {materialsForm} from '../helpers.mjs';
 import {seatErrors,batchSchema} from '../../server/exam-model.mjs';
 import {adaptRooms,examMode,mergeSeats,modeConflicts} from '../../public/exam-seats.mjs';
 import {seatingMarkup} from '../../public/exam-common.js';
@@ -25,7 +26,8 @@ const student=(examId,room,extra={})=>({examId,room,className:'10.1',name:'学�
 test('unordered extraction asks for room lists and drops positions; ordered extraction needs them',async()=>{
  const book=new ExcelJS.Workbook();book.addWorksheet('101').getCell('A1').value='10.1 学生';
  const buffer=Buffer.from(await book.xlsx.writeBuffer()),batch={start:'2026-07-07',end:'2026-07-07',sessions,rooms};
- const unordered=await prepareSeats(buffer,batch,'unordered'),ordered=await prepareSeats(buffer,batch);
+ const materials={parts:[],workbooks:[{name:'seats.xlsx',buffer}]};
+ const unordered=await prepareSeats(materials,batch,'unordered'),ordered=await prepareSeats(materials,batch);
  const instruction=prepared=>prepared.request.parts[0].body.messages[0].content;
  assert.match(instruction(unordered),/Do NOT return row or column/);assert.doesNotMatch(instruction(unordered),/podium/);
  assert.match(instruction(ordered),/podium/);
@@ -93,7 +95,7 @@ test('the chosen mode reaches the extraction job and its retry, and a mismatchin
   const headers={Origin:'http://calendar.test',Cookie:cookie};
   const created=await (await fetch(base+'/admin/exams',{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({title:'T',start:'2026-07-07',end:'2026-07-07',sessions,rooms,seats:[student('honor','101',{row:1,column:1})]})})).json();
   const finished=async id=>{for(let i=0;i<200;i++){const job=(await (await fetch(base+'/admin/extract-jobs',{headers})).json()).find(j=>j.id===id);if(job.status!=='running')return job;await new Promise(r=>setTimeout(r,10));}throw new Error('job did not finish');};
-  const job=await (await fetch(`${base}/admin/extract-jobs/seats?batch=${created.id}`,{method:'POST',headers:{...headers,'Content-Type':'application/octet-stream','X-File-Name':'seats.xlsx','X-Seat-Mode':'unordered'},body:buffer})).json();
+  const job=await (await fetch(`${base}/admin/extract-jobs/seats?batch=${created.id}`,{method:'POST',headers:{Origin:headers.Origin,Cookie:headers.Cookie},body:materialsForm({workbooks:[{name:'seats.xlsx',buffer}]},{mode:'unordered'})})).json();
   assert.equal((await finished(job.id)).status,'done');
   assert.match(asked.at(-1),/Do NOT return row or column/);
   const {result}=await (await fetch(`${base}/admin/extract-jobs/${job.id}/result`,{headers})).json();

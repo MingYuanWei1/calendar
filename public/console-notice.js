@@ -2,7 +2,7 @@
 // cancellations and day plans, review them beside the source, then apply them through the usual APIs.
 import {$$,esc,app,T,tx,TYPES,SCOPES,api,toast,modal,closeModal,busy,errorLine,fail,refreshNav,mdw,loadEvents,loadPlans} from './console-core.js';
 import {streamApi,reviewView} from './ai-review.js';
-import {materialFields,bindMaterials} from './material-input.js';
+import {materialFields,bindMaterials,materialsForm,sourcePane} from './material-input.js';
 import {divisionOf,gradeLabel} from './grades.mjs';
 
 const ACTIONS={create:['新增事件','New event'],reschedule:['改期','Reschedule'],cancel:['取消','Cancel'],dayPlan:['放假与调休','School day']};
@@ -14,17 +14,18 @@ const timeModeOf=({type,start,end,time,endTime})=>type==='deadline'?'deadline':e
 const when=({start,end,time,endTime})=>`${start?mdw(start):'?'}${end&&end!==start?' – '+mdw(end):''}${time?' · '+time+(endTime?'–'+endTime:''):''}`;
 
 export function noticeDialog(){
- const body=modal(T('从通知生成日程','Turn a notice into calendar changes'),`<p class="muted" style="font-size:13px;line-height:1.7">${T('粘贴公众号文章或通知文字，也可以加入截图、照片或 PDF。AI 会识别新增活动、已有事件的改期或取消，以及放假与调休；核对后再保存，不会自动发布。','Paste a notice, or add screenshots, photos or PDFs. The AI finds new events, reschedules or cancellations of existing events, and school-day changes; you review everything before it is saved.')}</p>
- ${materialFields({placeholder:T('在此粘贴通知文字，或直接粘贴截图…','Paste the notice text here, or paste a screenshot…'),drop:T('拖入或粘贴通知截图、照片或 PDF（可多选），或点击选择','Drop or paste screenshots, photos or PDFs (several allowed), or click to choose'),label:T('通知','Notice')})}
+ const body=modal(T('从通知生成日程','Turn a notice into calendar changes'),`<p class="muted" style="font-size:13px;line-height:1.7">${T('粘贴公众号文章或通知文字，也可以加入截图、照片、PDF 或 Excel（最多 5 个文件）。AI 会识别新增活动、已有事件的改期或取消，以及放假与调休；核对后再保存，不会自动发布。','Paste a notice, or add screenshots, photos, PDFs or Excel workbooks (up to 5 files). The AI finds new events, reschedules or cancellations of existing events, and school-day changes; you review everything before it is saved.')}</p>
+ ${materialFields({placeholder:T('在此粘贴通知文字，或直接粘贴截图…','Paste the notice text here, or paste a screenshot…'),drop:T('拖入或粘贴通知截图、照片、PDF 或 Excel（可多选），或点击选择','Drop or paste screenshots, photos, PDFs or Excel workbooks (several allowed), or click to choose'),label:T('通知','Notice')})}
  <p class="alert" data-progress hidden></p>${errorLine}
  <div class="dialog-actions"><button type="button" class="btn btn-secondary" data-close>${T('返回','Go back')}</button><button type="button" class="btn btn-primary" data-save>${T('开始识别','Extract')}</button></div>`,{size:'medium'});
  const progress=message=>{const el=body.querySelector('[data-progress]');el.textContent=message;el.hidden=!message;};
  const materials=bindMaterials(body);
  api('/admin/notice-extract').then(status=>{if(!status.configured){const el=body.querySelector('[data-error]');el.textContent=T('尚未配置 LLM_WORKER_URL 和 LLM_WORKER_TOKEN，请配置后重启服务。','LLM_WORKER_URL and LLM_WORKER_TOKEN are not configured. Configure them and restart the service.');el.hidden=false;}}).catch(()=>{});
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
-  const {parts,pane}=await materials.collect(progress);
+  const {parts,workbooks,panes}=await materials.collect(progress);
   closeModal();
-  await extractNotice(parts.map(({items,...part})=>part),pane);
+  // PDF text runs only mark quotes in this page's source pane; the server does not need them.
+  await extractNotice(materialsForm({parts:parts.map(({items,...part})=>part),workbooks}),panes);
  });
 }
 
@@ -34,14 +35,15 @@ const provisional=(item,i)=>{
  return `<div class="ai-card" data-pick="${i}" tabindex="0"><span class="ai-card-title"><span class="tag tag-outline small">${esc(tx(ACTIONS[item.action]||ACTIONS.create))}</span> ${esc(title)}</span><span class="muted num">${esc(dates.start?when(dates):'')}</span></div>`;
 };
 
-async function extractNotice(parts,pane){
+async function extractNotice(form,panes){
  const streamed=[];let final=null;
  const review=reviewView({title:T('从通知生成日程','Turn a notice into calendar changes'),sourceOf:i=>(final||{items:streamed}).items[i]?.source});
- review.source(pane);
+ review.source(sourcePane(panes));
  const close=/** @type {HTMLElement} */(review.actions(`<button type="button" class="btn btn-secondary" data-dismiss>${T('关闭','Close')}</button>`).querySelector('[data-dismiss]'));close.onclick=review.close;
  try{
-  const done=await streamApi('/admin/notice-extract',{body:JSON.stringify({parts}),signal:review.signal},message=>{
+  const done=await streamApi('/admin/notice-extract',{body:form,signal:review.signal},message=>{
    review.message(message);
+   if(message.type==='source')review.source(sourcePane(panes,message));
    if(message.type==='reset')streamed.length=0;
    if(message.type==='item'&&message.key==='items'){streamed.push(message.item);review.append(provisional(message.item,streamed.length-1));}
   });

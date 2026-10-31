@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createApplication} from '../../server/app.mjs';
 import {setAdminPassword} from '../../server/store.mjs';
+import {materialsForm,runJob} from '../helpers.mjs';
 import {jsonItems,streamChat} from '../../server/llm-stream.mjs';
 
 test('jsonItems reports each finished array item, whatever the chunking',()=>{
@@ -45,7 +46,7 @@ async function gateway(){
  return {state,server,url:`http://127.0.0.1:${server.address().port}`};
 }
 
-test('exam extraction streams NDJSON stages and items, then the normalised result',async()=>{
+test('a timetable job streams its stages and items, then the normalised result',async()=>{
  const llm=await gateway();
  llm.state.content=JSON.stringify({sessions:[{title:'Biology 1',subject:'Biology',grades:[10],date:'2026-09-21',start:'08:10',end:'09:40',rooms:['101'],source:{page:1,quote:'Biology 1'}},{title:'Physics HL',subject:'Physics',level:'HL',grades:[11],date:'2026-09-22',start:'08:10',end:'09:40',rooms:['102'],source:{page:2,quote:'Physics HL'}}],warnings:['check rooms']});
  const directory=await mkdtemp(join(tmpdir(),'stream-test-')),instance=createApplication({dataDir:directory,origin:'http://calendar.test',llm:{url:llm.url,token:'fixture-token'}}),server=instance.app.listen(0,'127.0.0.1');
@@ -55,29 +56,27 @@ test('exam extraction streams NDJSON stages and items, then the normalised resul
   await setAdminPassword(instance.db,'admin','stream-testing-password');
   const signIn=await fetch(base+'/login',{method:'POST',headers:{Origin:'http://calendar.test','Content-Type':'application/json'},body:JSON.stringify({username:'admin',password:'stream-testing-password'})});
   const cookie=signIn.headers.get('set-cookie').split(';')[0];
-  const extract=accept=>fetch(base+'/admin/exam-extract',{method:'POST',headers:{Origin:'http://calendar.test','Content-Type':'application/json',Cookie:cookie,Accept:accept},body:JSON.stringify({images:['data:image/jpeg;base64,aGVsbG8='],text:'',start:'2026-09-21',end:'2026-09-25'})});
-  let response=await extract('application/x-ndjson');
-  assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/ndjson/);
-  const lines=(await response.text()).trim().split('\n').map(line=>JSON.parse(line));
-  assert.deepEqual(lines.filter(l=>l.type==='stage').map(l=>l.stage),['connecting','reading','generating','validating']);
+  const batch=await (await fetch(base+'/admin/exams',{method:'POST',headers:{Origin:'http://calendar.test','Content-Type':'application/json',Cookie:cookie},body:JSON.stringify({title:'Stream',start:'2026-09-21',end:'2026-09-25',rooms:[],sessions:[],seats:[]})})).json();
+  const extract=()=>runJob(base,cookie,'sessions',batch.id,materialsForm({parts:[{kind:'image',image:'data:image/jpeg;base64,aGVsbG8=',text:''}]}));
+  let run=await extract();
+  assert.equal(run.status,'done');
+  const lines=run.events;
+  assert.deepEqual(lines.filter(l=>l.type==='stage').map(l=>l.stage),['preparing','connecting','reading','generating']);
   assert.deepEqual(lines.filter(l=>l.type==='item').map(l=>[l.index,l.item.title]),[[0,'Biology 1'],[1,'Physics HL']]);
-  const done=lines.at(-1);assert.equal(done.type,'done');
-  assert.equal(done.result.sessions[0].subject,'生物');assert.equal(done.result.sessions[0].level,'Biology 1');
-  assert.deepEqual(done.result.sessions[1].source,{page:2,quote:'Physics HL'});
-  assert.deepEqual(done.result.warnings,['check rooms']);
+  assert.equal(lines.at(-1).type,'done');
+  assert.equal(run.result.sessions[0].subject,'生物');assert.equal(run.result.sessions[0].level,'Biology 1');
+  assert.deepEqual(run.result.sessions[1].source,{page:2,quote:'Physics HL'});
+  assert.deepEqual(run.result.warnings,['check rooms']);
   assert.equal(llm.state.calls[0].stream,true);assert.equal(llm.state.calls[0].reasoning_effort,'low');
-  // Without the NDJSON Accept header the endpoint keeps answering with one JSON body.
-  response=await extract('application/json');assert.equal(response.status,200);assert.equal((await response.json()).sessions.length,2);
   // A gateway that rejects reasoning_effort is retried without it.
   llm.state.rejectEffort=true;llm.state.calls.length=0;
-  response=await extract('application/json');assert.equal(response.status,200);
+  run=await extract();assert.equal(run.status,'done');
   assert.deepEqual(llm.state.calls.map(c=>'reasoning_effort' in c),[true,false]);
   // An answer cut off before its first item (even after the retry) ends normally, listing the broken text.
   llm.state.content='{"sessions":[{"title":';
-  response=await extract('application/x-ndjson');
-  const lines2=(await response.text()).trim().split('\n').map(line=>JSON.parse(line)),last=lines2.at(-1);
-  assert.deepEqual(lines2.filter(l=>l.type==='invalid').map(l=>l.reason),['cut','cut']);assert.ok(lines2.some(l=>l.type==='reset'));
-  assert.equal(last.type,'done');assert.deepEqual(last.result.sessions,[]);assert.deepEqual(last.result.invalid,[{text:'{"title":',reason:'cut'}]);
+  run=await extract();
+  assert.deepEqual(run.events.filter(l=>l.type==='invalid').map(l=>l.reason),['cut','cut']);assert.ok(run.events.some(l=>l.type==='reset'));
+  assert.equal(run.status,'done');assert.deepEqual(run.result.sessions,[]);assert.deepEqual(run.result.invalid,[{text:'{"title":',reason:'cut'}]);
  }finally{await new Promise(r=>server.close(r));await new Promise(r=>llm.server.close(r));instance.close();await rm(directory,{recursive:true,force:true});}
 });
 

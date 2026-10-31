@@ -4,6 +4,7 @@ import {installSchoolAuth} from './school-auth.mjs';
 import express from 'express';
 import {randomBytes,randomUUID} from 'node:crypto';
 import {installExams} from './exams.mjs';
+import {installExtractJobs} from './extract-jobs.mjs';
 import {digest,verifyPassword} from './passwords.mjs';
 import {eventSchema,personalEventSchema,dayPlanSchema} from './validation.mjs';
 import {OVERRIDABLE,addDays,fitsSeries,isSeriesDate,seriesDates} from '../public/recurrence.mjs';
@@ -42,11 +43,7 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   const requireAdmin=requireRole(2);
   const quota=installQuota(db,{session,timeZone,dailyLimit:llm.dailyLimit});
   const clearCookie=res=>res.clearCookie('calendar_session',{path:'/',httpOnly:true,sameSite:'strict',secure:base.protocol==='https:'});
-  app.use('/api/admin/exam-extract',express.json({limit:'20mb'}));
-  app.use('/api/admin/notice-extract',express.json({limit:'20mb'}));
-  app.use('/api/admin/students/check',express.json({limit:'20mb'}));
-  app.use('/api/admin/extract-jobs/sessions',express.json({limit:'20mb'}));
-  app.use('/api/admin/extract-jobs/seats',express.json({limit:'20mb'}));
+  app.use('/api/admin/exam-extract/validate',express.json({limit:'4mb'}));
   app.use('/api/admin/exams',express.json({limit:'4mb'}));
   app.use('/api',express.json({limit:'128kb'}));
   const eventTypes=installEventTypes(app,db,{requireAdmin});
@@ -268,7 +265,8 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
     res.type('image/webp').send(bytes);
   });
   installAccounts(app,db,{requireRole,currentUser:session});
-  const exams=installExams(app,db,{requireAdmin,requireSystemAdmin:requireRole(3),isAdmin:req=>session(req)?.role>=2,user:session,origin,timeZone,llm,quota,extractRunner});
+  const jobs=installExtractJobs(app,db,{requireAdmin,quota,user:req=>session(req)||null,llm,runner:extractRunner});
+  const exams=installExams(app,db,{requireAdmin,requireSystemAdmin:requireRole(3),isAdmin:req=>session(req)?.role>=2,user:session,origin,timeZone,llm,jobs});
   examEvents=exams.events;
   installFeeds(app,db,{user:session,account:schoolAuth.account,origin,timeZone,matching:exams.matching,examEvents,personalEvents:listPersonal});
   installNoticeExtract(app,db,{requireAdmin,llm,timeZone,quota,types:eventTypes.list});
@@ -291,10 +289,10 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   installStatic(app);
   app.use((error,req,res,next)=>{
     if(res.headersSent)return next(error);
-    if(error.type==='entity.too.large')return res.status(413).json({error:'内容过大。图片最大 5 MB。'});
+    if(error.type==='entity.too.large')return res.status(413).json({error:req.is('multipart/form-data')?'材料总大小超过 40 MB，请减少文件。':'内容过大。图片最大 5 MB。'});
     if(error.status===404)return res.status(404).json({error:'文件不存在。'});
     if(error instanceof SyntaxError)return res.status(400).json({error:'请求格式不正确。'});
     console.error('Request failed:',error.message);res.status(500).json({error:'服务暂时不可用，请稍后重试。'});
   });
-  return {app,db,jobs:exams.jobs,close:()=>db.close()};
+  return {app,db,jobs,close:()=>db.close()};
 }

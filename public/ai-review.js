@@ -2,7 +2,7 @@
 // the model streams them, and each result linked back to the text or cell it came from.
 import {esc,corners,icon,T,api} from './console-core.js';
 
-/** @typedef {{page?:number|null,quote?:string|null,sheet?:string|null,cell?:string|null}} Source */
+/** @typedef {{page?:number|null,quote?:string|null,workbook?:string|null,sheet?:string|null,cell?:string|null}} Source */
 
 /**
  * POSTs to an NDJSON endpoint and calls onMessage for every {type:'stage'|'item'|'source'|'text'|'done'|'error'} line.
@@ -15,7 +15,7 @@ import {esc,corners,icon,T,api} from './console-core.js';
  */
 export async function streamApi(path,{body,headers={},signal}={},onMessage=()=>{}){
  let response;
- const raw=body instanceof Blob;
+ const raw=body instanceof Blob||(globalThis.FormData&&body instanceof FormData);
  try{response=await fetch('/api'+path,{method:'POST',credentials:'same-origin',body,signal,headers:{Accept:'application/x-ndjson',...(raw?{}:{'Content-Type':'application/json'}),...headers}});}
  catch(error){if(error.name==='AbortError')throw error;throw new Error(T('无法连接服务器，请重试。','Unable to connect. Please retry.'));}
  if(!response.ok){const detail=await response.json().catch(()=>({}));throw Object.assign(new Error(detail.error||T('请求失败，请重试。','Request failed. Please retry.')),{partial:detail.partial});}
@@ -130,8 +130,8 @@ export function textPane(text,{page=1,label=T('粘贴的文字','Pasted text')}=
 
 const column=letters=>[...letters].reduce((n,c)=>n*26+c.charCodeAt(0)-64,0);
 const address=cell=>{const m=/^([A-Z]+)(\d+)$/.exec(String(cell||'').toUpperCase().replace(/\$/g,''));return m?{c:column(m[1]),r:Number(m[2])}:null;};
-/** Worksheets drawn as grids from {name, merges, cells:[{address,text}]}. */
-export function sheetPane(sheets){
+/** Worksheets drawn as grids from {name, merges, cells:[{address,text}]}; `workbook` names the file they belong to. */
+export function sheetPane(sheets,{workbook=''}={}){
  const element=document.createElement('div');element.className='src-pages';
  const owner=new Map();
  element.innerHTML=sheets.map((sheet,s)=>{
@@ -154,9 +154,9 @@ export function sheetPane(sheets){
    }
    html+='</tr>';
   }
-  return `<figure class="src-page" data-sheet="${s}"><figcaption class="overline">${esc(sheet.name)}</figcaption><div class="src-grid"><table>${html}</table></div></figure>`;
+  return `<figure class="src-page" data-sheet="${s}"><figcaption class="overline">${esc(workbook?`${workbook} · ${sheet.name}`:sheet.name)}</figcaption><div class="src-grid"><table>${html}</table></div></figure>`;
  }).join('');
- return {element,/** @param {Source} source */highlight(source){const {sheet,cell}=source||{};
+ return {element,workbook,sheets:true,/** @param {Source} source */highlight(source){const {sheet,cell}=source||{};
   element.querySelectorAll('.src-hit').forEach(el=>el.classList.remove('src-hit'));
   const s=sheets.findIndex(item=>item.name===sheet),point=address(cell);
   const figure=element.querySelector(`[data-sheet="${s}"]`);if(!figure||!point)return false;
@@ -167,13 +167,18 @@ export function sheetPane(sheets){
  }};
 }
 
-/** Several panes shown together, routed by `page` (the material number). */
+/** Several panes shown together, routed by `page` (the material number) or by workbook and sheet. */
 export function stackPane(panes){
  const element=document.createElement('div');element.className='src-stack';
  for(const pane of panes)element.append(pane.element);
  return {element,/** @param {Source} source @returns {boolean|'page'} */highlight(source={}){
   element.querySelectorAll('.src-active').forEach(el=>el.classList.remove('src-active'));
   element.querySelectorAll('.src-marks').forEach(el=>el.innerHTML='');
+  element.querySelectorAll('.src-hit').forEach(el=>el.classList.remove('src-hit'));
+  if(source.sheet){
+   const books=panes.filter(pane=>pane.sheets),pane=books.find(p=>p.workbook===source.workbook)||(books.length===1?books[0]:null);
+   return pane?pane.highlight(source):false;
+  }
   for(const pane of panes)if(pane.element.querySelector?.(`[data-page="${source.page}"]`)||pane.element.dataset?.page===String(source.page))return pane.highlight(source);
   return false;
  }};
