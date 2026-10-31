@@ -1,6 +1,7 @@
 import {$,$$,esc,corners,icon,app,T,tx,TYPES,TYPE_COLORS,SCOPES,api,toast,modal,closeModal,busy,errorLine,fail,setTypes,go,refreshNav,md,mdw,dateRange,monthLabel,statusOf,statusTag,statusLabel,loadEvents,loadPlans} from './console-core.js';
 import {describeRepeat,isLastOfMonth,lastDate,occurrence,ordinalOf,repeatProblem,schoolYearEnd,seriesDates,weekdayOf} from './recurrence.mjs';
 import {noticeDialog} from './console-notice.js';
+import {jobsOf,jobStrips,watchJobs,jobAction} from './console-jobs.js';
 import {DIVISION_GRADES,audienceParts,gradeLabel,normalizeGrades} from './grades.mjs';
 
 const view={tab:'all',q:'',type:'all',div:'all',desc:false,menu:null};
@@ -19,6 +20,7 @@ export async function showEvents(main){
  main.innerHTML=`<div class="page">
  <header class="page-head"><div><div class="kicker">${T('管理后台','Admin console')}</div><h1>${T('事件','Events')}</h1><p class="sub">${T('全部学部 · 无需审核，直接发布','All divisions · Publish without approval')}</p></div>
  <div class="page-actions"><button type="button" class="btn btn-secondary" data-act="refresh">${T('刷新','Refresh')}</button><button type="button" class="btn btn-secondary" data-act="types">${T('管理分类','Event types')}</button><button type="button" class="btn btn-secondary" data-act="notice">${T('✨ 从通知生成','✨ From a notice')}</button><a class="btn btn-primary blueprint" href="#events/new">${corners}${icon.plus}${T('新增事件','New event')}</a></div></header>
+ ${jobStrips(noticeJobs())}
  <div class="tabs" role="tablist" id="ev-tabs"></div>
  <div class="toolbar">
   <label class="search">${icon.search}<input class="input" id="ev-q" type="search" value="${esc(view.q)}" placeholder="${T('搜索名称、地点或主办方','Search title, location or organiser')}" aria-label="${T('搜索事件','Search events')}"></label>
@@ -35,7 +37,10 @@ export async function showEvents(main){
  $('#ev-div').onchange=e=>{view.div=e.target.value;renderResults();};
  main.querySelector('.page').onclick=onListClick;
  renderResults();
+ watchJobs(noticeJobs,()=>Boolean($('#ev-list')));
 }
+// A notice being read, or read and not yet applied, shows above the list until it is applied or discarded.
+const noticeJobs=()=>jobsOf('notice','notice');
 
 function renderResults(){
  if(!$('#ev-list'))return;
@@ -82,6 +87,7 @@ function rowHtml(e){
 }
 
 async function onListClick(event){
+ const job=event.target.closest('[data-job-act]');if(job)return jobAction(job);
  const target=event.target.closest('[data-act],[data-tab]');
  if(target?.dataset.tab){view.tab=target.dataset.tab;renderResults();return;}
  const act=target?.dataset.act,e=target&&app.data.events.find(x=>x.id===target.dataset.id);

@@ -23,7 +23,9 @@ let route=['events'],current='';
 function renderNav(){
  const {events,plans,batches,jobs}=app.data;
  // A finished or failed extraction waits for an administrator to review it.
- const attention={exams:jobs?.some(j=>['sessions','seats'].includes(j.kind)&&j.status!=='running'&&j.status!=='cancelled')};
+ // A finished, failed or interrupted job waits on the page it belongs to.
+ const waiting=(...kinds)=>jobs?.some(j=>kinds.includes(j.kind)&&j.status!=='running'&&j.status!=='cancelled');
+ const attention={events:waiting('notice'),exams:waiting('sessions','seats')};
  const counts={events:events?.length,days:plans&&planRanges(plans).length,exams:batches?.length,accounts:accountCount(),releases:releaseCount()};
  const labels={events:T('事件','Events'),days:T('放假与调休','School days'),exams:T('考试','Exams'),...(app.user?.role===3?{students:T('学生管理','Students'),accounts:T('账户','Accounts'),releases:T('更新说明','Release notes')}:{}),stats:T('统计','Statistics'),settings:T('设置','Settings')};
  $('#console-nav').innerHTML=`<a class="brand" href="/"><img src="/logo.png" alt=""><span><strong>${T('日历','Calendar')}</strong><span class="overline">${T('管理后台','Admin console')}</span></span></a>

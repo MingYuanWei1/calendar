@@ -3,10 +3,11 @@ import {adaptRooms,chooseStudent,examMode,examsLabel,mergeSeats,pickMerge,moveSe
 import {subjectName} from './exam-subjects.mjs';
 import {defaultExamSlots,slotOf} from './exam-times.mjs';
 import {importPreview,studentOptions,unresolved} from './exam-import-preview.js';
-import {materialFields,bindMaterials,materialPanes,materialsForm,sourcePane} from './material-input.js';
+import {materialFields,bindMaterials,materialsForm} from './material-input.js';
 import {applySessions,changedFields,withoutRooms} from './exam-schedule-diff.mjs';
 import {DIVISION_GRADES,gradeLabel,parseGrade} from './grades.mjs';
-import {followJob,reviewView,pagePane} from './ai-review.js';
+import {reviewView} from './ai-review.js';
+import {registerJobKind,jobsOf,startJob,openJob,jobTag,jobStrips,watchJobs,jobAction,discardJob,discardButton,bindDiscard,interrupted} from './console-jobs.js';
 
 const view={id:'',tab:'sessions',room:0,exam:'',time:''};
 /** 批量删除: the seat indexes picked while bulk deleting, or null outside selection mode. */
@@ -40,7 +41,7 @@ export async function showExams(main){
  <header class="page-head"><div><div class="kicker">${T('管理后台','Admin console')}</div><h1>${T('考试','Exams')}</h1><p class="sub">${T('按批次管理场次、教室与座位；考试安排与座位表分别发布。','Manage sessions, rooms and seats by batch; schedule and seating publish separately.')}</p></div>
  <div class="page-actions">${app.user.role===3?`<a class="btn btn-secondary" href="#students">${T('学生管理','Students')}</a>`:''}<button type="button" class="btn btn-secondary" data-act="subjects">${T('管理学科','Subjects')}</button><button type="button" class="btn btn-primary blueprint" data-act="new">${corners}${icon.plus}${T('新建考试批次','New batch')}</button></div></header>
  <div class="grid-scroll"><div class="batches-grid"><div class="grid-head"><span>${T('批次','Batch')}</span><span>${T('日期','Date')}</span><span>${T('场次','Sessions')}</span><span>${T('考试安排','Schedule')}</span><span>${T('座位表','Seating')}</span></div>
- ${batches.map(b=>`<button type="button" class="grid-row" data-open="${esc(b.id)}"><div class="clip"><div class="cell-main clip">${esc(bTitle(b))}</div><div class="cell-sub">${esc(bDivision(b))}${jobsOf(b).map(jobTag).join('')}</div></div><span class="num" style="font-size:13px">${b.start.slice(0,4)} · ${esc(md(b.start))} – ${esc(md(b.end))}</span><span class="num" style="font-size:13px">${b.sessions.length}</span>
+ ${batches.map(b=>`<button type="button" class="grid-row" data-open="${esc(b.id)}"><div class="clip"><div class="cell-main clip">${esc(bTitle(b))}</div><div class="cell-sub">${esc(bDivision(b))}${batchJobs(b).map(jobTag).join('')}</div></div><span class="num" style="font-size:13px">${b.start.slice(0,4)} · ${esc(md(b.start))} – ${esc(md(b.end))}</span><span class="num" style="font-size:13px">${b.sessions.length}</span>
  <span><span class="${pubTag(b.publishedAt)}">${b.publishedAt?T('已发布','Published')+(b.scheduleChanged?T(' · 有修改',' · edited'):''):T('草稿','Draft')}</span></span><span><span class="${pubTag(b.seatingPublishedAt)}">${b.seatingPublishedAt?T('已发布','Published'):T('未发布','Not published')}</span></span></button>`).join('')
  ||`<div class="empty"><strong>${T('暂无考试批次','No exam batches yet')}</strong><p>${T('新建批次后添加场次、教室与座位。','Create a batch, then add sessions, rooms and seats.')}</p></div>`}</div></div></div>`;
  main.querySelector('.page').onclick=e=>{
@@ -84,14 +85,14 @@ function renderBatch(main){
   <div class="status-card blueprint">${corners}<div><div class="title">${T('考试安排','Schedule')}<span class="${pubTag(b.publishedAt)}">${b.publishedAt?T('已发布','Published'):T('草稿','Draft')}</span></div><div class="note">${b.publishedAt?T(`上次发布 ${stamp(b.publishedAt)}`,`Last published ${stamp(b.publishedAt)}`)+(b.scheduleChanged?T(' · 有未发布修改',' · unpublished changes'):''):T('尚未发布','Not yet published')}</div></div><button type="button" class="btn btn-primary" data-act="pub-schedule">${T('预览并发布','Preview & publish')}</button></div>
   <div class="status-card blueprint">${corners}<div><div class="title">${T('座位表','Seating')}<span class="${pubTag(b.seatingPublishedAt)}">${b.seatingPublishedAt?T('已发布','Published'):T('未发布','Not published')}</span></div><div class="note">${b.seatingPublishedAt?T(`上次发布 ${stamp(b.seatingPublishedAt)}`,`Last published ${stamp(b.seatingPublishedAt)}`)+(b.seatingChanged?T(' · 有未发布修改',' · unpublished changes'):''):T('学生暂不可见座位','Students cannot see seats yet')}</div></div><button type="button" class="btn btn-secondary" data-act="pub-seating">${T('预览并发布','Preview & publish')}</button></div>
  </div>
-${jobsOf(b).length?`<div class="job-strips">${jobsOf(b).map(jobStrip).join('')}</div>`:''}
+${jobStrips(batchJobs(b))}
  <div class="tabs" role="tablist">${tabs.map(([k,label,n])=>`<button type="button" role="tab" data-tab="${k}" aria-selected="${view.tab===k}">${label}<span class="count">${n}</span></button>`).join('')}</div>
  <div id="batch-tab">${view.tab==='sessions'?sessionsTab(b):view.tab==='rooms'?roomsTab(b):slotsTab(b)}</div></div>`;
  const page=main.querySelector('.page');
  page.onclick=e=>onBatchClick(e,b);
  if(view.tab==='rooms')bindSeats(b);
  $$('[data-import]').forEach(input=>input.onchange=()=>{importSeats(input.files[0]);input.value='';});
- watchJobs(b);
+ watchJobs(()=>batchJobs(b),()=>view.id===b.id);
 }
 
 function sessionsTab(b){
@@ -158,7 +159,7 @@ function slotsTab(b){
 function onBatchClick(e,b){
  const t=e.target.closest('button');if(!t)return;
  const d=t.dataset;
- if(d.jobAct)jobAction(jobsOf(b).find(j=>j.id===d.job),d.jobAct);
+ if(d.jobAct)jobAction(t);
  else if(d.tab){view.tab=d.tab;picking=null;rerender();$(`[data-tab=${d.tab}]`)?.focus();}
  else if(d.exam)examDialog(b.sessions.find(s=>s.id===d.exam));
  else if(d.room){view.room=Number(d.room);view.exam='';view.time='';picking=null;rerender();}
@@ -446,14 +447,13 @@ function extractDialog(b){
  api('/admin/exam-extract').then(status=>{if(!status.configured){const el=body.querySelector('[data-error]');el.textContent=T('尚未配置 LLM_WORKER_URL 和 LLM_WORKER_TOKEN，请配置后重启服务。','LLM_WORKER_URL and LLM_WORKER_TOKEN are not configured. Configure them and restart the service.');el.hidden=false;}}).catch(()=>{});
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
   const collected=await materials.collect(progress);
-  const job=await startJob(b,'sessions',materialsForm(collected));
+  const job=await startJob('sessions',materialsForm(collected),`batch=${encodeURIComponent(b.id)}`);
   closeModal();
   openJob(job,{panes:collected.panes});
  });
 }
 
 const sessionCard=(s,i)=>`<div class="ai-card" data-pick="${i}" tabindex="0"><span class="ai-card-title">${esc(s.title||s.subject||'—')}${s.level&&!String(s.title||'').includes(s.level)?' · '+esc(s.level):''}</span><span class="muted num">${esc(s.date||'?')} · ${esc(s.start||'?')}–${esc(s.end||'?')} · ${esc((s.grades||[]).join(' / '))} · ${esc((s.rooms||[]).join(' / '))}</span></div>`;
-const interrupted=n=>T(`提取中断：以下仅为中断前识别的 ${n} 条，其余内容请稍后重试提取或手动补充。`,`Extraction was interrupted: only the ${n} results found before then are shown. Retry later or add the rest by hand.`);
 const KIND_TAGS={add:['新增','New'],change:['更改','Change'],same:['无变化','No change']};
 const fieldText=(s,f)=>f==='division'?(SCOPES[s.division]?tx(SCOPES[s.division]):''):['grades','rooms'].includes(f)?(s[f]||[]).join(', '):String(s[f]??'');
 /**
@@ -545,7 +545,7 @@ function seatExtractDialog(b){
  const materials=bindMaterials(body);
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
   const collected=await materials.collect(progress);
-  const job=await startJob(b,'seats',materialsForm(collected,{mode}));
+  const job=await startJob('seats',materialsForm(collected,{mode}),`batch=${encodeURIComponent(b.id)}`);
   closeModal();openJob(job,{panes:collected.panes});
  });
 }
@@ -626,101 +626,7 @@ function mergeDialog(b,seats,onImported){
  confirmButton(body,'[data-replace]',T('替换全部草稿座位','Replace all draft seats'),()=>save(seats,T(`已用 ${seats.length} 个座位替换草稿座位。`,`Replaced the draft with ${seats.length} seats.`)));
 }
 
-/* — 提取任务: AI extractions run in the background; the batch page shows the job and reopens it — */
-const EXAM_JOBS=['sessions','seats'];
-const jobsOf=b=>(app.data.jobs||[]).filter(j=>j.scope===b.id&&EXAM_JOBS.includes(j.kind));
-const jobName=job=>job.kind==='seats'?T('座位表提取','Seat extraction'):T('考试场次提取','Session extraction');
-function putJob(job){const list=app.data.jobs||(app.data.jobs=[]),i=list.findIndex(j=>j.id===job.id);if(i<0)list.unshift(job);else list[i]=job;refreshNav();}
-async function discardJob(job){await api('/admin/extract-jobs/'+encodeURIComponent(job.id),{method:'DELETE'});app.data.jobs=(app.data.jobs||[]).filter(j=>j.id!==job.id);refreshNav();rerender();}
-async function startJob(b,kind,body){
- const job=await api(`/admin/extract-jobs/${kind}?batch=${encodeURIComponent(b.id)}`,{method:'POST',body});
- // A new job replaces the batch's earlier job of the same kind.
- app.data.jobs=(app.data.jobs||[]).filter(j=>j.scope!==b.id||j.kind!==kind);putJob(job);rerender();
- return job;
-}
-const jobTag=job=>` <span class="tag ${job.status==='running'?'tag-outline':'tag-accent'} small">${{running:T('提取中','Extracting'),done:T('提取完成 · 待核对','Extracted · review'),failed:T('提取失败','Extraction failed'),interrupted:T('提取中断','Extraction stopped'),cancelled:T('提取已取消','Extraction cancelled')}[job.status]}</span>`;
-function jobStrip(job){
- const by=job.createdBy?T(` · ${job.createdBy} 发起`,` · started by ${job.createdBy}`):'';
- const text={
-  running:T(`${jobName(job)}进行中 · 已识别 ${job.items} 条`,`${jobName(job)} running · ${job.items} found`),
-  done:T(`${jobName(job)}完成 · ${job.items} 条待核对导入`,`${jobName(job)} finished · ${job.items} to review and import`),
-  failed:T(`${jobName(job)}失败：${job.error||''}`,`${jobName(job)} failed: ${job.error||''}`),
-  interrupted:T(`${jobName(job)}已中断（服务重启或连接丢失）`,`${jobName(job)} stopped (a restart or a lost connection)`),
-  cancelled:T(`${jobName(job)}已取消`,`${jobName(job)} cancelled`)
- }[job.status];
- const button=(act,label,cls='btn-secondary')=>`<button type="button" class="btn ${cls}" data-job="${esc(job.id)}" data-job-act="${act}">${label}</button>`;
- const buttons={
-  running:button('open',T('查看进度','View progress'))+button('cancel',T('取消提取','Cancel'),'btn-ghost btn-danger'),
-  done:button('discard',T('丢弃','Discard'),'btn-ghost')+button('open',T('查看结果','View results'),'btn-primary'),
- }[job.status]||button('discard',T('丢弃','Discard'),'btn-ghost')+button('open',T('查看','View'))+button('retry',T('重试','Retry'),'btn-primary');
- return `<div class="job-strip ${job.status}" data-job-strip="${esc(job.id)}" role="status"><i class="ai-pulse" aria-hidden="true"></i><div class="clip"><div class="cell-main clip">${esc(text)}</div><div class="cell-sub clip">${esc(job.fileName)} · ${esc(stamp(job.createdAt))}${esc(by)}</div></div><div class="row-actions">${buttons}</div></div>`;
-}
-/** While a job of the open batch runs, refresh its strip every few seconds. */
-function watchJobs(b){
- const running=jobsOf(b).filter(j=>j.status==='running');if(!running.length)return;
- const visit=app.visit;
- setTimeout(async()=>{
-  if(app.visit!==visit||view.id!==b.id)return;
-  try{await loadJobs();}catch{}
-  if(app.visit!==visit||view.id!==b.id)return;
-  const jobs=jobsOf(b);
-  for(const job of running){
-   const next=jobs.find(j=>j.id===job.id);
-   if(!next||next.status!==job.status)return rerender();
-   const strip=$(`[data-job-strip="${CSS.escape(job.id)}"]`);if(strip)strip.outerHTML=jobStrip(next);
-  }
-  watchJobs(b);
- },5000);
-}
-async function jobAction(job,act){
- if(!job)return;
- try{
-  if(act==='open')openJob(job);
-  else if(act==='cancel'){putJob(await api(`/admin/extract-jobs/${encodeURIComponent(job.id)}/cancel`,{method:'POST'}));rerender();toast(T('已取消提取。','Extraction cancelled.'));}
-  else if(act==='discard'){await discardJob(job);toast(T('已丢弃提取结果。','Extraction discarded.'));}
-  else if(act==='retry')retryJob(job);
- }catch(error){toast(error.message,{bad:true});}
-}
-async function retryJob(job,review=null){
- // The open review dialog is reused: closing it first would fire its close event on the new review.
- try{const next=await api(`/admin/extract-jobs/${encodeURIComponent(job.id)}/retry`,{method:'POST'});putJob(next);rerender();openJob(next);}
- catch(error){if(review)review.alert(error.message);else toast(error.message,{bad:true});}
-}
-const discardButton=job=>job?`<button type="button" class="btn btn-ghost btn-danger left" data-discard>${T('丢弃结果','Discard results')}</button>`:'';
-function bindDiscard(bar,job,review){const button=bar.querySelector('[data-discard]');if(button)button.onclick=async()=>{try{await discardJob(job);review.close();}catch(error){review.alert(error.message);}};}
-/**
- * Opens the review of a job: replays its progress, then follows it until it ends. Closing only stops watching;
- * the job keeps running on the server.
- */
-async function openJob(job,{panes=null}={}){
- const seats=job.kind==='seats',key=seats?'seats':'sessions',streamed=[];let final=null;
- const review=reviewView({title:`${jobName(job)} · ${job.fileName}`,startedAt:job.startedAt,sourceOf:i=>(final||{[key]:streamed})[key][i]?.source,onClose:()=>{if(view.id===job.scope)rerender();}});
- const runningBar=()=>{
-  const bar=/** @type {any} */(review.actions(`<button type="button" class="btn btn-ghost btn-danger left" data-cancel>${T('取消提取','Cancel extraction')}</button><button type="button" class="btn btn-secondary" data-dismiss>${T('关闭（后台继续）','Close (keeps running)')}</button>`));
-  bar.querySelector('[data-dismiss]').onclick=review.close;
-  bar.querySelector('[data-cancel]').onclick=async()=>{try{putJob(await api(`/admin/extract-jobs/${encodeURIComponent(job.id)}/cancel`,{method:'POST'}));}catch(error){review.alert(error.message);}};
- };
- runningBar();
- // Pasted materials are fetched back to show beside the results; workbooks send their sheets as the job starts.
- // Jobs started before materials could be pasted kept PDF pages as {images, items}.
- if(!panes)try{const input=await api(`/admin/extract-jobs/${encodeURIComponent(job.id)}/input`);panes=input.parts?materialPanes(input.parts):[pagePane(input.images.map((image,i)=>({image,items:input.items?.[i]||[]})))];}catch{}
- panes||=[];
- if(panes.length)review.source(sourcePane(panes));
- try{
-  const done=await followJob(job.id,{signal:review.signal,onJob:putJob},message=>{
-   review.message(message);
-   if(message.type==='source')review.source(sourcePane(panes,message));
-   if(message.type==='reset')streamed.length=0;
-   if(message.type==='item'&&message.key===key){streamed.push(message.item);review.append(seats?seatLine(batch(),message.item,streamed.length-1):sessionCard(message.item,streamed.length-1));}
-  });
-  final=done.result;
-  (seats?seatResults:reviewExtracted)(batch(),final,review,{elapsed:done.elapsed,job});
- }catch(error){
-  if(error.name==='AbortError')return;
-  if(error.job)putJob(error.job);
-  const partial=error.partial;
-  const bar=/** @type {any} */(review.actions(`${discardButton(job)}<button type="button" class="btn btn-secondary" data-dismiss>${T('关闭','Close')}</button>`));
-  bar.querySelector('[data-dismiss]').onclick=review.close;bindDiscard(bar,job,review);
-  review.error(error.message,{retry:()=>retryJob(job,review),partial:partial&&{count:partial[key].length,use:()=>{final=partial;(seats?seatResults:reviewExtracted)(batch(),{...partial,warnings:[interrupted(partial[key].length),...(partial.warnings||[])]},review,{job});}}});
- }
-}
+/* — 提取任务: the batch page shows its timetable and seating jobs (see console-jobs.js) — */
+const batchJobs=b=>jobsOf(b.id,'sessions','seats');
+registerJobKind('sessions',{name:['考试场次提取','Session extraction'],itemKey:'sessions',card:sessionCard,show:(result,review,options)=>reviewExtracted(batch(),result,review,options)});
+registerJobKind('seats',{name:['座位表提取','Seat extraction'],itemKey:'seats',card:(item,i)=>seatLine(batch(),item,i),show:(result,review,options)=>seatResults(batch(),result,review,options)});

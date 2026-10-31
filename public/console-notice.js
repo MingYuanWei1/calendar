@@ -1,8 +1,9 @@
-// 通知转日程: paste a notice or add screenshots / PDFs, let the LLM propose new events, reschedules,
-// cancellations and day plans, review them beside the source, then apply them through the usual APIs.
+// 通知转日程: paste a notice or add screenshots / PDFs / workbooks, let the LLM propose new events, reschedules,
+// cancellations and day plans in a background job, review them beside the source, then apply them through the usual
+// APIs. The events page shows the job until it is applied or discarded.
 import {$$,esc,app,T,tx,TYPES,SCOPES,api,toast,modal,closeModal,busy,errorLine,fail,refreshNav,mdw,loadEvents,loadPlans} from './console-core.js';
-import {streamApi,reviewView} from './ai-review.js';
-import {materialFields,bindMaterials,materialsForm,sourcePane} from './material-input.js';
+import {materialFields,bindMaterials,materialsForm} from './material-input.js';
+import {registerJobKind,startJob,openJob,discardJob,discardButton,bindDiscard} from './console-jobs.js';
 import {divisionOf,gradeLabel} from './grades.mjs';
 
 const ACTIONS={create:['新增事件','New event'],reschedule:['改期','Reschedule'],cancel:['取消','Cancel'],dayPlan:['放假与调休','School day']};
@@ -22,10 +23,10 @@ export function noticeDialog(){
  const materials=bindMaterials(body);
  api('/admin/notice-extract').then(status=>{if(!status.configured){const el=body.querySelector('[data-error]');el.textContent=T('尚未配置 LLM_WORKER_URL 和 LLM_WORKER_TOKEN，请配置后重启服务。','LLM_WORKER_URL and LLM_WORKER_TOKEN are not configured. Configure them and restart the service.');el.hidden=false;}}).catch(()=>{});
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
-  const {parts,workbooks,panes}=await materials.collect(progress);
+  const collected=await materials.collect(progress);
+  const job=await startJob('notice',materialsForm(collected));
   closeModal();
-  // PDF text runs only mark quotes in this page's source pane; the server does not need them.
-  await extractNotice(materialsForm({parts:parts.map(({items,...part})=>part),workbooks}),panes);
+  openJob(job,{panes:collected.panes});
  });
 }
 
@@ -34,23 +35,6 @@ const provisional=(item,i)=>{
  const dates=item.action==='dayPlan'?item.dayPlan||{}:item.event||{};
  return `<div class="ai-card" data-pick="${i}" tabindex="0"><span class="ai-card-title"><span class="tag tag-outline small">${esc(tx(ACTIONS[item.action]||ACTIONS.create))}</span> ${esc(title)}</span><span class="muted num">${esc(dates.start?when(dates):'')}</span></div>`;
 };
-
-async function extractNotice(form,panes){
- const streamed=[];let final=null;
- const review=reviewView({title:T('从通知生成日程','Turn a notice into calendar changes'),sourceOf:i=>(final||{items:streamed}).items[i]?.source});
- review.source(sourcePane(panes));
- const close=/** @type {HTMLElement} */(review.actions(`<button type="button" class="btn btn-secondary" data-dismiss>${T('关闭','Close')}</button>`).querySelector('[data-dismiss]'));close.onclick=review.close;
- try{
-  const done=await streamApi('/admin/notice-extract',{body:form,signal:review.signal},message=>{
-   review.message(message);
-   if(message.type==='source')review.source(sourcePane(panes,message));
-   if(message.type==='reset')streamed.length=0;
-   if(message.type==='item'&&message.key==='items'){streamed.push(message.item);review.append(provisional(message.item,streamed.length-1));}
-  });
-  final=done.result;
-  showResults(final,review,{elapsed:done.elapsed});
- }catch(error){if(error.name!=='AbortError')review.error(error.message);}
-}
 
 /* — review cards — */
 const input=(name,value,attrs='',label='')=>`<label class="notice-field"><span>${esc(label)}</span><input class="input" name="${name}" value="${esc(value??'')}" ${attrs}></label>`;
@@ -89,15 +73,15 @@ function card(item,i){
  return `<div class="ai-card notice-card" data-pick="${i}" data-item="${i}">${fields}${note}${problems}<p class="alert bad" data-item-error hidden></p></div>`;
 }
 
-function showResults(result,review,{elapsed=null}={}){
+function showResults(result,review,{elapsed=null,job=null}={}){
  const items=result.items;
  review.results(items.length?items.map(card).join(''):`<p class="muted">${T('通知中没有识别到日程变化。','No calendar changes were found in this notice.')}</p>`,{notes:result.warnings||[],elapsed,total:items.length,invalid:result.invalid||[]});
- const bar=review.actions(`<button type="button" class="btn btn-secondary" data-dismiss>${T('返回','Go back')}</button><button type="button" class="btn btn-secondary" data-apply="draft"${items.length?'':' disabled'}>${T('应用，新事件存为草稿','Apply, new events as drafts')}</button><button type="button" class="btn btn-primary" data-apply="publish"${items.length?'':' disabled'}>${T('核对无误，应用并发布','Apply and publish')}</button>`);
- bar.querySelector('[data-dismiss]').onclick=review.close;
- bar.querySelectorAll('[data-apply]').forEach(button=>button.onclick=()=>apply(items,review,button.dataset.apply==='publish'));
+ const bar=review.actions(`${discardButton(job)}<button type="button" class="btn btn-secondary" data-dismiss>${T('返回','Go back')}</button><button type="button" class="btn btn-secondary" data-apply="draft"${items.length?'':' disabled'}>${T('应用，新事件存为草稿','Apply, new events as drafts')}</button><button type="button" class="btn btn-primary" data-apply="publish"${items.length?'':' disabled'}>${T('核对无误，应用并发布','Apply and publish')}</button>`);
+ bar.querySelector('[data-dismiss]').onclick=review.close;bindDiscard(bar,job,review);
+ bar.querySelectorAll('[data-apply]').forEach(button=>button.onclick=()=>apply(items,review,button.dataset.apply==='publish',job));
 }
 
-async function apply(items,review,publish){
+async function apply(items,review,publish,job){
  const buttons=$$('[data-apply],[data-dismiss]',review.body);buttons.forEach(b=>b.disabled=true);review.alert('');
  const cards=$$('[data-item]',review.body).filter(c=>c.querySelector('[name=include]').checked&&!c.dataset.applied);
  let applied=0,failed=0;
@@ -132,8 +116,11 @@ async function apply(items,review,publish){
    }
   }
   await Promise.all([loadEvents(),loadPlans()]);refreshNav();app.rerender();
-  if(!failed){review.close();toast(publish?T(`已应用 ${applied} 项变更，新事件已发布。`,`Applied ${applied} changes; new events are published.`):T(`已应用 ${applied} 项变更，新事件已存为草稿。`,`Applied ${applied} changes; new events are saved as drafts.`));}
+  // Once everything ticked is saved the job has done its work.
+  if(!failed){if(job)discardJob(job).catch(()=>{});review.close();toast(publish?T(`已应用 ${applied} 项变更，新事件已发布。`,`Applied ${applied} changes; new events are published.`):T(`已应用 ${applied} 项变更，新事件已存为草稿。`,`Applied ${applied} changes; new events are saved as drafts.`));}
   else review.alert(T(`已应用 ${applied} 项，${failed} 项未能保存，请修改后重试。`,`${applied} applied, ${failed} could not be saved. Fix them and try again.`));
  }catch(e){review.alert(e.message);}
  finally{buttons.forEach(b=>b.disabled=false);}
 }
+
+registerJobKind('notice',{name:['通知识别','Notice reading'],itemKey:'items',card:provisional,show:showResults});

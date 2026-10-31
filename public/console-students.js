@@ -1,7 +1,4 @@
-import {$,$$,esc,corners,icon,app,T,tx,api,toast,modal,closeModal,busy,errorLine,fail} from './console-core.js';
-import {streamApi,reviewView} from './ai-review.js';
-import {materialFields,bindMaterials,materialsForm,sourcePane} from './material-input.js';
-import {gradeLabel} from './grades.mjs';
+import {$,$$,esc,corners,icon,app,T,api,toast,modal,closeModal,busy,errorLine,fail} from './console-core.js';
 
 const PAGE=50;
 let students=null,domain='';
@@ -18,7 +15,7 @@ export async function showStudents(main,hashQuery=''){
  const option=(value,label,current)=>`<option value="${esc(value)}"${String(current)===String(value)?' selected':''}>${esc(label)}</option>`;
  main.innerHTML=`<div class="page">
  <header class="page-head"><div><div class="kicker">${T('管理后台','Admin console')}</div><h1>${T('学生管理','Students')}</h1><p class="sub">${T('在考试中录入或导入座位后自动整理学生。身份修正后，请保存并重新发布相关批次座位。','Students are collected from exam seating. After correcting an identity, save and republish the affected seating.')}</p></div>
- <div class="page-actions"><button type="button" class="btn btn-secondary" data-act="check">${T('核验年级','Check grades')}</button><button type="button" class="btn btn-secondary" data-act="refresh">${T('刷新','Refresh')}</button></div></header>
+ <div class="page-actions"><button type="button" class="btn btn-secondary" data-act="refresh">${T('刷新','Refresh')}</button></div></header>
  <section class="panel blueprint">${corners}<h4>${T('学校邮箱域名','School email domain')}</h4>
   <form class="domain-form" id="domain-form" novalidate><input class="input" name="domain" required value="${esc(domain)}" placeholder="${T('学校实际域名','School domain')}" aria-label="${T('学校邮箱域名','School email domain')}"><button type="submit" class="btn btn-primary">${T('保存域名','Save domain')}</button></form>
   <p class="muted" style="font-size:12px;margin-top:8px">${T('保存后，新发布的座位使用此域名匹配；不会改变已有发布结果。','Seating published from now on matches with this domain; existing publications stay as they are.')}</p></section>
@@ -41,7 +38,6 @@ export async function showStudents(main,hashQuery=''){
  page.onclick=async e=>{
   const b=e.target.closest('button');if(!b)return;
   if(b.dataset.act==='refresh'){b.disabled=true;try{await load();showStudents(main,query());toast(T('列表已刷新。','List refreshed.'));}catch(error){toast(error.message,{bad:true});}finally{b.disabled=false;}}
-  else if(b.dataset.act==='check')checkDialog(main);
   else if(b.dataset.student)editStudent(b.dataset.student,main);
   else if(b.dataset.page){view.page=Number(b.dataset.page);renderList();main.scrollTop=0;}
  };
@@ -140,112 +136,4 @@ function editStudent(id,main){
    await done(T('学生已合并；请重新发布相关批次座位。','Students merged; republish the affected seating.'));
   });
  });
-}
-
-/* — 核验年级: the model reads an admin's reference list; each row is compared with the stored students on the server,
-   and the admin applies the corrections they tick through the usual student edit. — */
-const STATUS={mismatch:['需修正','Needs correction'],ambiguous:['同名待选','Namesakes'],missing:['学生库中没有','Not in the database'],noGrade:['名单无年级','No grade listed'],ok:['一致','Matches']};
-const ORDER=Object.keys(STATUS);
-// Mirrors the server: "11.3", "11-3" and "G11 3" are one class.
-const classKey=value=>String(value||'').toUpperCase().replace(/^GRADE\s*/,'').replace(/^G(?=\d)/,'').replace(/[\s.\-_·/]/g,'');
-const changesFor=(student,item)=>({...(item.expected&&student.graduationYear!==item.expected?{graduationYear:item.expected}:{}),...(item.row.className&&classKey(student.className)!==classKey(item.row.className)?{className:item.row.className}:{})});
-
-function checkDialog(main){
- const body=modal(T('核验学生年级','Check student grades'),`<p class="muted" style="font-size:13px;line-height:1.7">${T('粘贴学校的班级名单或花名册，也可以加入截图、照片、PDF 或 Excel 名单（.xlsx），最多 5 个文件，可以混用。AI 读出每位学生的班级和年级，再与学生库对照；核对后勾选的修正才会保存。','Paste a class list or roster, or add screenshots, photos, PDFs or Excel rosters (.xlsx): up to 5 files, in any mix. The AI reads each student’s class and grade and compares them with the student records; only the corrections you tick are saved.')}</p>
- <div class="field"><label for="check-year">${T('名单所属学年（开始年份，如 2026 即 2026–2027 学年）','School year of the list (starting year, e.g. 2026 for 2026–27)')}</label><input class="input" id="check-year" type="number" min="2000" max="2199" name="academicYear"></div>
- ${materialFields({placeholder:T('在此粘贴名单文字，或直接粘贴截图…','Paste the list here, or paste a screenshot…'),drop:T('拖入或粘贴名单截图、照片、PDF 或 Excel（可多选），或点击选择','Drop or paste screenshots, photos, PDFs or Excel workbooks (several allowed), or click to choose'),label:T('参考名单','Reference list')})}
- <p class="alert" data-progress hidden></p>${errorLine}
- <div class="dialog-actions"><button type="button" class="btn btn-secondary" data-close>${T('返回','Go back')}</button><button type="button" class="btn btn-primary" data-save>${T('开始核验','Check')}</button></div>`,{size:'medium'});
- const progress=message=>{const el=body.querySelector('[data-progress]');el.textContent=message;el.hidden=!message;};
- const materials=bindMaterials(body),year=/** @type {HTMLInputElement} */(body.querySelector('[name=academicYear]'));
- api('/admin/students/check').then(status=>{
-  if(!year.value)year.value=String(status.academicYear);
-  if(!status.configured){const el=body.querySelector('[data-error]');el.textContent=T('尚未配置 LLM_WORKER_URL 和 LLM_WORKER_TOKEN，请配置后重启服务。','LLM_WORKER_URL and LLM_WORKER_TOKEN are not configured. Configure them and restart the service.');el.hidden=false;}
- }).catch(()=>{});
- body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{
-  const academicYear=Number(year.value);
-  if(!Number.isInteger(academicYear)||academicYear<2000||academicYear>2199)fail(T('请填写名单所属学年。','Enter the school year of the list.'));
-  const {parts,workbooks,panes}=await materials.collect(progress);
-  closeModal();
-  // Workbooks go as they are; the server reads their cells and sends the sheets back to show as the source.
-  await runCheck(materialsForm({parts:parts.map(({items,...part})=>part),workbooks},{academicYear}),panes,main);
- });
-}
-
-async function runCheck(form,panes,main){
- const streamed=[];let final=null;
- const review=reviewView({title:T('核验学生年级','Check student grades'),sourceOf:i=>(final?final.items[i]:streamed[i])?.source});
- review.source(sourcePane(panes));
- const close=/** @type {HTMLElement} */(review.actions(`<button type="button" class="btn btn-secondary" data-dismiss>${T('关闭','Close')}</button>`).querySelector('[data-dismiss]'));close.onclick=review.close;
- try{
-  const done=await streamApi('/admin/students/check',{body:form,signal:review.signal},message=>{
-   review.message(message);
-   if(message.type==='source')review.source(sourcePane(panes,message));
-   if(message.type==='reset')streamed.length=0;
-   if(message.type==='item'&&message.key==='students'){const s=message.item;streamed.push(s);review.append(`<div class="ai-card" data-pick="${streamed.length-1}" tabindex="0"><span class="ai-card-title">${esc([s.name,s.englishName].filter(Boolean).join(' · '))}</span><span class="muted num">${esc([s.className,typeof s.grade==='number'?gradeLabel(s.grade,app.lang):s.grade].filter(Boolean).join(' · '))}</span></div>`);}
-  });
-  final=done.result;
-  showCheck(final,review,main,done.elapsed);
- }catch(error){if(error.name!=='AbortError')review.error(error.message);}
-}
-
-function showCheck(result,review,main,elapsed){
- const {items,academicYear:year}=result;
- const cohort=y=>{if(!y)return T('届别待补充','Cohort unknown');const g=year+13-y;return T(`${y} 届`,`Class of ${y}`)+(g>=1&&g<=12?` · ${gradeLabel(g,app.lang)}`:'');};
- const diff=(student,changes)=>Object.keys(changes).length?Object.entries(changes).map(([field,value])=>`<label class="notice-diff" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="field" value="${field}" checked>${field==='graduationYear'?`${T('届别','Cohort')}：<span class="struck">${esc(cohort(student.graduationYear))}</span> → <span>${esc(cohort(value))}</span>`:`${T('班级','Class')}：<span class="struck">${esc(student.className||T('无','none'))}</span> → <span>${esc(value)}</span>`}</label>`).join('')
-  :`<p class="muted notice-note">${T('与名单一致，无需修正。','Matches the list; nothing to correct.')}</p>`;
- const card=i=>{
-  const item=items[i],r=item.row,s=item.student,listed=[r.className,r.grade&&gradeLabel(r.grade,app.lang)].filter(Boolean).join(' · ')||T('未注明班级和年级','No class or grade listed');
-  const editable=item.status==='mismatch'||item.status==='ambiguous';
-  let detail='';
-  if(item.status==='mismatch')detail=diff(s,item.changes);
-  else if(item.status==='ambiguous')detail=`<select class="input" name="candidate" aria-label="${T('选择学生','Choose the student')}"><option value="">${T(`${item.candidates.length} 位同名学生，请选择…`,`${item.candidates.length} students share this name; choose one…`)}</option>${item.candidates.map(c=>`<option value="${esc(c.id)}">${esc([c.name||c.englishName,c.englishName&&c.name?c.englishName:'',c.className,cohort(c.graduationYear),c.email].filter(Boolean).join(' · '))}</option>`).join('')}</select><div data-diff></div>`;
-  else if(item.status==='missing')detail=`<p class="muted notice-note">${T('学生库中没有此学生；在考试中录入座位后才会建档。','No such student yet; students are created from exam seating.')}</p>`;
-  else detail=`<p class="muted notice-note">${T('学生库：','Records: ')}${esc([s.className,cohort(s.graduationYear)].filter(Boolean).join(' · '))}${item.status==='noGrade'?T('；名单未注明年级，无法核验。','; the list gives no grade to check.'):''}</p>`;
-  return `<div class="ai-card notice-card" data-pick="${i}" data-item="${i}"><div class="notice-head">${editable?`<input type="checkbox" name="include"${item.status==='mismatch'?' checked':''} aria-label="${T('应用此项','Apply this item')}">`:''}<span class="tag ${editable?'tag-accent':'tag-outline'} small">${esc(tx(STATUS[item.status]))}</span><strong>${esc(r.name||r.englishName)}</strong>${r.name&&r.englishName?`<span class="muted">${esc(r.englishName)}</span>`:''}</div>
-  <p class="muted notice-note">${T('名单：','List: ')}${esc(listed)}</p>${detail}<p class="alert bad" data-item-error hidden></p></div>`;
- };
- const sorted=items.map((_,i)=>i).sort((a,b)=>ORDER.indexOf(items[a].status)-ORDER.indexOf(items[b].status));
- const quiet=sorted.filter(i=>['ok','noGrade'].includes(items[i].status)),loud=sorted.filter(i=>!quiet.includes(i));
- const counts=ORDER.map(k=>[k,items.filter(i=>i.status===k).length]).filter(([,n])=>n).map(([k,n])=>`${tx(STATUS[k])} ${n}`).join(' · ');
- review.results(items.length?loud.map(card).join('')+(quiet.length?`<details class="check-quiet"><summary class="muted" style="cursor:pointer;padding:8px 0">${T(`另有 ${quiet.length} 名无需修正`,`${quiet.length} more need no correction`)}</summary>${quiet.map(card).join('')}</details>`:''):`<p class="muted">${T('名单中没有识别到学生。','No students were found in the list.')}</p>`,
-  {notes:[...(counts?[T(`${year}–${year+1} 学年 · `,`${year}–${String(year+1).slice(2)} · `)+counts]:[]),...(result.warnings||[])],elapsed,total:items.length,invalid:result.invalid||[]});
- review.body.querySelectorAll('[name=candidate]').forEach(select=>select.onchange=()=>{
-  const el=select.closest('[data-item]'),item=items[Number(el.dataset.item)],chosen=item.candidates.find(c=>c.id===select.value);
-  const changes=chosen?changesFor(chosen,item):{};
-  el.querySelector('[data-diff]').innerHTML=chosen?diff(chosen,changes):'';
-  el.querySelector('[name=include]').checked=Boolean(Object.keys(changes).length);
- });
- const editable=items.some(i=>i.status==='mismatch'||i.status==='ambiguous');
- const bar=review.actions(`<button type="button" class="btn btn-secondary" data-dismiss>${T('关闭','Close')}</button><button type="button" class="btn btn-primary" data-apply${editable?'':' disabled'}>${T('保存勾选的修正','Save ticked corrections')}</button>`);
- bar.querySelector('[data-dismiss]').onclick=review.close;
- /** @type {HTMLElement} */(bar.querySelector('[data-apply]')).onclick=()=>applyCheck(items,review,main);
-}
-
-async function applyCheck(items,review,main){
- const buttons=$$('[data-apply],[data-dismiss]',review.body);buttons.forEach(b=>b.disabled=true);review.alert('');
- const cards=$$('[data-item]',review.body).filter(c=>c.querySelector('[name=include]')?.checked&&!c.dataset.applied);
- let applied=0,failed=0;
- try{
-  if(!cards.length)fail(T('请至少勾选一项。','Tick at least one item.'));
-  await load();
-  for(const el of cards){
-   const item=items[Number(el.dataset.item)],error=el.querySelector('[data-item-error]');error.hidden=true;
-   try{
-    const id=item.student?.id||el.querySelector('[name=candidate]')?.value;
-    if(!id)fail(T('请选择学生。','Choose the student.'));
-    const current=students.find(s=>s.id===id);if(!current)fail(T('该学生已被删除或合并，请刷新后重试。','This student was removed or merged; refresh and try again.'));
-    // Compared again with the latest record, so a correction saved meanwhile is not undone.
-    const changes=changesFor(current,item),fields=$$('[name=field]:checked',el).map(b=>b.value).filter(f=>f in changes);
-    if(!fields.length)fail(T('没有需要保存的修正。','Nothing left to correct.'));
-    const saved=await api('/admin/students/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({name:current.name||'',englishName:current.englishName||'',className:current.className||'',graduationYear:current.graduationYear??null,pinyin:current.pinyin||'',actualEmail:current.actualEmail||'',...Object.fromEntries(fields.map(f=>[f,changes[f]])),version:current.version})});
-    students=students.map(s=>s.id===id?{...s,...saved}:s);
-    el.dataset.applied='1';el.classList.add('notice-done');el.querySelector('[name=include]').disabled=true;applied++;
-   }catch(e){failed++;error.textContent=e.message;error.hidden=false;}
-  }
-  await load();showStudents(main,query());
-  if(!failed){review.close();toast(T(`已修正 ${applied} 名学生。已发布的座位需重新发布才会更新。`,`Corrected ${applied} students. Republish seating for it to take effect.`));}
-  else review.alert(T(`已修正 ${applied} 名，${failed} 名未能保存，请查看后重试。`,`${applied} corrected, ${failed} could not be saved. Check them and try again.`));
- }catch(e){review.alert(e.message);}
- finally{buttons.forEach(b=>b.disabled=false);}
 }

@@ -269,7 +269,7 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   const exams=installExams(app,db,{requireAdmin,requireSystemAdmin:requireRole(3),isAdmin:req=>session(req)?.role>=2,user:session,origin,timeZone,llm,jobs});
   examEvents=exams.events;
   installFeeds(app,db,{user:session,account:schoolAuth.account,origin,timeZone,matching:exams.matching,examEvents,personalEvents:listPersonal});
-  installNoticeExtract(app,db,{requireAdmin,llm,timeZone,quota,types:eventTypes.list});
+  installNoticeExtract(app,db,{requireAdmin,llm,timeZone,types:eventTypes.list,jobs});
   installStudentCheck(app,{requireSystemAdmin:requireRole(3),llm,timeZone,quota,list:exams.students.list});
   const terms=installTerms(app,db,{requireAdmin});
   installAssistant(app,db,{session,llm,matching:exams.matching,timeZone,quota,personalEvents:listPersonal,terms:terms.list,types:eventTypes.list});

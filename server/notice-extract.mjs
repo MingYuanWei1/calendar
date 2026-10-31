@@ -1,14 +1,14 @@
 import {z} from 'zod';
 import {divisionOf} from '../public/grades.mjs';
 import {randomUUID} from 'node:crypto';
-import express from 'express';
-import {connection,respond,generate,lenientList} from './llm-stream.mjs';
+import {connection,lenientList} from './llm-stream.mjs';
 import {sourceSchema} from './exam-extract.mjs';
 import {eventSchema,dayPlanSchema} from './validation.mjs';
-import {MEDIA,readMaterials,materialsRequest,UPLOAD_LIMIT} from './materials.mjs';
+import {MEDIA,materialsRequest} from './materials.mjs';
 
-// 通知转日程: the model reads a notice (text, screenshots, PDF pages) and proposes new events, changes to
-// existing events (改期 / 取消) and day plans. Nothing is saved here; the admin reviews and applies them.
+// 通知转日程: the model reads a notice (text, screenshots, PDF pages, workbooks) and proposes new events, changes to
+// existing events (改期 / 取消) and day plans. It runs as an extraction job (kind 'notice'); nothing is saved here,
+// the admin reviews and applies the proposals.
 const pair=z.object({zh:z.string().max(15000).nullish(),en:z.string().max(15000).nullish()}).nullish();
 const day=z.string().max(20).nullish(),clock=z.string().max(10).nullish();
 const itemSchema=z.object({
@@ -86,26 +86,32 @@ EXISTING events (ref, title, type, dates, time, scope, status): ${JSON.stringify
 EXISTING day plans: ${JSON.stringify(plans)}
 Event types: ${JSON.stringify(catalog)}`;
 
-export function installNoticeExtract(app,db,{requireAdmin,llm,timeZone,quota,types}){
+const failure=error=>error.name==='TimeoutError'?'识别超时，请减少材料后重试。':error instanceof z.ZodError||error instanceof SyntaxError?'模型返回格式不正确，请重试。':/^(LLM Worker|请配置|模型)/.test(error.message||'')?error.message:'无法连接 LLM Worker，请检查环境配置或稍后重试。';
+// The job keeps the events the notice was read against, under the refs the model saw, so its answer resolves the same
+// way however long it runs.
+const resolve=(context,list)=>resolveNotice(list,new Map(context.refs),context.types);
+
+export function installNoticeExtract(app,db,{requireAdmin,llm,timeZone,types,jobs}){
  app.get('/api/admin/notice-extract',requireAdmin,(req,res)=>{try{connection(llm);res.json({configured:true});}catch{res.json({configured:false});}});
- app.post('/api/admin/notice-extract',requireAdmin,express.raw({type:'multipart/form-data',limit:UPLOAD_LIMIT}),async(req,res)=>{
-  let materials;
-  try{materials=await readMaterials(req);}catch(error){return res.status(error.status||422).json({error:error.message});}
-  const today=new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-  const refs=noticeRefs(db);
-  const plans=db.prepare('SELECT date,kind,follows FROM day_plans WHERE date>=? ORDER BY date LIMIT 120').all(today);
-  const catalog=Object.fromEntries(types().map(t=>[t.id,t.name.filter(Boolean).join(' / ')]));
-  let prepared;
-  try{prepared=await materialsRequest(materials,{instruction:medium=>noticeInstruction({today,refs,plans,catalog,medium}),timeout:120000,empty:'工作簿没有可读取的通知内容。'});}catch(error){return res.status(422).json({error:error.message});}
-  const refused=quota.take(req,'extract');if(refused)return res.status(429).json(refused);
-  await respond(req,res,async progress=>{
-   connection(llm);
-   if(prepared.source)progress.source(prepared.source);
-   // Malformed items are set aside and listed after the rest.
-   const result=lenientList(await generate(llm,prepared.request,progress),'items',itemSchema,200);
-   progress.stage('validating');
-   const resolved=resolveNotice(result.list,refs,types().map(t=>t.id));
+ // Notices are not tied to anything, so the school has one notice job at a time.
+ jobs.register('notice',{scope:()=>'notice',itemKey:'items',failure,
+  async prepare(materials){
+   const today=new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+   const refs=noticeRefs(db);
+   const plans=db.prepare('SELECT date,kind,follows FROM day_plans WHERE date>=? ORDER BY date LIMIT 120').all(today);
+   const catalog=Object.fromEntries(types().map(t=>[t.id,t.name.filter(Boolean).join(' / ')]));
+   const {request,source}=await materialsRequest(materials,{instruction:medium=>noticeInstruction({today,refs,plans,catalog,medium}),timeout:120000,empty:'工作簿没有可读取的通知内容。'});
+   return {request,...(source?{source}:{}),context:{refs:[...refs],types:types().map(t=>t.id)}};
+  },
+  // Malformed items are set aside and listed after the rest.
+  finish(context,raw){
+   const result=lenientList(raw,'items',itemSchema,200),resolved=resolve(context,result.list);
    return {items:resolved.items,warnings:[...result.warnings,...resolved.warnings],invalid:result.invalid};
-  },error=>error.name==='TimeoutError'?'识别超时，请减少材料后重试。':error instanceof z.ZodError||error instanceof SyntaxError?'模型返回格式不正确，请重试。':/^(LLM Worker|请配置|模型)/.test(error.message||'')?error.message:'无法连接 LLM Worker，请检查环境配置或稍后重试。');
- });
+  },
+  salvage(context,list){
+   const items=(Array.isArray(list)?list:[]).flatMap(item=>{const r=itemSchema.safeParse(item);return r.success?[r.data]:[];});
+   if(!items.length)return null;
+   const resolved=resolve(context,items);
+   return resolved.items.length?resolved:null;
+  }});
 }

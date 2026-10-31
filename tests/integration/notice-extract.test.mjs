@@ -6,7 +6,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createApplication} from '../../server/app.mjs';
 import {setAdminPassword} from '../../server/store.mjs';
-import {materialsForm} from '../helpers.mjs';
+import {materialsForm,followJob} from '../helpers.mjs';
 
 const origin='http://calendar.test';
 
@@ -36,8 +36,13 @@ async function setup(t,llmOptions={}){
  await setAdminPassword(instance.db,'admin','notice-testing-password');
  const admin=await signIn('admin','notice-testing-password');
  const json=async(path,method,body,status=200)=>{const r=await call(path,method,body,admin);assert.equal(r.status,status,await r.clone().text());return r.status===204?null:r.json();};
- const extract=(body,cookie=admin)=>fetch(base+'/admin/notice-extract',{method:'POST',headers:{Origin:origin,Accept:'application/x-ndjson',Cookie:cookie},body:materialsForm(body)});
- const stream=async body=>{const r=await extract(body);assert.equal(r.status,200);return (await r.text()).trim().split('\n').map(line=>JSON.parse(line));};
+ // Notices are read as a background job; `stream` follows it and ends with its result, like the old streaming reply.
+ const extract=(body,cookie=admin)=>fetch(base+'/admin/extract-jobs/notice',{method:'POST',headers:{Origin:origin,Cookie:cookie},body:materialsForm(body)});
+ const stream=async body=>{
+  const r=await extract(body);assert.equal(r.status,201);
+  const run=await followJob(base,admin,(await r.json()).id);
+  return [...run.events.filter(e=>!['done','error'].includes(e.type)),run.status==='done'?{type:'done',result:run.result}:{type:'error',error:run.job.error}];
+ };
  return {llm,call,signIn,admin,json,extract,stream};
 }
 const published=fields=>({type:'activity',scope:['schoolwide'],status:'published',...fields});
@@ -96,11 +101,19 @@ test('a notice becomes reviewable proposals about new, moved and cancelled event
 });
 
 test('moving a multi-day event by its start date keeps its length',async t=>{
- const {llm,json,stream}=await setup(t);
+ const {llm,json,stream,call,admin}=await setup(t);
  await json('/admin/events','POST',published({title:['研学旅行','Study trip'],start:'2026-10-12',end:'2026-10-14',timeMode:'multi'}),201);
  llm.state.items=[{action:'reschedule',target:'E1',event:{start:'2026-10-19'},source:{page:1,quote:'研学旅行推迟一周'}}];
  const [moved]=(await stream({parts:[{kind:'text',text:'研学旅行推迟一周'}]})).at(-1).result.items;
  assert.equal(moved.change.start,'2026-10-19');assert.equal(moved.change.end,'2026-10-21');assert.deepEqual(moved.problems,[]);
+ // The job resolves refs against the events as they were when it started, even if they change before it finishes.
+ assert.equal(moved.target.title[0],'研学旅行');
+ // The school has one notice job at a time: a new reading replaces the last, which every administrator can reopen.
+ await stream({parts:[{kind:'text',text:'研学旅行推迟一周'}]});
+ const jobs=await json('/admin/extract-jobs');
+ assert.deepEqual(jobs.map(j=>[j.kind,j.scope,j.status,j.fileName]),[['notice','notice','done','粘贴的文字']]);
+ // The streaming endpoint is gone.
+ assert.equal((await call('/admin/notice-extract','POST',{},admin)).status,404);
 });
 
 test('only admins may read notices, and bad or oversized materials are refused',async t=>{
