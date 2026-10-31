@@ -17,11 +17,11 @@ npm start
 
 打开 `http://localhost:3000`。管理员账号与随机密码保存于 `.data/admin-login.txt`，不进入版本控制。首次数据库为空；数据保存至 `.data/`，刷新和重启不会重置。
 
-- `npm run typecheck`：正式前端与设计稿的类型检查。
+- `npm run typecheck`：前端类型检查。
 - `npm test`：真实 HTTP 集成验收，包括认证、持久化、草稿隔离、媒体权限和事件状态。
 - `npm run backup`：数据库一致性快照与图片备份。
 
-时区、数据目录和站点地址通过 `.env` 配置。默认 `Asia/Shanghai` 为可调整初始值。公网部署需 HTTPS、正确 `APP_ORIGIN` 和持久化磁盘；详见 [运行与部署](docs/deployment.md)。
+时区、数据目录和站点地址通过 `.env` 配置。默认 `Asia/Shanghai` 为可调整初始值。本地运行与备份详见 [运行与备份](docs/deployment.md)；线上部署见 [Cloudflare 部署](docs/cloudflare-deployment.md)。
 
 ## 登录与账户权限
 
@@ -51,11 +51,12 @@ npm start
 
 ## 文档
 
-- [成品版范围](docs/production-spec.md) · [成品验收记录](tests/production.md)
-- [术语](CONTEXT.md) · [已确认产品方案](docs/product-spec.md)
-- [历史静态设计评审](designs/index.html) · [原静态规格](docs/feature-spec.md) · [调研记录](docs/github-research.md)
+- [术语](CONTEXT.md) · [本地运行与备份](docs/deployment.md) · [Cloudflare 部署](docs/cloudflare-deployment.md) · [中转服务器](docs/relay-server.md)
+- [考试安排规格](docs/exams-spec.md) · [考试安排使用与部署](docs/exams-setup.md)
+- [学生匹配规格](docs/student-exam-matching-spec.md) · [学生匹配启用说明](docs/student-matching-setup.md)
+- [ADR 0001 后台提取任务](docs/adr/0001-background-extraction-jobs.md)
 
-历史设计稿仍可通过独立静态服务器查看；正式服务只提供 `public/`，不公开源码、历史示例或数据目录。报名由外部渠道承办，本网站不保存报名信息。
+正式服务只提供 `public/`，不公开源码、示例或数据目录。报名由外部渠道承办，本网站不保存报名信息。
 
 ## 样本事件
 

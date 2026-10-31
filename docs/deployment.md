@@ -1,4 +1,6 @@
-# 运行与部署
+# 本地运行与备份
+
+线上站点运行在 Cloudflare Worker 上，部署见 [Cloudflare 部署](cloudflare-deployment.md)。本文说明本地 Node 服务的运行、管理员初始化与数据备份。
 
 ## 本地运行
 
@@ -24,22 +26,7 @@ npm run admin:create
 unset ADMIN_PASSWORD
 ```
 
-登录有效期 8 小时。没有自助注册或邮件重置；通过受控服务器终端重置管理员。学生端无需账号。默认以单个管理员使用；如确有需要，可设置 `ADMIN_USERNAME` 创建其他账号，权限相同。
-
-## 服务器部署
-
-本版本适合单台有持久磁盘的 Node 主机。准备域名与 HTTPS 反向代理，将其转发至回环地址 `127.0.0.1:3000`；配置 `NODE_ENV=production` 和正确的 HTTPS `APP_ORIGIN`。HTTPS 环境会启用 Secure 会话 Cookie。若反向代理来自本机回环地址，设置 `TRUST_PROXY=loopback`，并让代理覆盖 `X-Forwarded-For` 为真实客户端地址；其他拓扑应填写受信代理的精确 IP／网段，不要信任任意来源。未配置时忽略转发头。这样登录限速按真实客户端区分，避免所有访客共享代理地址。不要将数据库放在临时文件系统，或运行多个共享不同磁盘的实例。
-
-可使用 systemd、平台进程管理器或 Docker 保持进程运行。Docker 构建文件已提供，数据必须挂载至 `/data`。例如：
-
-```sh
-docker build -t school-calendar .
-docker volume create calendar-data
-docker run --rm -v calendar-data:/data -e APP_ORIGIN=https://calendar.example.org school-calendar node scripts/admin.mjs --generate
-docker run -d --name school-calendar --restart unless-stopped -p 127.0.0.1:3000:3000 -v calendar-data:/data -e APP_ORIGIN=https://calendar.example.org -e SCHOOL_TIMEZONE=Asia/Shanghai school-calendar
-```
-
-域名是占位，须替换。凭据位于该数据卷的 `admin-login.txt`，使用服务器的受控终端读取。Docker 路径未在本机执行容器验收；本轮已验收原生 Node 运行方式。未部署任何公网服务。
+登录有效期 8 小时。没有自助注册或邮件重置；通过终端重置管理员。初始化命令创建的账户为 admin（role 3）；其他账户及角色在管理后台「账户」页管理，见 [README](../README.md#登录与账户权限)。
 
 ## 数据与备份
 
@@ -55,6 +42,6 @@ npm run backup
 
 ## 验证与参考
 
-`npm test` 运行真实 HTTP 集成场景，临时数据库在结束后删除；`npm run typecheck` 检查正式前端与历史设计稿。浏览器记录见 `tests/production.md`。
+`npm test` 运行真实 HTTP 集成场景，临时数据库在结束后删除；`npm run typecheck` 检查前端类型。
 
 实现参考：[Node.js SQLite API](https://nodejs.org/download/release/v24.16.0/docs/api/sqlite.html)、[Express 安全指南](https://expressjs.com/en/advanced/best-practice-security.html)。

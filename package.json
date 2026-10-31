@@ -2,7 +2,7 @@
   "name": "school-calendar",
   "private": true,
   "scripts": {
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.designs.json --noEmit",
+    "typecheck": "tsc --noEmit",
     "start": "node --env-file-if-exists=.env server/index.mjs",
     "dev": "node --env-file-if-exists=.env --watch server/index.mjs",
     "admin:create": "node --env-file-if-exists=.env scripts/admin.mjs",
