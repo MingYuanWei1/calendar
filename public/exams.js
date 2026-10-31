@@ -18,15 +18,18 @@ const title=s=>{const name=lang?(s.titleEn||s.title):s.title.replaceAll('商务�
 const notice=(message,error=true)=>{$('#notice').textContent=message;$('#notice').classList.toggle('success',!error);};
 /** My exams show only the student's own room once the seating places them. */
 const roomsOf=s=>mine&&seats[s.id]?[seats[s.id].room]:s.rooms;
+/** Only the divisions the series has exams for; a series without exams yet falls back to its default division. */
+const batchDivisions=()=>{const used=new Set((batch?.sessions||[]).map(s=>s.division));if(!used.size&&batch?.division)used.add(batch.division);const keys=Object.keys(divisions).filter(k=>used.has(k));return keys.length?keys:Object.keys(divisions);};
 const scopeSessions=()=>batch?batch.sessions.filter(s=>mine?chosen.has(s.id):s.division===division&&(!grade||s.grades.includes(grade))):[];
 function render(){
+ const shownDivisions=batchDivisions();if(!shownDivisions.includes(division)){division=shownDivisions[0];grade='';}
  document.documentElement.lang=lang?'en':'zh-CN';document.title=lang?'Keydion Calendar - Exams':'Keydion日历 - 考试安排';document.querySelectorAll('[data-zh]').forEach(el=>el.textContent=el.getAttribute(lang?'data-en':'data-zh'));
  $('#language').textContent=lang?'中文':'EN';$('#language').setAttribute('aria-label',lang?'切换为中文':'Switch to English');
  $('#all-mode').textContent=T('全部考试','All exams');$('#mine-mode').textContent=T('我的考试','My exams');$('#all-mode').setAttribute('aria-pressed',String(!mine));$('#mine-mode').setAttribute('aria-pressed',String(mine));$('#division-filters').hidden=mine;
  $('#download').textContent=T('下载 PDF','Download PDF');$('#download').disabled=!batch;
  $('#batch').innerHTML=batches.map(b=>`<option value="${esc(b.id)}" ${b.id===batch?.id?'selected':''}>${esc(title(b))}</option>`).join('');
  $('#batch-dates').textContent=batch?`${batch.start} — ${batch.end}`:'';
- $('#divisions').innerHTML=Object.entries(divisions).map(([key,value])=>`<button data-division="${key}" aria-pressed="${division===key}">${value[lang]}</button>`).join('');
+ $('#divisions').innerHTML=shownDivisions.map(key=>[key,divisions[key]]).map(([key,value])=>`<button data-division="${key}" aria-pressed="${division===key}">${value[lang]}</button>`).join('');
  const grades=[...new Set((batch?.sessions||[]).filter(s=>s.division===division).flatMap(s=>s.grades))].sort((a,b)=>a-b);
  $('#grade').innerHTML=`<option value="">${T('全部年级','All grades')}</option>`+grades.map(g=>`<option value="${g}" ${g===grade?'selected':''}>${esc(gradeLabel(g,lang))}</option>`).join('');
  document.querySelectorAll('[data-division]').forEach(el=>el.addEventListener('click',()=>{division=el.getAttribute('data-division');grade='';render();}));
@@ -139,7 +142,7 @@ function renderSheet(){
   dialog.setAttribute('aria-label',T('筛选','Filter'));
   const grades=[...new Set((batch?.sessions||[]).filter(s=>s.division===division).flatMap(s=>s.grades))].sort((a,b)=>a-b);
   dialog.innerHTML=`<h3>${T('筛选','Filter')}</h3>
-   <div class="sheet-section"><h6 class="m-h6">${T('学部','Division')}</h6><div class="seg" role="group" style="align-self:flex-start">${Object.entries(divisions).map(([key,value])=>`<button type="button" class="seg-opt" data-key="division-${key}" data-division-pick="${key}" aria-pressed="${division===key}">${value[lang]}</button>`).join('')}</div></div>
+   <div class="sheet-section"><h6 class="m-h6">${T('学部','Division')}</h6><div class="seg" role="group" style="align-self:flex-start">${batchDivisions().map(key=>[key,divisions[key]]).map(([key,value])=>`<button type="button" class="seg-opt" data-key="division-${key}" data-division-pick="${key}" aria-pressed="${division===key}">${value[lang]}</button>`).join('')}</div></div>
    <div class="sheet-section"><h6 class="m-h6">${T('年级','Grade')}</h6><div class="sheet-chips">${[['',T('全部年级','All grades')],...grades.map(g=>[g,gradeLabel(g,lang)])].map(([g,name])=>`<button type="button" class="chip" data-key="grade-${g}" data-grade-pick="${g}" aria-pressed="${g===grade}">${esc(name)}</button>`).join('')}</div></div>
    <button type="button" class="btn btn-primary blueprint" data-key="done" data-sheet-done>${corners}${esc(T(`显示 ${scopeSessions().length} 场考试`,`Show ${scopeSessions().length} exams`))}</button>`;
  }else{
