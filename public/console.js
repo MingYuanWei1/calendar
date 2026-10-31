@@ -7,11 +7,13 @@ import {showAccounts,accountCount,loadAccounts} from './console-accounts.js';
 import {showStudents} from './console-students.js';
 import {showStats} from './console-stats.js';
 import {showReleases,releaseCount,loadReleases} from './console-releases.js';
+import {showChecks,loadCheckIssues} from './console-checks.js';
 
 const navIcons={
  events:'<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',
  days:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
  exams:'<path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/>',
+ checks:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
  students:'<path d="M22 10v6"/><path d="M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>',
  accounts:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
  releases:'<path d="M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m3 15 2 2 4-4"/>',
@@ -21,13 +23,14 @@ const navIcons={
 let route=['events'],current='';
 
 function renderNav(){
- const {events,plans,batches,jobs}=app.data;
+ const {events,plans,batches,jobs,checkIssues}=app.data;
  // A finished or failed extraction waits for an administrator to review it.
  // A finished, failed or interrupted job waits on the page it belongs to.
  const waiting=(...kinds)=>jobs?.some(j=>kinds.includes(j.kind)&&j.status!=='running'&&j.status!=='cancelled');
- const attention={events:waiting('notice'),exams:waiting('sessions','seats')};
- const counts={events:events?.length,days:plans&&planRanges(plans).length,exams:batches?.length,accounts:accountCount(),releases:releaseCount()};
- const labels={events:T('事件','Events'),days:T('放假与调休','School days'),exams:T('考试','Exams'),...(app.user?.role===3?{students:T('学生管理','Students'),accounts:T('账户','Accounts'),releases:T('更新说明','Release notes')}:{}),stats:T('统计','Statistics'),settings:T('设置','Settings')};
+ const attention={events:waiting('notice'),exams:waiting('sessions','seats'),checks:jobs?.some(j=>j.kind.startsWith('check-')&&j.status!=='running'&&j.status!=='cancelled')};
+ // 核验 counts the problems 自检 found.
+ const counts={events:events?.length,days:plans&&planRanges(plans).length,exams:batches?.length,checks:checkIssues?.length,accounts:accountCount(),releases:releaseCount()};
+ const labels={events:T('事件','Events'),days:T('放假与调休','School days'),exams:T('考试','Exams'),checks:T('核验','Checks'),...(app.user?.role===3?{students:T('学生管理','Students'),accounts:T('账户','Accounts'),releases:T('更新说明','Release notes')}:{}),stats:T('统计','Statistics'),settings:T('设置','Settings')};
  $('#console-nav').innerHTML=`<a class="brand" href="/"><img src="/logo.png" alt=""><span><strong>${T('日历','Calendar')}</strong><span class="overline">${T('管理后台','Admin console')}</span></span></a>
  <nav class="nav-links">${Object.keys(labels).map(key=>`<a href="#${key}"${route[0]===key?' aria-current="page"':''}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${navIcons[key]}</svg><span>${labels[key]}</span>${attention[key]?`<i class="nav-dot" title="${T('有待核对的 AI 提取','AI extraction to review')}"></i>`:''}${counts[key]!==undefined?`<span class="count">${counts[key]}</span>`:''}</a>`).join('')}</nav>
  <div class="nav-foot"><div class="seg" role="group" aria-label="${T('界面语言','Language')}"><button type="button" data-lang="0" aria-pressed="${!app.lang}">中文</button><button type="button" data-lang="1" aria-pressed="${!!app.lang}">EN</button></div><a href="/">← ${T('公共校历','Public calendar')}</a><div class="nav-user"><span title="${esc(app.user?.name)}">${esc(app.user?.name)}</span><button type="button" class="btn btn-ghost" data-sign-out style="font-size:13px">${T('退出登录','Sign out')}</button></div></div>`;
@@ -52,11 +55,11 @@ async function navigate(){
  app.dirty=false;current=hash;app.visit++;
  const [path]=hash.split('?');
  route=path.split('/').map(decodeURIComponent);
- if(!['events','days','exams','stats','settings',...(app.user.role===3?['students','accounts','releases']:[])].includes(route[0]))route=['events'];
+ if(!['events','days','exams','checks','stats','settings',...(app.user.role===3?['students','accounts','releases']:[])].includes(route[0]))route=['events'];
  $('#console-dialog').open&&$('#console-dialog').close();
  renderNav();
  const main=$('#console-main');main.scrollTop=0;
- const show={events:()=>route[1]?showEditor(main,route[1],route[2]):showEvents(main),days:()=>showDays(main),exams:()=>route[1]?showBatch(main,route[1]):showExams(main),students:()=>showStudents(main,location.hash.split('?')[1]||''),accounts:()=>showAccounts(main),releases:()=>showReleases(main),stats:()=>showStats(main),settings:()=>showSettings(main)}[route[0]];
+ const show={events:()=>route[1]?showEditor(main,route[1],route[2]):showEvents(main),days:()=>showDays(main),exams:()=>route[1]?showBatch(main,route[1]):showExams(main),checks:()=>showChecks(main,route[1]||'',location.hash.split('?')[1]||''),students:()=>showStudents(main,location.hash.split('?')[1]||''),accounts:()=>showAccounts(main),releases:()=>showReleases(main),stats:()=>showStats(main),settings:()=>showSettings(main)}[route[0]];
  app.rerender=()=>show();
  try{await show();}catch(error){main.innerHTML=`<p class="load-error">${esc(error.message)}</p>`;}
  renderNav();
@@ -78,7 +81,7 @@ async function start(){
  setLanguage(app.lang);
  await navigate();
  // Sidebar counts for sections not yet visited.
- await Promise.allSettled([app.data.events||loadEvents(),app.data.plans||loadPlans(),app.data.batches||loadBatches(),app.data.jobs||loadJobs(),app.user.role===3&&accountCount()===undefined?loadAccounts():null,app.user.role===3&&releaseCount()===undefined?loadReleases():null]);
+ await Promise.allSettled([app.data.events||loadEvents(),app.data.plans||loadPlans(),app.data.batches||loadBatches(),app.data.jobs||loadJobs(),app.data.checkIssues||loadCheckIssues(),app.user.role===3&&accountCount()===undefined?loadAccounts():null,app.user.role===3&&releaseCount()===undefined?loadReleases():null]);
  renderNav();
 }
 start().catch(error=>{$('#console-main').innerHTML=`<p class="load-error">${esc(error.message)}</p>`;});
