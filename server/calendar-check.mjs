@@ -172,13 +172,12 @@ export function registerCalendarChecks(checks,{events,plans,terms,types,today}){
   instruction:(medium,scope,options)=>dayCheckInstruction({today:today(),range:options,medium}),
   compare:(rows,scope,options)=>compareDays(rows,plans(),terms(),options)});
 
- // 自检: single events on days off, drafts left for two weeks, and series whose every date is skipped.
+ // 自检: drafts left for two weeks, and series whose every date is skipped. Events on days off are not reported.
  checks.selfCheck(()=>{
   const issues=[],dayPlans=plans(),stale=Date.now()-14*86400000;
   for(const event of events()){
    const name=event.title.filter(Boolean).join(' / '),link=`#events/${encodeURIComponent(event.id)}`;
    if(event.cancelled)continue;
-   if(!event.repeat&&datesOf(event.start,event.end).every(d=>dayPlans[d]?.kind==='off'))issues.push({area:'events',message:`“${name}”安排在放假日 ${event.start}。`,link});
    if(event.status==='draft'&&Date.parse(event.updatedAt||'')<stale)issues.push({area:'events',message:`草稿“${name}”已超过 14 天未发布。`,link});
    if(event.repeat&&!seriesDates(event,dayPlans,event.repeat.until||addDays(event.start,730)).some(d=>!event.exceptions?.[d]?.deleted))issues.push({area:'events',message:`重复事件“${name}”的所有日期都被跳过。`,link});
   }

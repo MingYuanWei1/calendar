@@ -222,7 +222,8 @@ test('自检 lists problems in the stored data with where to fix them',async t=>
  assert.match(messages,/甲 同时安排在/);
  assert.match(messages,/“物理 HL”安排在放假日/);
  assert.match(messages,/同一年级同一课程，时间重叠/);
- assert.match(messages,/“放假日活动”安排在放假日/);
+ // An event on a day off is not reported; an exam on one is.
+ assert.doesNotMatch(messages,/放假日活动/);
  assert.ok(issues.every(i=>i.link&&i.area));
  assert.ok(issues.some(i=>i.link===`#exams/${created.id}`));
 });
