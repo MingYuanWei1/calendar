@@ -8,7 +8,7 @@ import {seatSchema,seatErrors,adaptRooms} from './exam-model.mjs';
 import {placed} from '../public/exam-seats.mjs';
 
 // Preserve coordinates and merged ranges so visual seating grids retain their layout.
-export async function seatingWorkbook(buffer){
+export async function seatingWorkbook(buffer,empty='工作簿没有可提取的文字座位数据。'){
  let zip;
  try{zip=await unzipper.Open.buffer(buffer);}catch{throw new Error('请上传有效的 .xlsx 文件。');}
  if(!zip.files.some(f=>f.path==='xl/workbook.xml'))throw new Error('仅支持 .xlsx 工作簿。');
@@ -22,7 +22,7 @@ export async function seatingWorkbook(buffer){
  });
  const text=JSON.stringify(sheets);
  if(text.length>150000)throw new Error('表格内容过多，请拆分后提取。');
- if(!sheets.some(s=>s.cells.length))throw new Error('工作簿没有可提取的文字座位数据。');
+ if(!sheets.some(s=>s.cells.length))throw new Error(empty);
  return {sheets,text};
 }
 const silent={stage(){},item(){},invalid(){},text(){},source(){}};

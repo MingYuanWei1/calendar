@@ -1,3 +1,4 @@
+import ExcelJS from 'exceljs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -34,7 +35,7 @@ async function setup(t){
  await setAdminPassword(instance.db,'admin','check-testing-password');
  const admin=(await call('/login','POST',{username:'admin',password:'check-testing-password'})).headers.get('set-cookie').split(';')[0];
  const json=async(path,method,body,status=200)=>{const r=await call(path,method,body,admin);assert.equal(r.status,status,await r.clone().text());return r.json();};
- return {llm,call,admin,json};
+ return {llm,call,admin,json,base};
 }
 // Students are created from exam seating: grade 11 in 2026–27 is the class of 2028.
 const seat=(column,className,name,englishName)=>({examId:'math',room:'A',row:1,column,className,name,englishName});
@@ -89,4 +90,27 @@ test('the check needs a system admin and a reference',async t=>{
  assert.equal((await call('/admin/students/check','POST',{parts:[{kind:'text',text:'x'}]})).status,401);
  assert.equal((await call('/admin/students/check','POST',{parts:[]},admin)).status,422);
  await json('/admin/students/check','GET');
+});
+
+test('an Excel roster is read sheet by sheet and compared the same way',async t=>{
+ const {llm,json,admin,base}=await setup(t);
+ await json('/admin/exams','POST',batch([seat(1,'11.3','王小明','Ming')]),201);
+ const book=new ExcelJS.Workbook(),sheet=book.addWorksheet('高三');
+ sheet.addRow(['班级','姓名','英文名']);sheet.addRow(['12.3','王小明','Ming']);
+ llm.state.students=[{name:'王小明',englishName:'Ming',className:'12.3',grade:12,source:{sheet:'高三',cell:'B2'}}];
+ const upload=(buffer,headers)=>fetch(base+'/admin/students/check',{method:'POST',headers:{Origin:origin,Cookie:admin,'Content-Type':'application/octet-stream',Accept:'application/x-ndjson','X-File-Name':encodeURIComponent('名单.xlsx'),...headers},body:buffer});
+ const r=await upload(await book.xlsx.writeBuffer(),{'X-Academic-Year':'2026'});
+ assert.equal(r.status,200);
+ const lines=(await r.text()).trim().split('\n').map(line=>JSON.parse(line));
+ // The sheets come back first so the review can show the workbook beside the results.
+ assert.equal(lines.find(l=>l.type==='source').sheets[0].name,'高三');
+ const {items,academicYear}=lines.at(-1).result;
+ assert.equal(academicYear,2026);
+ assert.equal(items[0].status,'mismatch');assert.deepEqual(items[0].changes,{graduationYear:2027,className:'12.3'});
+ assert.deepEqual(items[0].source,{sheet:'高三',cell:'B2'});
+ const prompt=llm.state.calls.at(-1).messages;
+ assert.match(prompt[0].content,/XLSX cell text/);assert.match(prompt[1].content,/王小明/);
+ // Only a real workbook is read.
+ assert.equal((await upload(Buffer.from('not a workbook'),{})).status,422);
+ assert.equal((await upload(await book.xlsx.writeBuffer(),{'X-File-Name':'list.csv'})).status,422);
 });
