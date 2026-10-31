@@ -110,11 +110,37 @@ test('a seating plan is compared by student and exam within one batch',async t=>
  assert.equal(by('乙').status,'mismatch');assert.deepEqual(by('乙').changes,[{field:'position',from:'1-2',to:'1-4'}]);
  assert.equal(by('丁').status,'missing');
  assert.equal(by('丙').status,'extra');
- assert.equal(by('戊').status,'ambiguous');assert.equal(by('戊').apply,false);
+ assert.equal(by('戊').status,'missing');
  await json(`/admin/checks/${id}/apply`,'POST',{keys:['乙','丁','丙'].map(name=>by(name).key)});
  const seats=(await json('/admin/exams')).find(b=>b.id===created.id).seats;
  assert.deepEqual(seats.map(s=>[s.name,s.column]).sort(),[['丁',5],['乙',4],['甲',1]]);
- assert.deepEqual((await compared(json,id)).items.filter(i=>i.status!=='ok').map(i=>i.status),['ambiguous']);
+ assert.deepEqual((await compared(json,id)).items.filter(i=>i.status!=='ok').map(i=>i.status),['missing']);
+});
+
+test('a room shared by two levels at one time is one seat per student, not a clash',async t=>{
+ const {llm,json,check}=await setup(t);
+ // Chinese A HL and SL sit together; the plan does not always say which one a student takes.
+ const sessions=[session('数学',{id:'hl',title:'Chinese A HL',subject:'Chinese A',level:'HL'}),session('数学',{id:'sl',title:'Chinese A SL',subject:'Chinese A',level:'SL'}),session('物理',{rooms:['102']})];
+ const seat=(name,column,extra={})=>({examId:'hl',room:'101',row:1,column,className:'12.1',name,englishName:'',...extra});
+ const created=await json('/admin/exams','POST',batch(sessions,[seat('甲',1,{examIds:['hl','sl']}),seat('乙',2),seat('丙',3,{examIds:['hl','sl']})]),201);
+ // 自检 does not take an undecided seat for a student in two exams at once.
+ assert.doesNotMatch((await json('/admin/checks/self')).issues.map(i=>i.message).join('\n'),/同时安排在/);
+ // The plan decides 甲 (SL), leaves 乙 undecided where the draft knows HL, and gives 丙 the same choice as the draft.
+ llm.state.seats=[seat('甲',1,{examId:'sl'}),seat('乙',2,{examIds:['hl','sl']}),seat('丙',3,{examIds:['hl','sl']})];
+ const id=await check('seats',{mode:'ordered'},`?batch=${created.id}`);
+ const {items}=await compared(json,id);
+ const by=name=>items.find(i=>i.title.startsWith(name));
+ assert.deepEqual(by('甲').changes,[{field:'exam',from:'Chinese A HL / Chinese A SL',to:'Chinese A SL'}]);
+ assert.equal(by('乙').status,'ok');assert.equal(by('丙').status,'ok');
+ assert.equal(items.filter(i=>i.status==='extra').length,0);
+ await json(`/admin/checks/${id}/apply`,'POST',{keys:[by('甲').key]});
+ const decided=(await json('/admin/exams')).find(b=>b.id===created.id).seats.find(s=>s.name==='甲');
+ assert.equal(decided.examId,'sl');assert.equal(decided.examIds,undefined);
+ assert.deepEqual((await compared(json,id)).items.map(i=>i.status),['ok','ok','ok']);
+ // Two seats of one student at the same time are still a clash.
+ const draft=(await json('/admin/exams')).find(b=>b.id===created.id);
+ await json(`/admin/exams/${created.id}`,'PUT',{...draft,rooms:[...draft.rooms],seats:[...draft.seats,{...seat('甲',4,{examId:'phys'}),room:'102'}]});
+ assert.match((await json('/admin/checks/self')).issues.map(i=>i.message).join('\n'),/甲 同时安排在/);
 });
 
 test('the school calendar is compared with events in its dates, including single dates of a series',async t=>{

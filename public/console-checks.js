@@ -8,7 +8,7 @@ import {registerJobKind,jobsOf,startJob,openJob,jobStrips,watchJobs,jobAction,di
 
 const STATUS={mismatch:['不一致','Differs'],missing:['缺失','Missing'],extra:['多出','Extra'],ambiguous:['待确认','Unresolved'],noValue:['无法核验','Nothing to compare'],ok:['一致','Matches']};
 const LOUD=['mismatch','missing','extra','ambiguous'];
-const FIELDS={graduationYear:['届别','Cohort'],className:['班级','Class'],name:['姓名','Name'],englishName:['英文名','English name'],email:['邮箱','Email'],date:['日期','Date'],start:['开始','Start'],end:['结束','End'],grades:['年级','Grades'],cancelled:['取消状态','Cancellation'],room:['考场','Room'],position:['座位','Seat'],title:['名称','Title'],time:['开始时间','Start time'],endTime:['结束时间','End time'],location:['地点','Place'],kind:['安排','Setting']};
+const FIELDS={graduationYear:['届别','Cohort'],className:['班级','Class'],name:['姓名','Name'],englishName:['英文名','English name'],email:['邮箱','Email'],date:['日期','Date'],start:['开始','Start'],end:['结束','End'],grades:['年级','Grades'],cancelled:['取消状态','Cancellation'],exam:['考试','Exam'],room:['考场','Room'],position:['座位','Seat'],title:['名称','Title'],time:['开始时间','Start time'],endTime:['结束时间','End time'],location:['地点','Place'],kind:['安排','Setting']};
 const KINDS_OF_DAY={off:['放假','Day off'],school:['调休上课','Make-up day'],half:['半天','Half day'],default:['无安排','None'],term:['学期','Term']};
 const value=(field,v)=>v===''||v==null?T('无','none'):field==='graduationYear'?T(`${v} 届`,`Class of ${v}`):field==='cancelled'?(v?T('已取消','cancelled'):T('正常','active')):field==='kind'?String(v).split(' / ').map(k=>tx(KINDS_OF_DAY[k]||[k,k])).join(' / '):String(v);
 

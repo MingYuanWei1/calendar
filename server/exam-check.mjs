@@ -52,30 +52,37 @@ export function applySessionItems(draft,items){
  return next;
 }
 
-// A draft seat is known by its student and exam; a seat whose student is not yet identified, by name and class.
-const seatKey=(seat,examId=seat.examId)=>seat.studentId?`${seat.studentId}|${examId}`:`n:${seat.name}|${seat.className}|${examId}`;
+// A seat is known by its student (by name and class until the student is identified) and the exams it may be for:
+// one exam, or several sharing a room and time when the plan does not say which one the student takes
+// (e.g. Chinese A HL / SL). Such a seat is still one seat for one exam.
+const who=seat=>seat.studentId||`n:${seat.name}|${seat.className}`;
+const seatKey=seat=>`${who(seat)}|${examIds(seat).join('/')}`;
+const sameSet=(a,b)=>examIds(a).length===examIds(b).length&&examIds(a).every(id=>examIds(b).includes(id));
 /**
  * Compares the seating plan with the draft's seats, identifying each reference row's student the way an import does
- * (`organize`). In unordered mode only rooms are compared. Rows whose student or exam is still undecided are left
- * to the administrator.
+ * (`organize`). A row and a draft seat of one student match when they may be for the same exam; a row that names the
+ * exam a still undecided draft seat is for decides it. In unordered mode only rooms are compared. Rows whose student
+ * is unresolved are left to the administrator.
  */
 export function compareSeats(rows,draft,organize,mode='ordered'){
  const organized=organize({...draft,seats:rows.map(withoutSource)},false).seats;
- const drafts=new Map(draft.seats.map(seat=>[seatKey(seat),seat])),matched=new Set(),items=[];
- const title=id=>draft.sessions.find(s=>s.id===id)?.title||id;
+ const matched=new Set(),items=[];
+ const titles=seat=>examIds(seat).map(id=>draft.sessions.find(s=>s.id===id)?.title||id).join(' / ');
+ const label=seat=>`${seat.name||seat.englishName} · ${titles(seat)}`;
  organized.forEach((seat,index)=>{
-  const row=rows[index],base={key:`r${index}`,title:`${seat.name||seat.englishName} · ${title(seat.examId)}`,row,source:row.source||null,changes:[]};
+  const row=rows[index],base={key:`r${index}`,title:label(seat),row,source:row.source||null,changes:[]};
   if(seat.candidates)return items.push({...base,status:'ambiguous',seat:null,candidates:seat.candidates,note:'身份不明确，请先在考试页处理身份匹配冲突。',apply:false});
-  if(seat.examIds)return items.push({...base,status:'ambiguous',seat:null,note:'座位表没有说明该学生参加同一时段的哪场考试。',apply:false});
-  const found=drafts.get(seatKey(seat));
-  if(!found||matched.has(seatKey(found)))return items.push({...base,status:'missing',seat:null,studentId:seat.studentId||null,apply:true});
-  matched.add(seatKey(found));
+  const open=draft.seats.filter(d=>!matched.has(d)&&who(d)===who(seat)&&examIds(d).some(id=>examIds(seat).includes(id)));
+  const found=open.find(d=>sameSet(d,seat))||open[0];
+  if(!found)return items.push({...base,status:'missing',seat:null,studentId:seat.studentId||null,apply:true});
+  matched.add(found);
   const changes=[];
+  if(examIds(seat).length===1&&!sameSet(found,seat))changes.push({field:'exam',from:titles(found),to:titles(seat)});
   if(found.room!==seat.room)changes.push({field:'room',from:found.room,to:seat.room});
   if(mode==='ordered'&&seat.row&&(found.row!==seat.row||found.column!==seat.column))changes.push({field:'position',from:found.row?`${found.row}-${found.column}`:'',to:`${seat.row}-${seat.column}`});
   items.push({...base,status:changes.length?'mismatch':'ok',seat:found,changes,apply:changes.length>0});
  });
- for(const [key,seat] of drafts)if(!matched.has(key))items.push({key:`x:${key}`,title:`${seat.name||seat.englishName} · ${title(seat.examId)}`,status:'extra',row:null,source:null,seat,changes:[],apply:true});
+ for(const seat of draft.seats)if(!matched.has(seat))items.push({key:`x:${seatKey(seat)}`,title:label(seat),status:'extra',row:null,source:null,seat,changes:[],apply:true});
  return {items};
 }
 /** The draft with the chosen seat items applied; rooms grow to fit the seats. */
@@ -85,8 +92,9 @@ export function applySeatItems(draft,items){
   if(item.status==='missing'){const {grade,...seat}=withoutSource(item.row);next.seats.push(item.studentId?{...seat,studentId:item.studentId}:seat);continue;}
   const i=next.seats.findIndex(seat=>seatKey(seat)===seatKey(item.seat));if(i<0)continue;
   if(item.status==='extra'){next.seats.splice(i,1);continue;}
-  const {room,row,column}=item.row;
-  next.seats[i]={...next.seats[i],room,...(item.changes.some(c=>c.field==='position')?{row,column}:{})};
+  const {room,row,column,examId}=item.row,changed=field=>item.changes.some(c=>c.field===field);
+  const {examIds:_,...kept}=next.seats[i];
+  next.seats[i]={...(changed('exam')?{...kept,examId}:next.seats[i]),room,...(changed('position')?{row,column}:{})};
  }
  next.rooms=adaptRooms(next,next.seats).rooms;
  return next;
@@ -125,10 +133,14 @@ export function registerExamChecks(checks,{batches,draftOf,save,organize,subject
   const unidentified=draft.seats.filter(seat=>!seat.studentId).length;
   if(unidentified)add('seats',`${unidentified} 个座位的学生身份尚未确认。`);
   const live=draft.sessions.filter(s=>!s.cancelled),byId=new Map(live.map(s=>[s.id,s]));
-  const taken=new Map();
-  for(const seat of draft.seats){if(!seat.studentId)continue;const list=taken.get(seat.studentId)||[];list.push(...examIds(seat).map(id=>byId.get(id)).filter(Boolean));taken.set(seat.studentId,list);}
-  for(const [,sessions] of taken)for(let i=0;i<sessions.length;i++)for(let j=i+1;j<sessions.length;j++)
-   if(sessions[i].id!==sessions[j].id&&overlap(sessions[i],sessions[j])){const seat=draft.seats.find(s=>examIds(s).includes(sessions[i].id));add('seats',`${seat?.name||'学生'} 同时安排在“${sessions[i].title}”和“${sessions[j].title}”。`);}
+  // A student clashes only across two seats; one seat's candidate exams (HL / SL) share their time by design.
+  const seatsOf=new Map();
+  for(const seat of draft.seats)if(seat.studentId)seatsOf.set(seat.studentId,[...(seatsOf.get(seat.studentId)||[]),seat]);
+  const sessionsOf=seat=>examIds(seat).map(id=>byId.get(id)).filter(Boolean);
+  for(const [,seats] of seatsOf)for(let i=0;i<seats.length;i++)for(let j=i+1;j<seats.length;j++){
+   const clash=sessionsOf(seats[i]).flatMap(a=>sessionsOf(seats[j]).filter(b=>a.id!==b.id&&overlap(a,b)).map(b=>[a,b]))[0];
+   if(clash)add('seats',`${seats[i].name||'学生'} 同时安排在“${clash[0].title}”和“${clash[1].title}”。`);
+  }
   for(const s of live)if(dayOff(s.date))add('sessions',`“${s.title}”安排在放假日 ${s.date}。`);
   // The same course twice for one grade at overlapping times is almost always a duplicate.
   for(let i=0;i<live.length;i++)for(let j=i+1;j<live.length;j++){
