@@ -1,7 +1,9 @@
 /* Shared layout and breakpoints for calendar and exam headers. */
 #site-header{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;gap:12px 18px;padding:14px 24px 12px;height:auto;min-height:0;flex-shrink:0;background:var(--base);border:0;font-family:"Avenir Next","PingFang SC",Arial,sans-serif;line-height:1.5}
-/* Brand mark, matching the keydion site header style. */
-#site-header .brand{display:inline-flex;align-items:center;gap:11px;font-family:Georgia,"Times New Roman","Noto Serif SC",serif;font-weight:700;color:#1a1a1a;text-decoration:none;flex-shrink:0}
+/* Brand mark, set like the exam PDF's header: "Calendar" in Caveat, tracked tight beside the K logo. */
+@font-face{font-family:'Caveat';font-weight:400;font-display:swap;src:url(fonts/caveat-400.woff2) format('woff2')}
+#site-header .brand,#site-sidebar .brand{font-family:Caveat,"Bradley Hand",cursive;font-weight:400;letter-spacing:-.055em;color:#131c27}
+#site-header .brand{display:inline-flex;align-items:center;gap:7px;text-decoration:none;flex-shrink:0}
 #site-header .brand img{display:block;width:38px;height:38px;border-radius:8px;box-shadow:0 8px 22px rgba(20,33,61,.18)}
 #site-header .brand span{font-size:20px;line-height:1;white-space:nowrap}
 #site-header .header-actions{grid-column:4;grid-row:1;display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:0;margin:0;width:auto}
@@ -30,7 +32,7 @@ body.admin-mode #site-header .calendar-toolbar{display:none}
 body.admin-mode #site-header .search,body.admin-mode #site-header #admin-entry{display:none}
 @media(min-width:761px) and (max-width:1200px){
  #site-header{padding:14px 14px 12px;gap:10px}
- #site-header .brand{gap:8px}
+ #site-header .brand{gap:5px}
  #site-header .brand img{width:30px;height:30px}
  #site-header .brand span{font-size:16px}
  #site-header .section-nav{gap:10px}
