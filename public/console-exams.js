@@ -5,6 +5,7 @@ import {defaultExamSlots,slotOf} from './exam-times.mjs';
 import {importPreview,studentOptions,unresolved} from './exam-import-preview.js';
 import {materialFields,bindMaterials,materialsForm} from './material-input.js';
 import {applySessions,changedFields,withoutRooms} from './exam-schedule-diff.mjs';
+import {scheduleDiff,seatingDiff,seatPlace} from './exam-publish-diff.mjs';
 import {DIVISION_GRADES,gradeLabel,parseGrade} from './grades.mjs';
 import {reviewView} from './ai-review.js';
 import {registerJobKind,jobsOf,startJob,openJob,jobTag,jobStrips,watchJobs,jobAction,discardJob,discardButton,bindDiscard,interrupted} from './console-jobs.js';
@@ -386,14 +387,74 @@ function subjectsDialog(){
  render();
 }
 
-function publishDialog(b,seating){
- const rows=sorted(b.sessions);
- const body=modal(seating?T('座位表发布预览','Seating publish preview'):T('考试安排发布预览','Schedule publish preview'),(seating
+const diffTag=(kind)=>`<span class="tag small ${kind==='removed'?'tag-neutral':kind==='added'?'tag-accent':'tag-outline'}">${{added:T('新增','Added'),removed:T('删除','Removed'),changed:T('修改','Changed')}[kind]}</span>`;
+const FIELD_LABELS={title:['名称','Name'],titleEn:['英文名称','English name'],subject:['学科','Subject'],subjectEn:['学科英文名','Subject (English)'],level:['Level','Level'],division:['学部','Division'],grades:['年级','Grades'],date:['日期','Date'],start:['开始','Start'],end:['结束','End'],rooms:['教室','Rooms'],cancelled:['状态','Status'],note:['备注','Note'],timeSlots:['时间段','Time slots']};
+const fieldLabel=f=>T(...FIELD_LABELS[f]);
+function fieldValue(f,v){
+ if(f==='grades')return (v||[]).map(g=>gradeLabel(g,app.lang)).join(' / ');
+ if(f==='rooms')return (v||[]).join(' / ');
+ if(f==='cancelled')return v?T('已取消','Cancelled'):T('正常','Scheduled');
+ if(f==='division')return v?tx(SCOPES[v]):'';
+ if(f==='date')return v?md(v):'';
+ if(f==='timeSlots')return (v||defaultExamSlots).map(s=>`${s.start}–${s.end}`).join(', ');
+ return String(v??'');
+}
+const fromTo=(f,before,after)=>`<span class="muted">${fieldLabel(f)}</span> <span class="struck">${esc(fieldValue(f,before)||'—')}</span> → ${esc(fieldValue(f,after)||'—')}`;
+const roomSize=r=>`${r.rows} × ${r.columns}`;
+function roomDiffRows(rooms){
+ return [...rooms.added.map(r=>`<div>${diffTag('added')}<span>${T('教室','Room')} ${esc(r.name)}</span><span class="muted">${roomSize(r)}</span></div>`),
+  ...rooms.removed.map(r=>`<div>${diffTag('removed')}<span class="struck">${T('教室','Room')} ${esc(r.name)}</span><span class="muted">${roomSize(r)}</span></div>`),
+  ...rooms.resized.map(({before,after})=>`<div>${diffTag('changed')}<span>${T('教室','Room')} ${esc(after.name)}</span><span class="muted"><span class="struck">${roomSize(before)}</span> → ${roomSize(after)}</span></div>`)];
+}
+const diffBox=rows=>rows.length?`<div class="list-box diff">${rows.join('')}</div>`:`<p class="muted" style="font-size:13px">${T('与已发布版本一致，没有需要发布的修改。','Matches the published version; nothing to publish.')}</p>`;
+const counted=(d,[zh,en])=>[[d.added.length,'新增','added'],[d.changed.length,'修改','changed'],[d.removed.length,'删除','removed']].filter(([n])=>n).map(([n,z,e])=>T(`${z} ${n} ${zh}`,`${n} ${en} ${e}`)).join(T('，',', '));
+
+/** The schedule changes against the published version: batch fields, then sessions and rooms. */
+function scheduleChanges(d){
+ const when=s=>`${esc(md(s.date))} · ${s.start}–${s.end}`;
+ const rows=[
+  ...d.batch.map(c=>`<div>${diffTag('changed')}<span>${fromTo(c.field,c.before,c.after)}</span><span class="muted">${T('批次','Batch')}</span></div>`),
+  ...sorted(d.added).map(s=>`<div>${diffTag('added')}<span><span class="num">${when(s)}</span> · <span class="${s.cancelled?'struck':''}">${esc(sName(s))} · ${esc(fieldValue('grades',s.grades))}</span></span><span>${esc(s.rooms.join(' / '))}</span></div>`),
+  ...[...d.changed].sort((x,y)=>(x.after.date+x.after.start).localeCompare(y.after.date+y.after.start)).map(({before,after,fields})=>`<div>${diffTag('changed')}<span><span class="num">${when(after)}</span> · <span class="${after.cancelled?'struck':''}">${esc(sName(after))}</span>${fields.map(f=>`<span class="diff-line">${fromTo(f,before[f],after[f])}</span>`).join('')}</span><span>${esc(after.rooms.join(' / '))}</span></div>`),
+  ...sorted(d.removed).map(s=>`<div>${diffTag('removed')}<span class="struck"><span class="num">${when(s)}</span> · ${esc(sName(s))}</span><span class="muted">${esc(s.rooms.join(' / '))}</span></div>`),
+  ...roomDiffRows(d.rooms)
+ ];
+ const summary=counted(d,['场考试','sessions']);
+ return (summary?`<p style="font-size:14px">${summary}</p>`:'')+diffBox(rows);
+}
+/** The seating changes against the published seating: rooms, then seats by room. */
+function seatingChanges(b,d){
+ const who=seat=>esc([seat.className,seat.name,seat.englishName].filter(Boolean).join(' '));
+ const place=seat=>esc(seatPlace(seat,app.lang));
+ const byRoom=(x,y)=>x.room.localeCompare(y.room)||(x.row||0)-(y.row||0)||(x.column||0)-(y.column||0);
+ const rows=[
+  ...roomDiffRows(d.rooms),
+  ...[...d.added].sort(byRoom).map(seat=>`<div>${diffTag('added')}<span>${who(seat)} <span class="muted">· ${esc(seatExamName(b,seat))}</span></span><span>${place(seat)}</span></div>`),
+  ...[...d.changed].sort((x,y)=>byRoom(x.after,y.after)).map(({before,after})=>{
+   const moved=seatPlace(before)!==seatPlace(after),linked=before.studentId!==after.studentId;
+   return `<div>${diffTag('changed')}<span>${who(after)} <span class="muted">· ${esc(seatExamName(b,after))}</span>${linked?`<span class="diff-line muted">${after.studentId?T('已关联学生账号','Linked to a student account'):T('取消关联学生账号','Unlinked from the student account')}</span>`:''}</span><span>${moved?`<span class="struck">${place(before)}</span> → `:''}${place(after)}</span></div>`;
+  }),
+  ...[...d.removed].sort(byRoom).map(seat=>`<div>${diffTag('removed')}<span class="struck">${who(seat)} <span class="muted">· ${esc(seatExamName(b,seat))}</span></span><span class="muted">${place(seat)}</span></div>`)
+ ];
+ const summary=counted(d,['个座位','seats']);
+ return (summary?`<p style="font-size:14px">${T('座位：','Seats: ')}${summary}</p>`:'')+diffBox(rows);
+}
+
+async function publishDialog(b,seating){
+ let published;
+ try{published=await api(`/admin/exams/${encodeURIComponent(b.id)}/published`);}catch(error){toast(error.message,{bad:true});return;}
+ b=batch()||b;
+ const rows=sorted(b.sessions),before=seating?published.seating:published.schedule;
+ const full=seating
   ?`<p style="font-size:14px">${T(`共 ${b.sessions.length} 场考试、${b.rooms.length} 间教室、${b.seats.length} 个座位。发布前请在“教室”页逐间核对。`,`${b.sessions.length} sessions across ${b.rooms.length} rooms, ${b.seats.length} seats. Check each room on the Rooms tab before publishing.`)}</p>
-   ${unresolved(b.seats)?`<p class="callout">${T(`${unresolved(b.seats)} 个座位的学生身份不明确（同名学生），发布后这些座位不会关联学生账号。可在“教室”页点击左侧带标记的座位选择学生。`,`${unresolved(b.seats)} seats have namesakes not yet identified; once published they will not be linked to student accounts. On the Rooms tab, click a seat marked on its left edge to choose the student.`)}</p>`:''}
-   ${b.rooms.some(r=>r.sizeReview)?`<p class="callout">${T('标记“尺寸待确认”的教室由座位表自动扩大，请先在“教室”页确认尺寸再发布。','Rooms marked “Check size” were grown to fit the seating sheet; confirm them on the Rooms tab before publishing.')}</p>`:''}
    <div class="list-box rooms">${b.rooms.map(r=>`<div><span style="font-weight:500">${esc(r.name)}</span><span class="muted">${r.rows} × ${r.columns} · ${count(b.sessions.filter(s=>s.rooms.includes(r.name)).length,'场','sessions')} · ${count(b.seats.filter(s=>s.room===r.name).length,'座','seats')}</span>${r.sizeReview?sizeTag():''}</div>`).join('')}</div>`
-  :`<div class="list-box publish">${rows.map(s=>`<div><span class="num">${esc(md(s.date))} · ${s.start}–${s.end}</span><span class="${s.cancelled?'struck':''}">${esc(sName(s))} · ${esc(s.grades.map(g=>gradeLabel(g,app.lang)).join(' / '))}</span><span>${esc(s.rooms.join(' / '))}</span></div>`).join('')||`<div class="muted">${T('暂无考试','No sessions')}</div>`}</div>`)
+  :`<div class="list-box publish">${rows.map(s=>`<div><span class="num">${esc(md(s.date))} · ${s.start}–${s.end}</span><span class="${s.cancelled?'struck':''}">${esc(sName(s))} · ${esc(s.grades.map(g=>gradeLabel(g,app.lang)).join(' / '))}</span><span>${esc(s.rooms.join(' / '))}</span></div>`).join('')||`<div class="muted">${T('暂无考试','No sessions')}</div>`}</div>`;
+ // Once published, the preview lists only what this publish changes.
+ const changes=before&&(seating?seatingChanges(b,seatingDiff(before,b)):scheduleChanges(scheduleDiff(before,b)));
+ const body=modal(seating?T('座位表发布预览','Seating publish preview'):T('考试安排发布预览','Schedule publish preview'),
+  (before?`<p class="muted" style="font-size:13px">${T(`与 ${stamp(before.publishedAt)} 发布的版本相比的修改：`,`Changes since the version published ${stamp(before.publishedAt)}:`)}</p>${changes}`:full)
+ +(seating?`${unresolved(b.seats)?`<p class="callout">${T(`${unresolved(b.seats)} 个座位的学生身份不明确（同名学生），发布后这些座位不会关联学生账号。可在“教室”页点击左侧带标记的座位选择学生。`,`${unresolved(b.seats)} seats have namesakes not yet identified; once published they will not be linked to student accounts. On the Rooms tab, click a seat marked on its left edge to choose the student.`)}</p>`:''}
+   ${b.rooms.some(r=>r.sizeReview)?`<p class="callout">${T('标记“尺寸待确认”的教室由座位表自动扩大，请先在“教室”页确认尺寸再发布。','Rooms marked “Check size” were grown to fit the seating sheet; confirm them on the Rooms tab before publishing.')}</p>`:''}`:'')
  +`<p class="callout">${seating?T('使用学校 Microsoft 账号登录的学生可查看全部已发布座位表。','Students signed in with a school Microsoft account can view all published seating.'):T('时间、教室或取消状态发生变化时，已发布座位表将撤下，需核对后重新发布。','If times, rooms or cancellations change later, published seating is withdrawn and must be re-published.')}</p>
  ${actions({saveLabel:seating?T('确认发布座位表','Publish seating'):T('确认发布考试安排','Publish schedule')})}`,{size:'wide'});
  body.querySelector('[data-save]').onclick=()=>busy(body,async()=>{

@@ -65,6 +65,12 @@ export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,use
   res.set({'Content-Type':'application/pdf','Content-Disposition':`attachment; filename="${name.replace(/[^\x20-\x7e]|"/g,'_')}"; filename*=UTF-8''${encodeURIComponent(name)}`}).send(pdf);
  });
  app.get('/api/admin/exams',requireAdmin,(req,res)=>res.json(db.prepare('SELECT * FROM exam_batches').all().map(info)));
+ // 预览并发布: the published schedule and seating, for the preview to show what the draft changes.
+ app.get('/api/admin/exams/:id/published',requireAdmin,(req,res)=>{
+  const r=row(req.params.id);if(!r)return res.status(404).json({error:'考试批次不存在。'});
+  const seating=r.seating&&JSON.parse(r.seating);
+  res.json({schedule:publicBatch(r),seating:seating?{...seating,seats:seating.seats.map(({matchEmail,...seat})=>seat)}:null});
+ });
  app.delete('/api/admin/exams/:id',requireAdmin,(req,res)=>{
   const r=row(req.params.id);if(conflict(req,res,r))return;
   db.transactionSync(()=>{
