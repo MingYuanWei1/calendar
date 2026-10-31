@@ -7,7 +7,8 @@ import {gradeLabel} from '../public/grades.mjs';
 // Modelled on ManageBac's timetable PDF: A4 landscape, a fixed black-line grid of time slots × exam dates;
 // HEAD_H and ROW_H are its header and period row heights.
 // BOLD is the frame, column and header line width; LABEL is the share of a cell a merged subject's name takes.
-const PAGE=[841.89,595.28],MARGIN=30,TIME_W=56,HEAD_H=14.294,ROW_H=61.75,PAD=4,SIZE=8,FOOTER=7,LINE=0.5,BOLD=1.5,LABEL=0.4;
+// BRAND is the K logo's size in the Keydion header; the wordmark beside it keeps the poster's proportions.
+const PAGE=[841.89,595.28],MARGIN=30,TIME_W=56,HEAD_H=14.294,ROW_H=61.75,PAD=4,SIZE=8,FOOTER=7,LINE=0.5,BOLD=1.5,LABEL=0.4,BRAND=24;
 const WIDTH=PAGE[0]-2*MARGIN,GRID_BOTTOM=PAGE[1]-MARGIN-FOOTER-6;
 const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],WEEKDAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const day=date=>new Date(date+'T12:00:00Z');
@@ -22,7 +23,7 @@ export async function examTimetablePdf(batch,sessions,{scope,grades,name,english
  const batchTitle=english?(batch.titleEn||batch.title):batch.title,grade=g=>gradeLabel(g,1),gradeList=list=>[...list].sort((a,b)=>a-b).map(grade).join(' / ');
  const doc=new PDFDocument({size:PAGE,margin:0,bufferPages:true,autoFirstPage:false,compress:true,info:{Title:batchTitle}}),chunks=[];
  const result=new Promise((resolve,reject)=>{doc.on('data',b=>chunks.push(b));doc.on('end',()=>resolve(Buffer.concat(chunks)));doc.on('error',reject);});
- doc.registerFont('regular',fonts.regular);doc.registerFont('bold',fonts.bold);
+ doc.registerFont('regular',fonts.regular);doc.registerFont('bold',fonts.bold);doc.registerFont('brand',fonts.brand);doc.registerFont('script',fonts.script);
  // Dates are spelled out by hand: ICU builds disagree on month abbreviations ("Sep" vs "Sept").
  const parts=date=>{const d=day(date);return {y:d.getUTCFullYear(),m:d.getUTCMonth(),d:d.getUTCDate(),w:d.getUTCDay()};};
  const longDate=date=>{const p=parts(date);return english?`${p.d} ${MONTHS[p.m]} ${p.y}`:`${p.y}年${p.m+1}月${p.d}日`;};
@@ -30,16 +31,27 @@ export async function examTimetablePdf(batch,sessions,{scope,grades,name,english
  const stamp=value=>{const at=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(value)).map(p=>[p.type,p.value]));return `${longDate(`${at.year}-${at.month}-${at.day}`)} ${at.hour}:${at.minute}`;};
  const examTitle=s=>{const title=english?(s.titleEn||s.title):s.title;return title+(s.level&&!title.includes(s.level)?' '+s.level:'');};
 
- // The heading sits on the first page only.
- doc.addPage();doc.fillColor('black').strokeColor('black').lineWidth(LINE);
+ // The heading sits on the first page only, under the Keydion header: the K logo with rounded corners, then
+ // "Keydion" in Manrope and "Calendar" in Caveat, sized and spaced as on the poster (36px type, -2.2px tracking
+ // beside a 40px logo). Both words sit on one baseline, centred on the logo by Manrope's cap height.
+ doc.addPage();
+ doc.save().roundedRect(MARGIN,MARGIN,BRAND,BRAND,BRAND/5).clip().image(fonts.logo,MARGIN,MARGIN,{width:BRAND,height:BRAND}).restore();
+ const brand={size:BRAND*0.9,characterSpacing:-BRAND*0.055,baseline:'alphabetic',lineBreak:false},word=MARGIN+BRAND*1.275;
+ doc.font('brand').fontSize(brand.size).fillColor('#131c27');
+ const baseline=MARGIN+(BRAND+doc._font.capHeight/1000*brand.size)/2;
+ doc.text('Keydion ',word,baseline,brand);
+ const calendar=word+doc.widthOfString('Keydion ',brand);
+ doc.font('script').text('Calendar',calendar,baseline,brand);
+ doc.fillColor('black').strokeColor('black').lineWidth(LINE);
+ const top=MARGIN+BRAND+14;
  const titles=scope==='mine'?[english?`${name}'s Timetable`:`${name} 的考试安排`,batchTitle]:[scope==='grades'?`${batchTitle} · ${gradeList(grades)}`:batchTitle];
  const range=`${longDate(batch.start)} – ${longDate(batch.end)}`,room=WIDTH-doc.font('regular').fontSize(12).widthOfString(range)-12;
  // A long name or batch title shrinks rather than run into the dates.
  const fitted=(text,size)=>Math.min(size,size*room/doc.fontSize(size).widthOfString(text));
- doc.fontSize(fitted(titles[0],18)).text(titles[0],MARGIN,MARGIN,{lineBreak:false});
- if(titles[1])doc.fontSize(fitted(titles[1],12)).text(titles[1],MARGIN,MARGIN+24,{lineBreak:false});
- doc.fontSize(12).text(range,MARGIN,MARGIN+4,{width:WIDTH,align:'right',lineBreak:false});
- let y=MARGIN+(titles[1]?50:34);
+ doc.fontSize(fitted(titles[0],18)).text(titles[0],MARGIN,top,{lineBreak:false});
+ if(titles[1])doc.fontSize(fitted(titles[1],12)).text(titles[1],MARGIN,top+24,{lineBreak:false});
+ doc.fontSize(12).text(range,MARGIN,top+4,{width:WIDTH,align:'right',lineBreak:false});
+ let y=top+(titles[1]?50:34);
 
  for(const [index,days] of examDatePages(sessions).entries()){
   if(index){doc.addPage();y=MARGIN;}

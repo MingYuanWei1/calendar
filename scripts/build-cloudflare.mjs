@@ -8,6 +8,8 @@ await cp('public','dist/pages',{recursive:true});
 for(const [source,target] of [
   ['@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-400-normal.woff','exam-font-regular.woff'],
   ['@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-700-normal.woff','exam-font-bold.woff'],
+  ['@fontsource/manrope/files/manrope-latin-400-normal.woff','exam-font-brand.woff'],
+  ['@fontsource/caveat/files/caveat-latin-400-normal.woff','exam-font-script.woff'],
   ['html2canvas/dist/html2canvas.min.js','html2canvas.js'],['jspdf/dist/jspdf.umd.min.js','jspdf.js'],
   ['pdfjs-dist/build','pdfjs/build'],['pdfjs-dist/cmaps','pdfjs/cmaps'],['pdfjs-dist/standard_fonts','pdfjs/standard_fonts'],['pdfjs-dist/wasm','pdfjs/wasm']
 ])await cp('node_modules/'+source,'dist/pages/vendor/'+target,{recursive:true});
