@@ -4,7 +4,7 @@ import {pinyin} from 'pinyin-pro';
 
 export const inferAcademicYear=date=>Number(date.slice(0,4))-(Number(date.slice(5,7))<9?1:0);
 export const gradeNumber=value=>{const match=String(value??'').trim().match(/^(?:G|Grade\s*)?(\d{1,2})(?:\.\d+|[A-Z])?$/i);const n=match?Number(match[1]):0;return n>=1&&n<=12?n:null;};
-const namePinyin=name=>/^[\p{Script=Han}]+$/u.test(name)?pinyin(name,{toneType:'none',type:'array',surname:'head'}).join('').replaceAll('ü','v'):'';
+export const namePinyin=name=>/^[\p{Script=Han}]+$/u.test(name)?pinyin(name,{toneType:'none',type:'array',surname:'head'}).join('').replaceAll('ü','v'):'';
 const normalizeEmail=value=>typeof value==='string'?value.trim().toLowerCase():'';
 export function installStudents(app,db,requireAdmin){
  db.exec(`CREATE TABLE IF NOT EXISTS students(id TEXT PRIMARY KEY,body TEXT NOT NULL);

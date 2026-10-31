@@ -11,7 +11,10 @@ import {OVERRIDABLE,addDays,fitsSeries,isSeriesDate,seriesDates} from '../public
 import {installQuota} from './llm-quota.mjs';
 import {installFeeds} from './feeds.mjs';
 import {installNoticeExtract} from './notice-extract.mjs';
-import {installStudentCheck} from './student-check.mjs';
+import {registerStudentCheck} from './student-check.mjs';
+import {installChecks} from './checks.mjs';
+import {registerCalendarChecks} from './calendar-check.mjs';
+import {connection} from './llm-stream.mjs';
 import {installAssistant} from './assistant.mjs';
 import {installStats} from './stats.mjs';
 import {installTerms} from './terms.mjs';
@@ -266,12 +269,20 @@ export function createApi({db,media,installStatic=()=>{},origin,timeZone='Asia/S
   });
   installAccounts(app,db,{requireRole,currentUser:session});
   const jobs=installExtractJobs(app,db,{requireAdmin,quota,user:req=>session(req)||null,llm,runner:extractRunner});
-  const exams=installExams(app,db,{requireAdmin,requireSystemAdmin:requireRole(3),isAdmin:req=>session(req)?.role>=2,user:session,origin,timeZone,llm,jobs});
+  // 核验: reference checks run as extraction jobs; each kind lives beside the data it checks.
+  const checks=installChecks(app,{requireAdmin,jobs});
+  const exams=installExams(app,db,{requireAdmin,requireSystemAdmin:requireRole(3),isAdmin:req=>session(req)?.role>=2,user:session,origin,timeZone,llm,jobs,checks});
   examEvents=exams.events;
   installFeeds(app,db,{user:session,account:schoolAuth.account,origin,timeZone,matching:exams.matching,examEvents,personalEvents:listPersonal});
   installNoticeExtract(app,db,{requireAdmin,llm,timeZone,types:eventTypes.list,jobs});
-  installStudentCheck(app,{requireSystemAdmin:requireRole(3),llm,timeZone,quota,list:exams.students.list});
+  const studentCheck=registerStudentCheck(checks,{isSystemAdmin:req=>session(req)?.role>=3,timeZone,list:exams.students.list});
+  app.get('/api/admin/checks',requireAdmin,(req,res)=>{let configured=true;try{connection(llm);}catch{configured=false;}res.json({configured,academicYear:studentCheck.currentYear()});});
   const terms=installTerms(app,db,{requireAdmin});
+  registerCalendarChecks(checks,{terms:terms.list,
+   events:()=>rowsToEvents(db.prepare('SELECT body FROM events').all()),
+   plans:()=>Object.fromEntries(db.prepare('SELECT date,kind,title,follows FROM day_plans').all().map(plan=>[plan.date,{...plan,title:JSON.parse(plan.title)}])),
+   types:()=>{const list=eventTypes.list();return {ids:list.map(t=>t.id),catalog:Object.fromEntries(list.map(t=>[t.id,t.name.filter(Boolean).join(' / ')]))};},
+   today:()=>new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())});
   installAssistant(app,db,{session,llm,matching:exams.matching,timeZone,quota,personalEvents:listPersonal,terms:terms.list,types:eventTypes.list});
   installStats(app,db,{session,requireAdmin,timeZone});
   installReleaseNotes(app,db,{session,requireSystemAdmin:requireRole(3),secure:base.protocol==='https:',timeZone});

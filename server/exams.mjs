@@ -2,6 +2,7 @@ import {installExamMatching} from './exam-matching.mjs';
 import {installStudents} from './students.mjs';
 import {installExamExtract,prepareSessions,finishSessions,salvageSessions,extractionFailure} from './exam-extract.mjs';
 import {prepareSeats,finishSeats,salvageSeats,seatMode,SEAT_TIMEOUT} from './seat-extract.mjs';
+import {registerExamChecks} from './exam-check.mjs';
 import {installSubjects} from './exam-subjects.mjs';
 import {installSchoolRules} from './school-rules.mjs';
 import express from 'express';
@@ -11,7 +12,7 @@ import {seatTemplate,parseSeats} from './exam-files.mjs';
 import {examTimetablePdf} from './exam-timetable-pdf.mjs';
 import {examPdfName} from '../public/exam-file-name.mjs';
 import {modeConflicts} from '../public/exam-seats.mjs';
-export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,user,origin,timeZone,sso={},llm={},jobs}){
+export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,user,origin,timeZone,sso={},llm={},jobs,checks}){
  db.exec(`CREATE TABLE IF NOT EXISTS exam_batches(id TEXT PRIMARY KEY,version INTEGER NOT NULL,draft TEXT NOT NULL,published TEXT,seating TEXT);
  CREATE TABLE IF NOT EXISTS exam_choices(user_id TEXT NOT NULL,batch_id TEXT NOT NULL,exam_id TEXT NOT NULL,PRIMARY KEY(user_id,batch_id,exam_id));`);
  const students=installStudents(app,db,requireSystemAdmin);
@@ -80,12 +81,17 @@ export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,use
   subjects.register(b.sessions);
   const organized=db.transactionSync(()=>{const value=students.organize(b);db.prepare('INSERT INTO exam_batches VALUES(?,?,?,NULL,NULL)').run(b.id,1,JSON.stringify(value));return value;});res.status(201).json(organized);
  });
+ /** Saves `data` as the draft of batch row `r` (an edit, or a check's corrections); returns an error message or null. */
+ const saveDraft=(r,data)=>{
+  const parsed=batchSchema.safeParse(data);if(!parsed.success)return parsed.error.issues.map(i=>i.message).join('；');
+  const errors=seatErrors(parsed.data);if(errors.length)return errors.join('；');
+  const b={...parsed.data,id:r.id,version:r.version+1,updatedAt:new Date().toISOString()};subjects.register(b.sessions);db.transactionSync(()=>{const value=students.organize(b);db.prepare('UPDATE exam_batches SET version=?,draft=? WHERE id=?').run(b.version,JSON.stringify(value),r.id);});
+  return null;
+ };
  app.put('/api/admin/exams/:id',requireAdmin,(req,res)=>{
   const r=row(req.params.id);if(conflict(req,res,r))return;
-  const parsed=batchSchema.safeParse(req.body);if(!parsed.success)return fail(res,parsed.error.issues.map(i=>i.message).join('；'));
-  const data=parsed.data;
-  const errors=seatErrors(data);if(errors.length)return fail(res,errors.join('；'));
-  const b={...data,id:r.id,version:r.version+1,updatedAt:new Date().toISOString()};subjects.register(b.sessions);db.transactionSync(()=>{const value=students.organize(b);db.prepare('UPDATE exam_batches SET version=?,draft=? WHERE id=?').run(b.version,JSON.stringify(value),r.id);});res.json(info(row(r.id)));
+  const error=saveDraft(r,req.body);if(error)return fail(res,error);
+  res.json(info(row(r.id)));
  });
  app.post('/api/admin/exams/:id/publish',requireAdmin,(req,res)=>{
   const r=row(req.params.id);if(conflict(req,res,r))return;
@@ -143,6 +149,9 @@ export function installExams(app,db,{requireAdmin,requireSystemAdmin,isAdmin,use
  jobs.register('sessions',{...batchScope,itemKey:'sessions',failure:extractionFailure,
   prepare:async(materials,batchId)=>prepareSessions(materials,draftOf(batchId),subjects.list(),schoolRules.get()),
   finish:finishSessions,salvage:salvageSessions});
+ registerExamChecks(checks,{draftOf,save:saveDraft,organize:students.organize,subjects,schoolRules,
+  batches:()=>db.prepare('SELECT * FROM exam_batches').all().map(r=>({row:r,info:info(r),draft:JSON.parse(r.draft),published:publicBatch(r)})),
+  dayOff:date=>db.prepare("SELECT 1 FROM day_plans WHERE date=? AND kind='off'").get(date)!==undefined});
  app.post('/api/admin/exams/:id/student-preview',requireAdmin,(req,res)=>{
   const r=row(req.params.id);if(conflict(req,res,r))return;
   const draft=JSON.parse(r.draft),{rooms,changes}=adaptRooms(draft,Array.isArray(req.body.seats)?req.body.seats.filter(s=>Number.isInteger(s?.row)&&Number.isInteger(s?.column)):[]);

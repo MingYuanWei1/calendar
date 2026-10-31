@@ -202,6 +202,8 @@ export function installExtractJobs(app,db,{requireAdmin,quota,user,llm,runner=lo
  return {
   ops,
   register(kind,task){tasks[kind]=task;},
+  /** A job as `req` may see it: {job (its summary), scope, kind, result, partial, options}, or null. */
+  read(req,id){const r=job(id);if(!r||!allowed(req,r.kind))return null;return {job:summary(r),scope:r.scope,kind:r.kind,result:getJson(id,'result'),partial:getJson(id,'partial'),options:getJson(id,'options')};},
   /** Removes every job of `scope`, e.g. when its exam batch is deleted. */
   forScope:scope=>db.prepare('SELECT id FROM extract_jobs WHERE scope=?').all(scope).forEach(r=>db.transactionSync(()=>remove(r.id)))
  };
