@@ -130,13 +130,13 @@ test('only a published batch exports, and the scope must be named',async()=>{
 
 test('the downloaded file name carries the PDF language and the series name in that language',async()=>{
  let response=await call('/exams/'+batch.id+'/pdf?scope=all&lang=en');assert.equal(response.status,200);
- assert.equal(response.headers.get('content-disposition'),`attachment; filename="exam-schedule-en-Autumn Midterms.pdf"; filename*=UTF-8''${encodeURIComponent('exam-schedule-en-Autumn Midterms.pdf')}`);
+ assert.equal(response.headers.get('content-disposition'),`attachment; filename="en-Autumn Midterms.pdf"; filename*=UTF-8''${encodeURIComponent('en-Autumn Midterms.pdf')}`);
  response=await call('/exams/'+batch.id+'/pdf?scope=all&lang=zh');assert.equal(response.status,200);
- assert.match(response.headers.get('content-disposition'),new RegExp(`filename\\*=UTF-8''${encodeURIComponent('exam-schedule-zh-秋季期中考试.pdf')}$`));
+ assert.match(response.headers.get('content-disposition'),new RegExp(`filename\\*=UTF-8''${encodeURIComponent('zh-秋季期中考试.pdf')}$`));
  response=await call('/exams/'+batch.id+'/pdf?scope=grades&grades=11,10&lang=en');assert.equal(response.status,200);
- assert.match(response.headers.get('content-disposition'),/filename="exam-schedule-G10_G11-en-Autumn Midterms\.pdf"/);
+ assert.match(response.headers.get('content-disposition'),/filename="G10_G11-en-Autumn Midterms\.pdf"/);
  response=await call('/exams/'+batch.id+'/pdf?scope=all&lang=en',student);assert.equal(response.status,200);
- assert.match(response.headers.get('content-disposition'),/filename="exam-schedule-en-Autumn Midterms\.pdf"/);
+ assert.match(response.headers.get('content-disposition'),/filename="en-Autumn Midterms\.pdf"/);
 });
 
 test('whole-school and grade exports merge one grade\'s levels of a subject; my exams keep each exam whole',async()=>{
